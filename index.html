@@ -1041,7 +1041,7 @@
       }
       /* on a phone the race picture fills the column, top to bottom, and the deck floats over it with no panel
          behind it (src/engine/layout.ts), laid out as drawn in the HUD Lab: RESTART and PAUSE in the top corners
-         (the minimap between them), your lap under the minimap, the stick and A along the bottom; the race's own
+         (the stage's km to go between them), the stick and A along the bottom; the race's own
          readouts are placed in src/f1/race.ts (placeHud) */
       html:not(.desktop) #app {
         position: relative;
@@ -1061,13 +1061,11 @@
       html:not(.desktop) #deck button {
         pointer-events: auto;
       }
-      /* your lap (current / total) in a small panel like the timing tower's, under the minimap (your position is
-         in the tower) */
+      /* the stage's km to go in a small panel, at the top between RESTART and PAUSE */
       html:not(.desktop) .strip {
         position: absolute;
-        /* (just under the minimap: race.ts sets its height) */
-        top: calc(18px + var(--mini-h, 96px));
-        left: var(--mini-x, 50%);
+        top: 18px;
+        left: 50%;
         transform: translateX(-50%);
         height: auto;
         padding: 3px 8px;

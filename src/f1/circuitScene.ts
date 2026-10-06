@@ -18,8 +18,6 @@ import { buildSpectators } from './spectators';
 
 export interface CircuitScene extends Daylight {
   scene: THREE.Scene;
-  /** the road scaled into a small canvas, for the minimap */
-  minimap(width: number, height: number): { canvas: HTMLCanvasElement; toMap: (x: number, y: number) => Pt };
   /** Move the scenery on to page time `t` (s): the desert's camels, and the spectators (cheering, or running from the `cars` near them). */
   animate(t: number, cars?: { x: number; y: number; vx: number; vy: number }[]): void;
   /** Show the start clock for `left` seconds to GO (undefined: GO; null: not started). */
@@ -324,7 +322,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, sta
   scene.background = new THREE.Color('#8fb8e8');
   const light = addDaylight(scene);
   light.setSky(weather.sky);
-  const { width: W, height: H, grid, track } = circuit;
+  const { width: W, height: H, grid } = circuit;
 
   const geo = new THREE.PlaneGeometry(W * T, H * T, W, H).rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -343,29 +341,6 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, sta
   // the trees and rocks along the road (its edges: what a car hits), and the forest, mountains or desert past them
   buildForest(scene, circuit);
 
-  const minimap = (mw: number, mh: number) => {
-    const [mc, mx] = canvas(mw, mh);
-    const scale = Math.min((mw - 8) / (W * T), (mh - 8) / (H * T));
-    const toMap = (x: number, y: number) => ({ x: 4 + x * scale, y: 4 + y * scale });
-    mx.strokeStyle = '#f4f2fa';
-    mx.lineWidth = 2;
-    mx.beginPath();
-    track.samples.forEach((p, i) => {
-      const q = toMap(p.x, p.y);
-      if (i) mx.lineTo(q.x, q.y);
-      else mx.moveTo(q.x, q.y);
-    });
-    // (a rally's stage: from its start to its end, not joined up)
-    if (!track.open) mx.closePath();
-    mx.stroke();
-    // (the start line, in gold)
-    const start = track.samples[Math.round((track.stage?.start ?? 0) / track.spacing)];
-    const s = toMap(start.x, start.y);
-    mx.fillStyle = '#f2c14e';
-    mx.fillRect(s.x - 3, s.y - 1, 6, 2);
-    return { canvas: mc, toMap };
-  };
-
   // (in the desert: its camels)
   const camels = circuit.layout.desert ? buildCamels(scene, circuit) : undefined;
   // the start and finish, and the crowds along the road
@@ -377,7 +352,6 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, sta
   return {
     scene,
     ...light,
-    minimap,
     animate: (t, cars = []) => {
       camels?.animate(t);
       crowd.animate(t, lastT === undefined ? 0 : t - lastT, cars);

@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 import type { Button } from '../engine/controls';
-import { applyDamage, carClass, condition, newCar, speedOf, type Car, type StepEvents } from '../engine/driving';
+import { applyDamage, carClass, newCar, speedOf, type Car, type StepEvents } from '../engine/driving';
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { groundAt } from '../engine/sim';
 import { aiInput, keysWheel, newProgress, lineCornerSpeed, lineDecel, playerInput, stageSplits, stickWheel, wheelInput } from './racing';
@@ -156,10 +156,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
 
   // ---------------------------------------------------------------- overlays
   const {
-    readout, mainLines, tyreLine, banner, results, crewCard, weatherTag, mini, miniCtx, pauseScreen, pauseTitle, pauseButton, MINI_W, MINI_H, place: layHud,
-  } = createHud(scheme, difficulty, circuit);
+    readout, mainLines, tyreLine, banner, results, crewCard, weatherTag, pauseScreen, pauseTitle, pauseButton, place: layHud,
+  } = createHud(scheme, difficulty);
   weatherTag.textContent = weather.name;
-  const map = world.minimap(MINI_W * 2, MINI_H * 2);
   // the rush of speed, the rain, and your chequered flag, drawn over the picture (race/screenFx.ts)
   const streaks = createStreaks();
   /** the device asks for less motion: no speed lines */
@@ -192,7 +191,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     }
     bannerShown = { text, drawn: banner.textContent };
   };
-  host.append(paceCard.el, streaks.el, rain.el, readout, banner, results, mini, crewCard, pauseScreen, flagOverlay.el);
+  host.append(paceCard.el, streaks.el, rain.el, readout, banner, results, crewCard, pauseScreen, flagOverlay.el);
   placeHud = (desktop) => {
     phoneHud = !desktop;
     layHud(desktop, host);
@@ -589,10 +588,10 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     document.documentElement.classList.toggle('results-up', resultsUp);
     // (the pause screen too: its buttons and settings rows are tapped)
     document.documentElement.classList.toggle('paused', paused);
-    // on a phone the results have the screen to themselves (no readout or minimap), and the table with the buttons
+    // on a phone the results have the screen to themselves (no readout), and the table with the buttons
     // under it sits in the middle of the screen, top to bottom
     const alone = resultsUp && phoneHud;
-    for (const el of [readout, mini]) el.style.visibility = alone ? 'hidden' : '';
+    readout.style.visibility = alone ? 'hidden' : '';
     if (alone) results.style.top = `${Math.max(8, (host.clientHeight - results.offsetHeight - 64) / 2)}px`;
     else if (results.style.top !== '18%') results.style.top = '18%';
     if (resultsUp) document.documentElement.style.setProperty('--results-bottom', `${results.offsetTop + results.offsetHeight}px`);
@@ -601,7 +600,6 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   // ---------------------------------------------------------------- loop
   const focus = new THREE.Vector3(race.entrants[you].car.x, 0, race.entrants[you].car.y);
   const target = new THREE.Vector3();
-  let miniTime = 0;
   /** the camera held on a point of the map (a debug hook, for looking at the scenery) */
   let lookAt: { x: number; y: number } | undefined;
   /**
@@ -903,16 +901,6 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     paintRows(tyreLine, tyreText(COMPOUNDS[me.tyres.compound].short, me.tyres.wear, !phoneHud));
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
 
-    // minimap, ten times a second
-    miniTime += dt;
-    if (miniTime > 0.1) {
-      miniTime = 0;
-      miniCtx.clearRect(0, 0, mini.width, mini.height);
-      miniCtx.drawImage(map.canvas, 0, 0);
-      const q = map.toMap(me.car.x, me.car.y);
-      miniCtx.fillStyle = condition(me.car) === 'wrecked' ? '#6c707a' : '#f2c14e';
-      miniCtx.fillRect(q.x - 3.5, q.y - 3.5, 7, 7);
-    }
     particles.update(dt);
     debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);
     rain.draw(dt, race.rain);
@@ -1025,7 +1013,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     renderer.forceContextLoss();
     renderer.domElement.remove();
     offBack();
-    for (const el of [paceCard.el, streaks.el, rain.el, readout, banner, results, mini, crewCard, pauseScreen, pauseSettings, flagOverlay.el]) el.remove();
+    for (const el of [paceCard.el, streaks.el, rain.el, readout, banner, results, crewCard, pauseScreen, pauseSettings, flagOverlay.el]) el.remove();
     deckEl?.classList.remove('results-up');
     deckEl?.classList.remove('steer-deck');
     document.documentElement.classList.remove('results-up', 'paused', 'dirt');

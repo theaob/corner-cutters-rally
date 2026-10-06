@@ -1,18 +1,18 @@
-// A stage's HUD, built once: the readout (the stage clock, your car, your tyres
-// and track limits), the banner, the results panel, your crew's card on the
-// line, the minimap, and the pause screen; and where they go on the wide
-// screen and on the phone.
+// A stage's HUD, built once: the readout (the stage clock, your car, your
+// tyres), the banner, the results panel, your crew's card on the line, and the
+// pause screen; and where they go on the wide screen and on the phone. No map:
+// the co-driver's calls are what you drive by.
 
 import type { Difficulty } from '../difficulty';
 import type { Scheme } from '../crews';
 import { style } from './dom';
 import { READOUT_GRID, readoutRun } from './readoutView';
 
-/** The HUD for your car in `scheme`, at `difficulty`, its minimap fitted to a road `width` × `height` (in tiles). */
-export function createHud(scheme: Scheme, difficulty: Difficulty, circuit: { width: number; height: number }) {
+/** The HUD for your car in `scheme`, at `difficulty`. */
+export function createHud(scheme: Scheme, difficulty: Difficulty) {
   const readout = document.createElement('div');
   style(readout, {
-    // (under the minimap's row, along the top on a phone)
+    // (top left; on a phone, down the left under RESTART)
     position: 'absolute', zIndex: '2', padding: '2px 6px', borderRadius: '6px',
     background: 'rgba(21,20,31,.75)', color: '#9d9ab8', font: '12px Silkscreen, monospace', whiteSpace: 'pre',
     // (each line an icon, its label and its value, in columns: readoutView.ts)
@@ -36,9 +36,6 @@ export function createHud(scheme: Scheme, difficulty: Difficulty, circuit: { wid
     boxSizing: 'border-box', overflowY: 'auto',
     background: 'rgba(21,20,31,.92)', color: '#f4f2fa', font: '12px Silkscreen, monospace', display: 'none',
   });
-  // the minimap fits the road in a 136 × 140 box, whatever its shape
-  const miniScale = Math.min(136 / circuit.width, 140 / circuit.height);
-  const MINI_W = Math.round(circuit.width * miniScale);
   // your crew's card on the line: a swatch of your car's paint, gone at GO
   const crewCard = document.createElement('div');
   style(crewCard, {
@@ -54,15 +51,6 @@ export function createHud(scheme: Scheme, difficulty: Difficulty, circuit: { wid
   });
   const weatherTag = document.createElement('span');
   crewCard.append(plate, `YOU · ${difficulty.name} · `, weatherTag);
-  const MINI_H = Math.round(circuit.height * miniScale);
-  const mini = document.createElement('canvas');
-  mini.width = MINI_W * 2;
-  mini.height = MINI_H * 2;
-  style(mini, {
-    position: 'absolute', zIndex: '2', width: `${MINI_W}px`, height: `${MINI_H}px`,
-    background: 'rgba(21,20,31,.6)', borderRadius: '6px',
-  });
-  const miniCtx = mini.getContext('2d')!;
   // the pause screen: resume, restart or leave, by tap or with the deck (A, START, SELECT)
   const pauseScreen = document.createElement('div');
   style(pauseScreen, {
@@ -89,29 +77,18 @@ export function createHud(scheme: Scheme, difficulty: Difficulty, circuit: { wid
     });
     return b;
   };
-  // the wide screen: the readout top left, the minimap top right (TUNE above it). The phone: RESTART and PAUSE in the
-  // top corners (index.html) with the minimap between them, the readout down the left, the stage's km to go under the
-  // minimap, the banner across the middle above the road, and the controls along the bottom
+  // the wide screen: the readout top left. The phone: RESTART and PAUSE in the top corners (index.html) with the
+  // stage's km to go between them, the readout down the left, the banner across the middle above the road, and the
+  // controls along the bottom
   /** Lay the HUD out for the wide screen or the phone, in `host`. */
   const place = (desktop: boolean, host: HTMLElement) => {
     if (desktop) {
       style(readout, { left: '6px', top: '6px', fontSize: '12px', lineHeight: 'normal', width: 'auto' });
-      style(mini, { left: 'auto', right: '6px', top: '40px', transform: 'none', width: `${MINI_W}px`, height: `${MINI_H}px` });
       banner.style.top = '30%';
       results.style.maxHeight = 'calc(82% - 8px)';
       results.style.fontSize = '12px';
     } else {
       style(readout, { left: '12px', top: '48px', fontSize: '10px', lineHeight: '15px', width: '116px', boxSizing: 'border-box' });
-      // the minimap in the middle of the screen, as big as fits beside the readout (and as much again the other side)
-      const SIDE_W = 116;
-      const w = host.clientWidth || 390;
-      const from = 12 + SIDE_W + 8;
-      const to = w - from;
-      const fitMini = Math.min(1, (to - from) / MINI_W);
-      const centre = w / 2;
-      style(mini, { left: `${centre - (MINI_W * fitMini) / 2}px`, right: 'auto', top: '12px', transform: 'none', width: `${MINI_W * fitMini}px`, height: `${MINI_H * fitMini}px` });
-      document.documentElement.style.setProperty('--mini-x', `${centre}px`);
-      document.documentElement.style.setProperty('--mini-h', `${Math.round(MINI_H * fitMini)}px`);
       banner.style.top = '198px';
       // (the table, centred top to bottom with the buttons under it, clear of the stick above and below)
       results.style.maxHeight = 'calc(100% - 2 * var(--deck-cover, 0px) - 80px)';
@@ -119,5 +96,5 @@ export function createHud(scheme: Scheme, difficulty: Difficulty, circuit: { wid
       results.style.fontSize = (host.clientWidth || 390) >= 380 ? '12px' : '11px';
     }
   };
-  return { readout, mainLines, tyreLine, banner, results, crewCard, weatherTag, mini, miniCtx, pauseScreen, pauseTitle, pauseButton, MINI_W, MINI_H, place };
+  return { readout, mainLines, tyreLine, banner, results, crewCard, weatherTag, pauseScreen, pauseTitle, pauseButton, place };
 }
