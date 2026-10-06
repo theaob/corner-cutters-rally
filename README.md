@@ -34,7 +34,7 @@ The same seed always gives the same stage, grown the first time it's driven. The
 
 **Surfaces** (`src/f1/circuitScene.ts`):
 
-- **Gravel:** wet, dark earth with ruts, clods and puddles; berms for edges and hay bales for barriers; in a forest, or out on the moor.
+- **Gravel:** wet, dark earth with ruts, clods and puddles; berms for edges; in a forest, or out on the moor.
 - **Snow:** packed snow and ice, snow banks and walls of snow, in the mountains among snow-laden spruces.
 - **Sand:** a sandy road with drifted-sand berms, in the desert, with palms and camels.
 - **Tarmac:** white edge lines and red-and-white kerbs, through the forest or up the mountains.
@@ -44,7 +44,7 @@ On gravel, snow and sand the car runs off-road tyres and slides; on tarmac it gr
 ### Driving a stage
 
 - **The start:** you stand on the line for a countdown (5, 4, 3, 2, 1), then GO. The clock runs from GO to the flying finish, and the panel under the minimap counts down the km to go. Going before GO is a jump start (+5 s); a quick reaction after it gets a GOOD or GREAT LAUNCH.
-- **Cutting corners:** a cut across a marked corner (its yellow-and-black strip) is a warning, then +5 s a time.
+- **No track limits:** the road's edges are what stands beside it. Past a narrow verge kept clear, the treeline (in the desert, a line of rocks) comes in and out along the road: closer on the inside of tight bends, so they can't be cut far, and further out on their outsides, where cars run wide. Here and there a tree or rock stands alone in front of it, most often at a tight bend's apex. All of them are solid (`ROADSIDE` in `src/f1/circuit.ts`, drawn by `roadsideOf` in `src/f1/forest3d.ts`).
 - **Splits:** at each third of the stage you get your time against the stage's quickest crew, and where that puts you (SPLIT 1 · 0:27.62 · −0.31 · P1).
 - **The finish:** past the flying finish the car brakes to the stop by itself. A few seconds later the stage's times come up (every crew, the gap to the quickest, and what went wrong for any), then the rally's standings after it. NEXT goes home.
 - **Damage carries over:** your car starts each stage as the last one left it, until the service park after the stage the rally names puts it right. Wreck it and you're out of the stage: you get the slowest time on it plus 60 s, and the crew patch the car up to half health so you can go on.
@@ -93,11 +93,13 @@ All are remembered.
 
 **The pause screen** has RESUME, RESTART, SETTINGS, REPORT and EXIT. EXIT asks first (THE STAGE WON'T COUNT). Leaving the app or tab pauses too. In the Android app the phone's back button pauses a stage, resumes from the pause screen, and on home says PRESS BACK AGAIN TO EXIT.
 
+**Crashes** (`src/engine/driving.ts`): a car is a rigid body, with a mass and a turning inertia from its size. It bounces off a tree or rock in the direction it hit: a hit head-on takes the full force, and a glancing one scrapes along with friction. Damage depends on how hard the car hits straight into something, so a scrape costs speed but not health. A hit off the car's middle, from a tree or another car, spins it, and the tyres soon catch the spin. A hard side-on hit, or sliding sideways into soft ground fast enough to dig in, rolls the car over once or twice, and the roof takes a knock each time. A wreck coasts to a stop rather than halting dead. The numbers are in `IMPACT`.
+
 **Feel:** the camera shakes on hits, landings and rough ground, and a big hit stops time for a moment. Sparks fly off hits, mud and dust off a dirt road, and spray off a wet one. Streaks of speed flow past near top speed, and the car buzzes in your hand on hits and rough ground (`src/f1/shake.ts`, `src/f1/rumble.ts`).
 
 **Sound and music:** sound is synthesised with Web Audio (`src/engine/audio.ts`, `src/f1/sounds.ts`): the engine, tyre squeal, rough ground and gravel, hits and scrapes, rain, the countdown's beeps, and a fanfare at your flag. The theme plays at home and the stage's own track on the road (`public/music/`, `src/f1/music.ts`).
 
-**Cameras:** the default is the game's HD-2D view (high, north up). To try others on a stage, add `&cam=` to the address: `heading` (turns with the car), `road` (turns with the road ahead), `chase` (low, behind the car), `bonnet` or `iso` (a fixed diagonal).
+**Cameras:** the default is the chase camera (low, behind the car). To try others on a stage, add `&cam=` to the address: `classic` (the HD-2D view, high, north up), `heading` (turns with the car), `road` (turns with the road ahead), `bonnet` or `iso` (a fixed diagonal).
 
 **Fixed-step simulation:** the stage runs in steps of exactly 1/60 s, however fast or slow the screen draws (`src/engine/fixedStep.ts`), so a run comes out the same on any screen and in the headless tests.
 
@@ -172,7 +174,7 @@ src/
     crews.ts      Paint schemes and the rival crews
     paceNotes.ts  The co-driver's notes, read off the road
     race.ts       A stage: the countdown, splits, finish and results, the controls lap, the loop, the camera
-    raceControl.ts  A step of the stage: driving, contact, progress, track limits, damage, wrecks, weather
+    raceControl.ts  A step of the stage: driving, contact, progress, damage, wrecks, weather
     circuit.ts, circuitScene.ts, forest3d.ts, camels.ts   The road's map, and the stage in 3D with its scenery
     menu.ts       Option rows, buttons and the settings screen
     race/         The stage's HUD, readout, banner, deck labels, co-driver card and results, the cars drawn

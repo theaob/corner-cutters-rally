@@ -16,7 +16,6 @@ import { NORMAL, handlingFor, type Difficulty } from './difficulty';
 import { DRY, lookAt as weatherLook, type Weather } from './weather';
 import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
-import { LIMITS } from './trackLimits';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { driveStyle, pointsOn } from './driveStyle';
 import { LIGHTS, newRace, running, stepRace, type Race, type RaceEvent } from './raceControl';
@@ -46,7 +45,7 @@ import { createCircuitScene } from './circuitScene';
 import { createHud } from './race/hud';
 import { kmOf, track as noteStat } from './metrics';
 import { drawCars, type CarLook } from './race/drawCars';
-import { limitsText, readoutText, tyreText } from './race/readout';
+import { readoutText, tyreText } from './race/readout';
 import { paintRows } from './race/readoutView';
 import { bannerMessage, evenLines } from './race/banner';
 import { motionReduced, splitColor } from './access';
@@ -153,7 +152,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
 
   // ---------------------------------------------------------------- overlays
   const {
-    readout, mainLines, tyreLine, limitsLine, banner, results, crewCard, weatherTag, mini, miniCtx, pauseScreen, pauseTitle, pauseButton, MINI_W, MINI_H, place: layHud,
+    readout, mainLines, tyreLine, banner, results, crewCard, weatherTag, mini, miniCtx, pauseScreen, pauseTitle, pauseButton, MINI_W, MINI_H, place: layHud,
   } = createHud(scheme, YOUR_NUMBER, difficulty, circuit);
   weatherTag.textContent = weather.name;
   const map = world.minimap(MINI_W * 2, MINI_H * 2);
@@ -262,6 +261,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   let session: 'rally' | 'tutorial' = mode;
   /** the controls lap: the prompt you're on, the bends you've been through, and where you were last frame */
   let learn: { o: Onboarding; bends: number; lastIdx: number } | undefined;
+  /** the controls lap's bends (their middles, as samples) */
+  let tutorApexes: number[] = [];
   /**
    * a rally's stage: the co-driver's notes, the reference run (its time and splits: the rivals' are off it), the splits
    * passed, and once it's over its result (when, your time, your place on it)
@@ -355,6 +356,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     onTheLine(-LIGHTS, 1);
     learn = { o: newOnboarding(), bends: 0, lastIdx: race.entrants[0].progress.idx };
     tutorCaller = newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at)));
+    // (the bends, for the prompts that wait for one: the middle of each the co-driver calls)
+    tutorApexes = tutorCaller.notes.filter((n) => n.dir).map((n) => Math.round((n.at + n.end) / 2 / track.spacing));
   };
   /** Your place among the crews at time `x` on the stage, against their times scaled to the same share of it (`share`: of the reference's). */
   const placeAt = (x: number, share: (time: number) => number) =>
@@ -602,13 +605,13 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   /** the camera held on a point of the map (a debug hook, for looking at the scenery) */
   let lookAt: { x: number; y: number } | undefined;
   /**
-   * CAMERAS to try out with ?cam=: classic (the HD-2D view, north up: the game's own), heading (the same, turned with
-   * the car so it drives up the screen), road (turned with the road ahead instead, steady through a slide), chase (low,
-   * behind the car), bonnet (from the front of the car) and iso (a fixed diagonal)
+   * The cameras, chase (low, behind the car) unless another is tried out with ?cam=: classic (the HD-2D view, north
+   * up), heading (the same, turned with the car so it drives up the screen), road (turned with the road ahead instead,
+   * steady through a slide), bonnet (from the front of the car) and iso (a fixed diagonal)
    */
   const CAMERAS = ['classic', 'heading', 'road', 'chase', 'bonnet', 'iso'];
-  const camParam = new URLSearchParams(window.location.search).get('cam') ?? 'classic';
-  const camMode = CAMERAS.includes(camParam) ? camParam : 'classic';
+  const camParam = new URLSearchParams(window.location.search).get('cam') ?? 'chase';
+  const camMode = CAMERAS.includes(camParam) ? camParam : 'chase';
   /** the way a turning camera looks (eased), radians */
   let camYaw: number | undefined;
   const setFov = (fov: number) => {
@@ -746,7 +749,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     // (through a big hit's hit-stop, at a crawl)
     const { steps, alpha } = advance(simClock, dt * timeScale(shake));
     const raceEvents: RaceEvent[] = [];
-    const cars: StepEvents[] = race.entrants.map(() => ({ damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 }));
+    const cars: StepEvents[] = race.entrants.map(() => ({ damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0, impact: 0, scrape: 0, rolledNow: false, rolling: false }));
     const brakes = (car: Car) => wheelInput({ turn: 0, gas: 0, brake: 1, drift: false }, car);
     for (let k = 0; k < steps; k++) {
       before = race.entrants.map((e) => ({ x: e.car.x, y: e.car.y, z: e.car.z, heading: e.car.heading }));
@@ -772,7 +775,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       const p = me.progress;
       me.tyres.wear = 0;
       fitTyres(me.tyres, me.car, race.wetness);
-      learn.bends += apexesPassed(race.corners.map((c) => c.apex), learn.lastIdx, p.idx, track.samples.length);
+      learn.bends += apexesPassed(tutorApexes, learn.lastIdx, p.idx, track.samples.length);
       learn.lastIdx = p.idx;
       const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: pad.b, canDrift: device() !== 'touch', lapDone: pastFinish() };
       if (nextPrompt(learn.o, facts)) sounds.record();
@@ -797,7 +800,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       else if (lost > 0.5) sounds.hit(Math.min(1, 0.25 + lost / 15));
       // (and the scrape of metal with the sparks)
       if (lost > 0.5 || ev.landed > 160) sounds.scrape(Math.min(1, 0.3 + Math.max(lost, 0) / 10));
-      else if (ev.landed > 160) sounds.hit(0.3);
+      // (a scrape along a tree or rock: quieter the gentler it is)
+      else if (ev.scrape > 60 && Math.random() < dt * 6) sounds.scrape(Math.min(0.5, ev.scrape / 600));
       if (!running(me) || me.car.wrecked) sounds.quiet();
       else {
         const f = { x: Math.sin(me.car.heading), y: -Math.cos(me.car.heading) };
@@ -809,10 +813,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     }
     for (const e of raceEvents) {
       if (e.kind === 'lights-out') sounds.go();
-      else if (e.kind === 'track-limits' && e.who === you && session === 'tutorial') announce("THAT'S A CUT: ON A STAGE, A WARNING, THEN +5 S", '#d8323c', 3);
-      else if (e.kind === 'track-limits' && e.who === you) {
-        announce(e.seconds ? `CUT · +${e.seconds} S` : `CUT · WARNING ${e.strike}/${LIMITS.warnings}`, e.seconds ? '#d8323c' : '#f2c14e', 2.5);
-        sounds.trackLimits(e.seconds > 0);
+      else if (e.kind === 'roll' && e.who === you) {
+        announce('ROLLED IT!', '#d8323c', 2);
+        sounds.hit(0.8);
       }
       // a big crash tears the bumper off (the car keeps going, if it can); a wreck loses a wheel or two as well
       else if (e.kind === 'crash') {
@@ -898,9 +901,6 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     paintRows(mainLines, readoutText({ time: stageTime, best, health: me.car.health / me.car.cls.health, wrecked: me.car.wrecked }));
     paintRows(tyreLine, tyreText(COMPOUNDS[me.tyres.compound].short, me.tyres.wear, !phoneHud));
     tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
-    const strikes = me.limits.strikes;
-    paintRows(limitsLine, limitsText(strikes));
-    limitsLine.style.color = strikes > LIMITS.warnings ? '#d8323c' : '#f2c14e';
 
     // minimap, ten times a second
     miniTime += dt;
@@ -939,7 +939,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const rushWant = running(me) ? rushOf(speedOf(me.car), me.car.cls.topSpeed) : 0;
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
     const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / t.zoom) * (1 + RUSH.pullBack * rushNow);
-    // (?cam= tries out another camera while following your car: CAMERAS)
+    // (the chase camera, or another tried out with ?cam=: CAMERAS; held on a point of the map, the classic view)
     const mode = lookAt ? 'classic' : camMode;
     if (mode === 'classic') {
       setFov(LOOK.fov);

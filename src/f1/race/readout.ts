@@ -1,11 +1,10 @@
 // The readout's lines (the panel top left on a wide screen, down the left on a
 // phone): the stage clock and your best time on the stage, your car's health
-// and tyres as five blocks each, and track-limits strikes; each line a row of an
+// and tyres as five blocks each; each line a row of an
 // icon, its label and its value (readoutRows), the values lined up in a column
 // of their own. Engine-free.
 
 import { formatTime as fmt } from '../time';
-import { LIMITS } from '../trackLimits';
 import type { IconName } from './icons';
 
 /** Five blocks, `share` (0…1) of them filled. */
@@ -32,10 +31,6 @@ export function tyreText(short: string, wear: number, showShare: boolean): strin
   return `TYRE ${short} ${blocks(left)}${showShare ? ` ${Math.round(left * 100)}%` : ''}\n${wear >= 0.7 ? 'WORN\n' : ''}`;
 }
 
-/** Track limits: your strikes while they're warnings, then the seconds they've cost. */
-export const limitsText = (strikes: number) =>
-  strikes ? `LIMITS ${strikes > LIMITS.warnings ? `+${(strikes - LIMITS.warnings) * LIMITS.penalty}S` : `${strikes}/${LIMITS.warnings}`}\n` : '';
-
 /** A line of the readout as its row: an icon, the label, the value; `span`: label and value as one, across both columns (a long label, on a narrow phone). */
 export interface ReadoutRow {
   icon?: IconName;
@@ -46,10 +41,10 @@ export interface ReadoutRow {
 
 /** Each label's icon. */
 const LABEL_ICON: Record<string, IconName> = {
-  TIME: 'watch', BEST: 'star', CAR: 'car', TYRE: 'tyre', LIMITS: 'warn',
+  TIME: 'watch', BEST: 'star', CAR: 'car', TYRE: 'tyre',
 };
 /** labels longer than the label column has room for on a phone: label and value as one, across both columns */
-const SPANS = new Set(['LIMITS']);
+const SPANS = new Set<string>();
 
 /**
  * The readout's `text` (the lines above) as its rows: each line's first word its label (with its icon; ▲ and ▼, the

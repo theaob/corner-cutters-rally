@@ -1,8 +1,14 @@
-// Driving rules: the F1 car's numbers, loose arcade
-// handling (heading and velocity differ while sliding), wall and vehicle-vs-
-// vehicle collisions, damage, fire and wrecks. Engine-free and unit-tested.
+// Driving rules: the car's numbers, loose arcade handling (heading and
+// velocity differ while sliding), and the crashes: a car is a rigid body (its
+// mass, and a turning inertia from its size), so a hit off its middle spins it,
+// it bounces off a tree or a rock along the way it hit (hard on its nose, a
+// scrape along it side-on, friction slowing it), and car-on-car hits trade
+// spin as well as speed. Hit something side-on hard enough, or slide sideways
+// into soft ground fast enough to dig in, and it rolls. Damage comes from how
+// hard a hit is straight into what it hit; then fire and wrecks. Engine-free
+// and unit-tested.
 
-import { circleBlocked, groundAt, isRough, moveCircle, type Grid } from './sim';
+import { circleBlocked, circleContact, groundAt, isRough, type Grid } from './sim';
 
 export type CarClassId = 'f1';
 
@@ -218,7 +224,37 @@ export interface Car {
   tyreGrip?: number;
   /** the share of its top speed the car can reach (worn tyres can't put the power down); unset = 1 */
   speedScale?: number;
+  /** rad/s the body is spinning at, clockwise (from a hit; the tyres soon stop it on the ground); unset = 0 */
+  spin?: number;
+  /** a roll in progress: radians still to go (signed: + over to the right); and the body's roll so far (0: on its wheels) */
+  rolling?: number;
+  rolled?: number;
 }
+
+/**
+ * The crashes (see the top). Off a tree or rock: `bounce` (restitution: how much of the speed straight into it comes
+ * back) and `friction` (scraping along it). Spin: dies away at `spinGrip` per second on the ground (the tyres), at
+ * `spinAir` in the air. Rolls: a side-on hit at `rollFrom` px/s or more, or sliding sideways at `digFrom` px/s or more
+ * on soft ground; a roll is one turn over, or two from a hit `twiceFrom` px/s or harder, at `rollRate` rad/s, each
+ * time over the roof doing `roofDamage` and its speed scrubbed at `rollDrag` px/s² meanwhile.
+ */
+export const IMPACT = {
+  bounce: 0.3,
+  friction: 0.45,
+  carBounce: 0.3,
+  carFriction: 0.3,
+  spinGrip: 4,
+  spinAir: 0.3,
+  rollFrom: 200,
+  digFrom: 250,
+  twiceFrom: 300,
+  rollRate: 9,
+  roofDamage: 6,
+  rollDrag: 260,
+};
+
+/** A body's turning inertia: a box its size, of its mass. */
+export const inertiaOf = (cls: VehicleStats) => (cls.mass * (cls.width ** 2 + cls.length ** 2)) / 12;
 
 export type CarCondition = 'ok' | 'smoking' | 'burning' | 'wrecked';
 
@@ -265,6 +301,14 @@ export interface StepEvents {
   airborne: boolean;
   /** downward speed (px/s) on the step the car landed; 0 otherwise */
   landed: number;
+  /** px/s straight into the hardest thing it hit this step (0: none) */
+  impact: number;
+  /** px/s it slid along something it touched this step (0: none) */
+  scrape: number;
+  /** true on the step a roll began */
+  rolledNow: boolean;
+  /** mid-roll */
+  rolling: boolean;
 }
 
 export const forwardOf = (h: number) => ({ x: Math.sin(h), y: -Math.cos(h) });
@@ -303,24 +347,59 @@ export function distToBody(car: Car, p: { x: number; y: number }): number {
 const bodyBlocked = (grid: Grid, car: Car, heading: number) =>
   bodyCircles(car, heading).some((c) => circleBlocked(grid, c.x, c.y, c.r));
 
-/** Move the whole body by (dx, dy): each axis goes as far as the most blocked circle allows. */
-function moveBody(grid: Grid, car: Car, dx: number, dy: number) {
-  let mx = dx;
-  let my = dy;
-  let hitX = false;
-  let hitY = false;
-  for (const c of bodyCircles(car)) {
-    // a circle already overlapping a wall (spawned or pushed there) doesn't hold the body back
-    if (circleBlocked(grid, c.x, c.y, c.r)) continue;
-    const m = moveCircle(grid, c.x, c.y, dx, dy, c.r);
-    const ox = m.x - c.x;
-    const oy = m.y - c.y;
-    if (Math.abs(ox) < Math.abs(mx)) mx = ox;
-    if (Math.abs(oy) < Math.abs(my)) my = oy;
-    hitX ||= m.hitX;
-    hitY ||= m.hitY;
+/** Push `car` by impulse (jx, jy) at (rx, ry) from its middle: its speed by the impulse over its mass, its spin by the turn it gives over its inertia. */
+function push(car: Car, jx: number, jy: number, rx: number, ry: number) {
+  car.vx += jx / car.cls.mass;
+  car.vy += jy / car.cls.mass;
+  car.spin = (car.spin ?? 0) + (rx * jy - ry * jx) / inertiaOf(car.cls);
+}
+
+/** The speed of the point (rx, ry) from `car`'s middle: its own, and its spin's. */
+const pointVelocity = (car: Car, rx: number, ry: number) => ({ x: car.vx - (car.spin ?? 0) * ry, y: car.vy + (car.spin ?? 0) * rx });
+
+/**
+ * Get the body out of any solid tile it's in, and bounce it off: for each contact, an impulse straight out (with
+ * IMPACT.bounce) and friction along it (IMPACT.friction), both at the point touched, so a hit off the middle spins
+ * it. Gives back the hardest hit (px/s straight in), the fastest scrape along, and the way out of the hardest.
+ */
+function resolveContacts(car: Car, grid: Grid) {
+  const m = car.cls.mass;
+  const I = inertiaOf(car.cls);
+  let impact = 0;
+  let scrape = 0;
+  let normal: { x: number; y: number } | undefined;
+  for (let pass = 0; pass < 3; pass++) {
+    let touched = false;
+    for (const c of bodyCircles(car)) {
+      const k = circleContact(grid, c.x, c.y, c.r);
+      if (!k) continue;
+      touched = true;
+      car.x += k.nx * k.depth;
+      car.y += k.ny * k.depth;
+      const rx = k.px - car.x;
+      const ry = k.py - car.y;
+      const v = pointVelocity(car, rx, ry);
+      const vn = v.x * k.nx + v.y * k.ny;
+      if (vn >= 0) continue;
+      const rn = rx * k.ny - ry * k.nx;
+      const j = (-(1 + IMPACT.bounce) * vn) / (1 / m + (rn * rn) / I);
+      push(car, j * k.nx, j * k.ny, rx, ry);
+      if (-vn > impact) [impact, normal] = [-vn, { x: k.nx, y: k.ny }];
+      // friction: along the surface, against the slide, no more than the hit allows
+      const tx = v.x - vn * k.nx;
+      const ty = v.y - vn * k.ny;
+      const vt = Math.hypot(tx, ty);
+      if (vt < 1e-6) continue;
+      scrape = Math.max(scrape, vt);
+      const ux = tx / vt;
+      const uy = ty / vt;
+      const rt = rx * uy - ry * ux;
+      const jt = Math.min(IMPACT.friction * j, vt / (1 / m + (rt * rt) / I));
+      push(car, -jt * ux, -jt * uy, rx, ry);
+    }
+    if (!touched) break;
   }
-  return { x: car.x + mx, y: car.y + my, hitX, hitY };
+  return { impact, scrape, normal };
 }
 
 export function angleDiff(target: number, current: number): number {
@@ -346,7 +425,7 @@ export function applyDamage(car: Car, amount: number, p: HandlingParams): boolea
 /** One driving step. Mutates and returns `car`. `input` is ignored for wrecked cars. */
 export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: number, grid: Grid): StepEvents {
   const onRough = !car.airborne && isRough(grid, car.x, car.y);
-  const events: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough, airborne: car.airborne, landed: 0 };
+  const events: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough, airborne: car.airborne, landed: 0, impact: 0, scrape: 0, rolledNow: false, rolling: !!car.rolling };
   // no time passed (a first frame can report 0, or even a little less): nothing moves
   if (!(dt > 0)) return events;
   const cls = car.cls;
@@ -362,6 +441,10 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
   // rough ground drags a car down to its off-road speed quickly (but not in one frame)
   const drag = onRough ? Math.max(p.drag, brake * 0.5) : p.drag;
   const slope = groundAt(grid, car.x, car.y);
+  // mid-roll: nothing the driver does counts, and it slides on its side and roof
+  const tumbling = !!car.rolling;
+  // a spin (from a hit) turns the body, and not its momentum: what's now sideways is a slide
+  if (car.spin) car.heading += car.spin * dt;
 
   const f = forwardOf(car.heading);
   const r = rightOf(car.heading);
@@ -372,11 +455,12 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
 
   // in the air: no steering, throttle or grip; momentum carries the car
   const grounded = !car.airborne;
-  const steer = car.wrecked || !grounded ? undefined : input.steer;
+  const driven = !car.wrecked && grounded && !tumbling;
+  const steer = driven ? input.steer : undefined;
   const mag = steer ? Math.min(1, Math.hypot(steer.x, steer.y)) : 0;
-  const handbrake = !car.wrecked && grounded && input.handbrake;
-  const braking = !car.wrecked && grounded && input.brake === true;
-  const wheel = car.wrecked || !grounded ? undefined : input.wheel;
+  const handbrake = driven && input.handbrake;
+  const braking = driven && input.brake === true;
+  const wheel = driven ? input.wheel : undefined;
 
   if (!grounded) {
     // keep fwd and side as they are
@@ -433,13 +517,15 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
       fwd = toward(fwd, 0, brake);
     }
   } else {
-    fwd = toward(fwd, 0, car.wrecked ? brake * 2 : drag);
+    // (a wreck coasts to a stop, sliding on what's left of it)
+    fwd = toward(fwd, 0, car.wrecked ? brake * 0.6 : drag);
   }
   const nf = forwardOf(car.heading);
   const nr = rightOf(car.heading);
   if (grounded) {
     if (handbrake) fwd = toward(fwd, 0, brake * 0.5);
     if (braking) fwd = toward(fwd, 0, brake);
+    if (tumbling) fwd = toward(fwd, 0, IMPACT.rollDrag);
     // slopes: gravity along the slope works against (or with) the engine, so how steep a
     // climb a vehicle manages comes from its torque and mass; across the slope (a banked
     // turn) it pushes the car toward the low side, the inside of the bend
@@ -452,7 +538,7 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
     // a little overspeed is allowed rolling downhill; rolling back off a slope can beat reversing speed
     fwd = Math.max(-cls.topSpeed * 0.6, Math.min(cls.topSpeed * 1.25, fwd));
 
-    const gripShare = (0.5 + 0.5 * rough) * (handbrake ? p.handbrakeGrip : 1) * (car.wrecked ? 3 : 1);
+    const gripShare = (0.5 + 0.5 * rough) * (handbrake ? p.handbrakeGrip : 1) * (car.wrecked ? 1.5 : 1) * (tumbling ? 0.4 : 1);
     const grip = cls.grip * (car.tyreGrip ?? 1) * gripShare;
     // the slide fades as the tyres bite, but they can only push so hard sideways
     const bite = side * (1 - Math.exp(-grip * dt));
@@ -466,20 +552,55 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
 
   car.vx = nf.x * fwd + nr.x * side;
   car.vy = nf.y * fwd + nr.y * side;
+  // the spin dies away: on the ground the tyres stop it, in the air (or rolling) hardly anything does
+  if (car.spin) {
+    car.spin *= Math.exp(-(grounded && !tumbling ? IMPACT.spinGrip : IMPACT.spinAir) * dt);
+    if (Math.abs(car.spin) < 0.01) car.spin = 0;
+  }
 
-  const moved = moveBody(grid, car, car.vx * dt, car.vy * dt);
-  car.x = moved.x;
-  car.y = moved.y;
-  let impact = 0;
-  if (moved.hitX) {
-    impact = Math.max(impact, Math.abs(car.vx));
-    car.vx *= -0.25;
+  // moved on (in steps short enough that nothing's passed through), each step out of whatever it ran into, bounced off it
+  const steps = Math.max(1, Math.ceil((speedOf(car) * dt) / (cls.width * 0.4)));
+  let hit: ReturnType<typeof resolveContacts> = { impact: 0, scrape: 0, normal: undefined };
+  for (let k = 0; k < steps; k++) {
+    car.x += (car.vx * dt) / steps;
+    car.y += (car.vy * dt) / steps;
+    const h = resolveContacts(car, grid);
+    hit = { ...(h.impact > hit.impact ? h : hit), scrape: Math.max(hit.scrape, h.scrape) };
   }
-  if (moved.hitY) {
-    impact = Math.max(impact, Math.abs(car.vy));
-    car.vy *= -0.25;
+  events.impact = hit.impact;
+  events.scrape = hit.scrape;
+  // (the damage: from how hard it hit, straight into it; a scrape along does none)
+  let damage = Math.max(0, hit.impact - p.crashThreshold) * p.crashDamage;
+
+  // a roll: hit side-on hard, or sliding sideways into soft ground fast enough to dig in; over the way it was going
+  if (!car.rolling && !car.wrecked && !car.airborne) {
+    const right = rightOf(car.heading);
+    const across = hit.normal ? hit.normal.x * right.x + hit.normal.y * right.y : 0;
+    const sideHit = hit.impact * Math.abs(across);
+    const sideways = car.vx * right.x + car.vy * right.y;
+    const dig = onRough && Math.abs(sideways) >= IMPACT.digFrom;
+    if (sideHit >= IMPACT.rollFrom || dig) {
+      const way = sideHit >= IMPACT.rollFrom ? -Math.sign(across) : Math.sign(sideways);
+      const turns = Math.max(sideHit, Math.abs(sideways)) >= IMPACT.twiceFrom ? 2 : 1;
+      car.rolling = way * turns * Math.PI * 2;
+      car.rolled = 0;
+      events.rolledNow = true;
+    }
   }
-  let damage = Math.max(0, impact - p.crashThreshold) * p.crashDamage;
+  if (car.rolling) {
+    const turn = Math.sign(car.rolling) * Math.min(Math.abs(car.rolling), IMPACT.rollRate * dt);
+    const roofs = (a: number) => Math.floor((Math.abs(a) + Math.PI) / (Math.PI * 2));
+    const was = car.rolled ?? 0;
+    car.rolled = was + turn;
+    car.rolling -= turn;
+    // (each time over onto its roof)
+    if (roofs(car.rolled) > roofs(was)) damage += IMPACT.roofDamage;
+    if (Math.abs(car.rolling) < 1e-9) {
+      car.rolling = undefined;
+      car.rolled = 0;
+    }
+  }
+  events.rolling = !!car.rolling;
 
   // height: follow the ground, take off when it falls away faster than gravity pulls, land hard
   const under = groundAt(grid, car.x, car.y);
@@ -533,20 +654,23 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
 }
 
 /**
- * Resolve a hit between two vehicles (their body circles, 1 px fatter): push
- * them apart, exchange momentum by mass, and damage both by the closing speed.
+ * Resolve a hit between two vehicles (their body circles, 1 px fatter): push them apart, then an impulse between
+ * them at the point they touch (with IMPACT.carBounce, and friction along it), so they trade spin as well as speed by
+ * their masses and inertias: a tap on the rear quarter turns a car round. Damages both by the closing speed.
  * Returns the closing speed (0 when they weren't colliding).
  */
 export function collideCars(a: Car, b: Car, p: HandlingParams): number {
   // the deepest-overlapping pair of body circles decides the contact
-  let best: { nx: number; ny: number; overlap: number } | undefined;
+  let best: { nx: number; ny: number; overlap: number; px: number; py: number } | undefined;
   for (const ca of bodyCircles(a)) {
     for (const cb of bodyCircles(b)) {
       const dx = cb.x - ca.x;
       const dy = cb.y - ca.y;
       const d = Math.hypot(dx, dy);
       const overlap = ca.r + cb.r + 2 - d;
-      if (overlap > 0 && d > 0 && (!best || overlap > best.overlap)) best = { nx: dx / d, ny: dy / d, overlap };
+      // (the point they touch: between the two circles' edges)
+      const along = (ca.r + (d - cb.r)) / 2;
+      if (overlap > 0 && d > 0 && (!best || overlap > best.overlap)) best = { nx: dx / d, ny: dy / d, overlap, px: ca.x + (dx / d) * along, py: ca.y + (dy / d) * along };
     }
   }
   if (!best) return 0;
@@ -558,14 +682,29 @@ export function collideCars(a: Car, b: Car, p: HandlingParams): number {
   a.y -= ny * overlap * (mb / (ma + mb));
   b.x += nx * overlap * (ma / (ma + mb));
   b.y += ny * overlap * (ma / (ma + mb));
-  const closing = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+  const ra = { x: best.px - a.x, y: best.py - a.y };
+  const rb = { x: best.px - b.x, y: best.py - b.y };
+  const va = pointVelocity(a, ra.x, ra.y);
+  const vb = pointVelocity(b, rb.x, rb.y);
+  const rel = { x: va.x - vb.x, y: va.y - vb.y };
+  const closing = rel.x * nx + rel.y * ny;
   if (closing <= 0) return 0;
-  const e = 0.3;
-  const j = ((1 + e) * closing) / (1 / ma + 1 / mb);
-  a.vx -= (j / ma) * nx;
-  a.vy -= (j / ma) * ny;
-  b.vx += (j / mb) * nx;
-  b.vy += (j / mb) * ny;
+  const [Ia, Ib] = [inertiaOf(a.cls), inertiaOf(b.cls)];
+  /** how hard it is to change the two points' speed along (ux, uy) */
+  const resists = (ux: number, uy: number) => 1 / ma + 1 / mb + (ra.x * uy - ra.y * ux) ** 2 / Ia + (rb.x * uy - rb.y * ux) ** 2 / Ib;
+  const j = ((1 + IMPACT.carBounce) * closing) / resists(nx, ny);
+  push(a, -j * nx, -j * ny, ra.x, ra.y);
+  push(b, j * nx, j * ny, rb.x, rb.y);
+  // friction: the two rubbing along each other
+  const tx = rel.x - closing * nx;
+  const ty = rel.y - closing * ny;
+  const vt = Math.hypot(tx, ty);
+  if (vt > 1e-6) {
+    const [ux, uy] = [tx / vt, ty / vt];
+    const jt = Math.min(IMPACT.carFriction * j, vt / resists(ux, uy));
+    push(a, -jt * ux, -jt * uy, ra.x, ra.y);
+    push(b, jt * ux, jt * uy, rb.x, rb.y);
+  }
   const base = Math.max(0, closing - p.crashThreshold) * p.crashDamage;
   applyDamage(a, base * (mb / ma), p);
   applyDamage(b, base * (ma / mb), p);
@@ -574,17 +713,21 @@ export function collideCars(a: Car, b: Car, p: HandlingParams): number {
 
 /**
  * How the body sits: pitch (nose up, radians) and roll (right side up) from
- * the slope under it, or from the flight path in the air.
+ * the slope under it, or from the flight path in the air; mid-roll, turned
+ * over by the roll, and `lift` px up off the ground as it goes over onto its
+ * side (half its width, its middle up that much higher).
  */
-export function bodyTilt(car: Car, grid: Grid): { pitch: number; roll: number } {
-  if (car.airborne) return { pitch: Math.atan2(car.vz, Math.max(40, speedOf(car))) * 0.6, roll: 0 };
+export function bodyTilt(car: Car, grid: Grid): { pitch: number; roll: number; lift: number } {
+  const over = car.rolled ?? 0;
+  const lift = (Math.abs(Math.sin(over)) * car.cls.width) / 2;
+  if (car.airborne) return { pitch: Math.atan2(car.vz, Math.max(40, speedOf(car))) * 0.6, roll: over, lift };
   const g = groundAt(grid, car.x, car.y);
   const f = forwardOf(car.heading);
   const r = rightOf(car.heading);
-  return { pitch: Math.atan(g.gx * f.x + g.gy * f.y), roll: Math.atan(g.gx * r.x + g.gy * r.y) };
+  return { pitch: Math.atan(g.gx * f.x + g.gy * f.y), roll: Math.atan(g.gx * r.x + g.gy * r.y) + over, lift };
 }
 
 /** Fully repaired and stopped, at a position and heading. */
 export function resetCar(car: Car, x: number, y: number, heading: number): void {
-  Object.assign(car, { x, y, heading, vx: 0, vy: 0, health: car.cls.health, burn: undefined, wrecked: false, z: 0, vz: 0, airborne: false });
+  Object.assign(car, { x, y, heading, vx: 0, vy: 0, health: car.cls.health, burn: undefined, wrecked: false, z: 0, vz: 0, airborne: false, spin: 0, rolling: undefined, rolled: 0 });
 }

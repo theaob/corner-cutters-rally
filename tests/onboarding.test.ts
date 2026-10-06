@@ -17,7 +17,7 @@ describe('the controls lap', () => {
     advance(o, facts({ speed: 200, bends: 1 }));
     expect(o.step).toBe('drift');
     advance(o, facts({ speed: 150, bends: 1, drifting: true }));
-    expect(o.step).toBe('limits');
+    expect(o.step).toBe('notes');
     advance(o, facts({ bends: 2 }));
     expect(o.step).toBe('lap');
     advance(o, facts({ bends: 5, lapDone: true }));
@@ -27,14 +27,14 @@ describe('the controls lap', () => {
   it('skips the drift prompt where you can\'t drift (no drift button on the touch deck)', () => {
     const o = { step: 'drift' as const, from: 3 };
     expect(advance(o, facts({ bends: 3, canDrift: false }))).toBe(true);
-    expect(o.step).toBe('limits');
+    expect(o.step).toBe('notes');
   });
   it("doesn't hold you up if you never drift: two bends and it moves on", () => {
     const o = { step: 'drift' as const, from: 3 };
     advance(o, facts({ bends: 4 }));
     expect(o.step).toBe('drift');
     advance(o, facts({ bends: 5 }));
-    expect(o.step).toBe('limits');
+    expect(o.step).toBe('notes');
   });
   it('says each prompt for the device you drive with', () => {
     for (const step of STEPS) for (const device of ['touch', 'keys', 'pad'] as const) expect(prompt(step, device).length).toBeGreaterThan(5);

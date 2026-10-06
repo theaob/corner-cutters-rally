@@ -69,7 +69,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
   /** a car's place on the road `along` px from its start, standing */
   const place = (car: Car, along: number) => {
     const s = track.samples[Math.min(track.samples.length - 1, Math.round(along / track.spacing))];
-    Object.assign(car, { x: s.x, y: s.y, heading: s.dir, vx: 0, vy: 0 });
+    Object.assign(car, { x: s.x, y: s.y, heading: s.dir, vx: 0, vy: 0, spin: 0 });
   };
   // the cars: spread out along the road, the first furthest on, a touch apart in pace
   const field = Array.from({ length: BACKDROP.cars }, (_, k) => {
@@ -150,7 +150,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
     race.entrants.forEach((e, k) => {
       const p = at(e.car, k);
       const tilt = bodyTilt(e.car, circuit.grid);
-      meshes[k].position.set(p.x, p.z, p.y);
+      meshes[k].position.set(p.x, p.z + tilt.lift, p.y);
       meshes[k].rotation.set(tilt.pitch, -p.heading, tilt.roll, 'YXZ');
     });
     // the camera: on one car, then over to the next

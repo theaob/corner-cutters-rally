@@ -1,5 +1,7 @@
-// The trees round a stage. In a forest (layout.forest): spruces and firs packed
-// all round the road beyond its barriers, with here and there a broadleaf (a
+// The trees round a stage, and the trees and rocks along the road that are its
+// edges (roadsideOf: one on each solid tile facing the open ground, which is
+// what a car hits). In a forest (layout.forest): spruces and firs packed
+// all round the road beyond the treeline, with here and there a broadleaf (a
 // few turning gold and rust), on up the hillsides and out past the edge of the
 // map. Each tree is only as tall as it can be without hiding the road from the
 // camera (which looks down from the south), on hills too: a tree on the slope
@@ -20,7 +22,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { groundAt } from '../engine/sim';
-import { HALF_WIDTH, RUNOFF, TILE as T, type Circuit } from './circuit';
+import { HALF_WIDTH, ROADSIDE, RUNOFF, TILE as T, edgeTiles, type Circuit } from './circuit';
 import { HD2D_VIEW } from '../engine/look';
 
 /** Ground hidden behind (north of) something, per px of its height, from the camera looking down from the south. */
@@ -41,8 +43,8 @@ export interface Tree {
 export const FOREST = {
   /** px between trees (before a random nudge) */
   spacing: 30,
-  /** px past the run-off's edge (the barriers) before the trees start */
-  clear: 26,
+  /** px past the treeline (the roadside's trees) before the forest's start */
+  clear: 16,
   /** px out past the edge of the map the forest goes on */
   beyond: 360,
   /** px tall: the most a tree grows, and the least worth planting */
@@ -58,7 +60,7 @@ export const PALMS = {
   /** px between the spots a grove may stand (before a random nudge), and the share of them that have one */
   every: 120,
   groves: 0.7,
-  /** px past the run-off's edge (the barriers) before they start: closer than the forest, a palm being slender */
+  /** px past the roadside's rocks before they start */
   clear: 12,
   /** palms in a grove (at least, and up to this many more), and px round its middle they stand within */
   least: 3,
@@ -68,8 +70,8 @@ export const PALMS = {
   tallest: 60,
   /** px out past the edge of the map the groves go on */
   beyond: 300,
-  /** and lining the circuit, where they're seen as you drive by: every this many px along the lap, each side, the
-   * chance of a clump of one to three palms there, and px out past the barriers (at least, and up to this much more) */
+  /** and lining the road, where they're seen as you drive by: every this many px along it, each side, the
+   * chance of a clump of one to three palms there, and px out past the furthest the roadside goes (at least, and up to this much more) */
   liningEvery: 64,
   lining: 0.55,
   liningOut: [0, 50] as const,
@@ -111,14 +113,60 @@ function rng(seed: number): () => number {
   };
 }
 
+/** px from the centreline a tree's crown never hides from the camera: the road and its verge */
+const SEEN = HALF_WIDTH + ROADSIDE.verge;
+
+/** Each of `circuit`'s tiles, how many tiles it is from the open ground (0: open; 1: solid, beside it; …), by 8 ways. */
+const depths = new WeakMap<Circuit, Int32Array>();
+function depthOf(circuit: Circuit): (x: number, y: number) => number {
+  const { cells, width: W, height: H } = circuit;
+  let depth = depths.get(circuit);
+  if (!depth) {
+    depth = new Int32Array(W * H).fill(-1);
+    let front: number[] = [];
+    cells.forEach((c, k) => {
+      if (c !== 'wall') {
+        depth![k] = 0;
+        front.push(k);
+      }
+    });
+    for (let d = 1; front.length; d++) {
+      const next: number[] = [];
+      for (const k of front) {
+        const i = k % W;
+        const j = (k - i) / W;
+        for (let dj = -1; dj <= 1; dj++) {
+          for (let di = -1; di <= 1; di++) {
+            const [a, b] = [i + di, j + dj];
+            if (a < 0 || b < 0 || a >= W || b >= H || depth[b * W + a] >= 0) continue;
+            depth[b * W + a] = d;
+            next.push(b * W + a);
+          }
+        }
+      }
+      front = next;
+    }
+    depths.set(circuit, depth);
+  }
+  const all = depth;
+  return (x, y) => {
+    const i = Math.floor(x / T);
+    const j = Math.floor(y / T);
+    return i < 0 || j < 0 || i >= W || j >= H ? Infinity : all[j * W + i];
+  };
+}
+
 /**
  * Where a tree may stand on `circuit`: for a spot and the height it would grow to (with its crown reaching
- * `crown` of that), the height it may have there: none on or by the track and its run-off, the pit lane and its
- * garages, or a grandstand, and no taller than lets its crown keep clear of hiding any of the track north of it.
+ * `crown` of that), the height it may have there: none but on solid ground `clear` px past the treeline (any spot,
+ * with `clear` undefined: the roadside's own), and `apart` px or more from the road's middle; and no taller than
+ * lets its crown keep clear of hiding any of the ground within `seen` px of the road's middle north of it.
  */
-function growth(circuit: Circuit, clear: number) {
+function growth(circuit: Circuit, clear?: number, apart = 0, seen = SEEN) {
   const { track, grid } = circuit;
-  const reach = HALF_WIDTH + RUNOFF;
+  const reach = seen;
+  const depth = depthOf(circuit);
+  const deep = clear === undefined ? 0 : 1 + Math.ceil(clear / T);
   // the track's samples in columns 64 px wide, with the ground under each
   const COL = 64;
   const cols = new Map<number, { x: number; y: number; h: number }[]>();
@@ -127,11 +175,12 @@ function growth(circuit: Circuit, clear: number) {
     (cols.get(k) ?? cols.set(k, []).get(k)!).push({ x: p.x, y: p.y, h: groundAt(grid, p.x, p.y).h });
   }
   return (x: number, y: number, want: number, crown: number): number => {
-    let near = Infinity;
-    for (let k = Math.floor((x - reach - clear) / COL); k <= Math.floor((x + reach + clear) / COL); k++) {
-      for (const p of cols.get(k) ?? []) near = Math.min(near, Math.hypot(p.x - x, p.y - y));
+    if (depth(x, y) < deep) return 0;
+    if (apart) {
+      for (let k = Math.floor((x - apart) / COL); k <= Math.floor((x + apart) / COL); k++) {
+        for (const p of cols.get(k) ?? []) if (Math.hypot(p.x - x, p.y - y) < apart) return 0;
+      }
     }
-    if (near < reach + clear) return 0;
     const foot = groundAt(grid, x, y).h;
     const room = (h: number) => {
       const cr = h * crown;
@@ -141,7 +190,7 @@ function growth(circuit: Circuit, clear: number) {
           if (Math.abs(p.x - x) > cr + reach) continue;
           const gap = y - cr - (p.y + reach);
           if (gap < 0) continue;
-          // (its top, seen over the track's edge: the gap it may hide, less how far its foot stands above the track)
+          // (its top, seen over the verge's edge: the gap it may hide, less how far its foot stands above the road)
           most = Math.min(most, Math.max(0, gap - 6) / HIDES - (foot - p.h));
         }
       }
@@ -151,6 +200,61 @@ function growth(circuit: Circuit, clear: number) {
     if (h < want) h = Math.min(h, room(h)) * 0.95;
     return h;
   };
+}
+
+export const EDGE = {
+  /** px a roadside tree or rock stands off its tile's middle, at most, either way */
+  nudge: 3,
+  /** a roadside rock's size (px tall: at least, and up to this much more); never smaller than `least`, however little room */
+  rock: [11, 6] as const,
+  least: 8,
+  /** in a forest, the share of the roadside that's rocks, and of its trees broadleaves; in the mountains, rocks; in the desert, palms */
+  forestRocks: 0.12,
+  broadleaves: 0.2,
+  mountainRocks: 0.5,
+  desertPalms: 0.15,
+};
+
+/**
+ * The trees and rocks along the road: one on each solid tile facing the open ground (edgeTiles), what a car runs
+ * into leaving the road. In a forest spruces, some broadleaves, a few rocks; in the mountains spruces and rocks
+ * (only rocks above the tree line, snowy under snow); in the desert rocks, a palm here and there. Each as tall as it
+ * can be without hiding the road: where that's too short for a tree, a rock.
+ */
+export function roadsideOf(circuit: Circuit): Tree[] {
+  const grow = growth(circuit);
+  const { layout, grid } = circuit;
+  const snow = !!layout.snow;
+  const out: Tree[] = [];
+  for (const [i, j] of edgeTiles(circuit)) {
+    const r = rng(i * 7919 + j * 104729 + 17);
+    r();
+    const x = (i + 0.5) * T + (r() - 0.5) * 2 * EDGE.nudge;
+    const y = (j + 0.5) * T + (r() - 0.5) * 2 * EDGE.nudge;
+    const pick = r();
+    const tone = r();
+    const ground = groundAt(grid, x, y).h;
+    const rock = () => {
+      const h = Math.max(EDGE.least, grow(x, y, EDGE.rock[0] + r() * EDGE.rock[1], 0.5));
+      const palette = snow || (layout.mountain && ground > MOUNTAIN.snowLine) ? SNOWY_ROCK : ROCK;
+      out.push({ x, y, h, kind: 'rock', color: palette[Math.floor(tone * palette.length)] });
+    };
+    const tree = (kind: 'spruce' | 'broadleaf' | 'palm', tallest: number, crown: number, palette: number[]) => {
+      const h = grow(x, y, tallest * (0.6 + 0.4 * r()), crown);
+      if (h < FOREST.shortest) return rock();
+      out.push({ x, y, h, kind, color: palette[Math.floor(tone * palette.length)], ...(kind === 'spruce' && snow ? { snowy: true } : {}) });
+    };
+    if (layout.desert) {
+      if (pick < EDGE.desertPalms) tree('palm', PALMS.tallest, PALMS.crown, FRONDS);
+      else rock();
+    } else if (layout.mountain) {
+      if (pick < EDGE.mountainRocks || ground > MOUNTAIN.treeLine) rock();
+      else tree('spruce', FOREST.tallest, FOREST.crown, snow ? SNOWY_SPRUCE : SPRUCE);
+    } else if (pick < EDGE.forestRocks) rock();
+    else if (pick < EDGE.forestRocks + EDGE.broadleaves) tree('broadleaf', FOREST.tallest, FOREST.crown, BROADLEAF);
+    else tree('spruce', FOREST.tallest, FOREST.crown, SPRUCE);
+  }
+  return out;
 }
 
 /** The forest's trees (none for a circuit that isn't in one); in the desert, its palms. */
@@ -222,7 +326,9 @@ function mountainOf(circuit: Circuit): Tree[] {
 function palmsOf(circuit: Circuit): Tree[] {
   const W = circuit.width * T;
   const H = circuit.height * T;
-  const grow = growth(circuit, PALMS.clear);
+  // (out on the open sand past the furthest the roadside's rocks go, none crowding in behind them, and never hiding
+  // the sand up to there)
+  const grow = growth(circuit, PALMS.clear, HALF_WIDTH + RUNOFF + PALMS.clear, HALF_WIDTH + RUNOFF);
   const r = rng(53);
   const out: Tree[] = [];
   const plant = (x: number, y: number) => {
@@ -232,7 +338,7 @@ function palmsOf(circuit: Circuit): Tree[] {
     if (h < FOREST.shortest || out.some((t) => Math.hypot(t.x - x, t.y - y) < 9)) return;
     out.push({ x, y, h, kind: 'palm', color: FRONDS[Math.floor(r() * FRONDS.length)] });
   };
-  // lining the circuit, just past the barriers
+  // lining the road, just past the furthest the roadside's rocks go
   const { samples, spacing } = circuit.track;
   const step = Math.round(PALMS.liningEvery / spacing);
   const reach = HALF_WIDTH + RUNOFF + PALMS.clear;
@@ -305,9 +411,9 @@ function shapes() {
   return { spruce, snow, broadleaf, trunk, palm, palmTrunk, dates, rock };
 }
 
-/** Plant the forest in `scene`, in chunks. Gives back its trees. */
+/** Plant the roadside and the forest in `scene`, in chunks. Gives back their trees. */
 export function buildForest(scene: THREE.Scene, circuit: Circuit): Tree[] {
-  const trees = treesOf(circuit);
+  const trees = [...roadsideOf(circuit), ...treesOf(circuit)];
   if (!trees.length) return trees;
   const geo = shapes();
   const crown = new THREE.MeshLambertMaterial({ color: 0xffffff });

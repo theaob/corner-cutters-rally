@@ -9,7 +9,7 @@ import { TYRES, fitAt, freshTyres, isDry, tyreFor, tyreGrip, tyreSpeed, wearTyre
 import type { WeatherId } from '../src/f1/weather';
 
 const f1 = carClass('f1');
-const quiet: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 };
+const quiet: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0, impact: 0, scrape: 0, rolledNow: false, rolling: false };
 
 /** Wear a set for `seconds` on a car doing `speed` px/s, sliding `slide` px/s sideways. */
 function drive(seconds: number, speed: number, slide = 0, rough = false) {

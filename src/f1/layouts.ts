@@ -17,9 +17,9 @@ export interface CircuitLayout {
   scale: number;
   /** elevation (px) along the road, as [share of it, height] */
   elevation: [number, number][];
-  /** in a forest: trees packed all round beyond the barriers, on a dark forest floor */
+  /** in a forest: trees packed all round past the treeline, on a dark forest floor */
   forest?: boolean;
-  /** in the desert: sand all round, beyond the barriers and on the run-off, camels wandering */
+  /** in the desert: sand all round, past the treeline and on the run-off, camels wandering */
   desert?: boolean;
   /**
    * jumps: at `at` px along the road, a crest with a sharp lip the cars fly off (the ground rising `rise` px up a
@@ -30,7 +30,7 @@ export interface CircuitLayout {
   snow?: boolean;
   /** on dirt: the road's surface loose earth (or packed snow, or sand), every car on off-road tyres (tyres.ts), sliding through the bends */
   dirt?: boolean;
-  /** in the mountains: rock and alpine meadow beyond the barriers, snow up high, pines below the tree line and boulders */
+  /** in the mountains: rock and alpine meadow past the treeline, snow up high, pines below the tree line and boulders */
   mountain?: boolean;
   /**
    * a rally's stage: a road with two ends (its points from one to the other, not round a loop), the start line `start`

@@ -1,14 +1,12 @@
 // Race control: runs the cars on a stage for one step (the countdown, inputs,
 // driving, contact, progress along the road) and applies the rules around it.
-// A wrecked car is out; cutting the inside of a marked corner is a strike:
-// warnings first, then seconds added (trackLimits.ts); the weather moves on as
-// forecast. Engine-free, so a whole stage, crashes and all, runs in a test
+// A wrecked car is out; there are no track limits: the road's edges are the
+// trees and rocks along it (circuit.ts). The weather moves on as forecast. Engine-free, so a whole stage, crashes and all, runs in a test
 // exactly as in the game.
 
 import { collideCars, stepCar, type Car, type DriveInput, type HandlingParams, type StepEvents } from '../engine/driving';
 import type { Grid } from '../engine/sim';
 import { fitTyres, freshTyres, tyreFor, wearTyres, type TyreSet } from './tyres';
-import { judge, markCorners, newLimits, offTrack, type Corner, type Limits } from './trackLimits';
 import type { WeatherId } from './weather';
 import { WETNESS, conditionOf, startWeather, stepWeather, type Forecast } from './forecast';
 import { aiInput, nearestSample, newProgress, standings, stepProgress, type AiDriver, type RaceProgress, type Track } from './racing';
@@ -33,8 +31,6 @@ export interface Entrant {
   wreckedAt?: number;
   /** the set of tyres it's on */
   tyres: TyreSet;
-  /** its track-limits strikes */
-  limits: Limits;
 }
 
 export type RaceEvent =
@@ -42,13 +38,11 @@ export type RaceEvent =
   /** a big crash (a wreck, or a big share of a car's health lost at once): `vx`, `vy` how it was moving into it (px/s), `hit` the share of its health lost, `wrecked` whether it's a wreck */
   | { kind: 'crash'; who: number; vx: number; vy: number; hit: number; wrecked: boolean }
   | { kind: 'wreck'; who: number }
+  /** a car going over: rolled by a side-on hit, or dug in sliding sideways */
+  | { kind: 'roll'; who: number }
   | { kind: 'retired'; who: number }
   /** two cars touching (by their places in the field): the first step they touch, and every step after while they do */
   | { kind: 'contact'; a: number; b: number }
-  /** a cut across a corner's inside: strike number `strike`, costing `seconds` (0: a warning) */
-  | { kind: 'track-limits'; who: number; strike: number; seconds: number }
-  /** all four wheels past the white line, either side */
-  | { kind: 'off-track'; who: number }
   /** the rain starting (or stopping), and the road turning dry, damp or wet as it does */
   | { kind: 'rain'; on: boolean }
   | { kind: 'track'; condition: WeatherId };
@@ -56,8 +50,6 @@ export type RaceEvent =
 export interface Race {
   track: Track;
   grid: Grid;
-  /** the road's marked corners, for track limits */
-  corners: Corner[];
   /** the road's weather (dry, damp or wet): it sets which tyres the cars run and how they do */
   weather: WeatherId;
   /** how wet the road is (0 dry … 1 damp … 2 wet) and how hard it's raining (0…1), now (forecast.ts) */
@@ -85,18 +77,18 @@ export const DIRT_KNOCKS = 2;
 export function newRace(
   track: Track, grid: Grid, handling: HandlingParams, laps: number, field: { car: Car; ai?: AiDriver }[], lightsOut = 0.5, weather: WeatherId | Forecast = 'dry',
 ): Race {
-  // (on dirt, knocks and rubs that would hurt on tarmac don't: soft earth, hay bales, banging doors)
+  // (on dirt, knocks and rubs that would hurt on tarmac don't: soft earth, brushing the undergrowth, banging doors)
   if (track.dirt) handling = { ...handling, crashThreshold: handling.crashThreshold * DIRT_KNOCKS };
   const forecast = typeof weather === 'string' ? undefined : weather;
   const now = forecast ? startWeather(forecast) : { wetness: WETNESS[weather as WeatherId], rain: weather === 'wet' ? 1 : 0 };
   // (on a rally's open road, each car's progress from where it stands on it; on a loop, just behind the line)
   const entrants: Entrant[] = field.map((f) => ({
-    ...f, limits: newLimits(), tyres: freshTyres(tyreFor(now.wetness, track.dirt)),
+    ...f, tyres: freshTyres(tyreFor(now.wetness, track.dirt)),
     progress: newProgress(track.open ? nearestSample(track, f.car.x, f.car.y) : track.samples.length - 4),
   }));
   for (const e of entrants) fitTyres(e.tyres, e.car, now.wetness);
   return {
-    track, grid, corners: markCorners(track), weather: conditionOf(now.wetness), wetness: now.wetness, rain: now.rain, forecast, handling, laps, entrants,
+    track, grid, weather: conditionOf(now.wetness), wetness: now.wetness, rain: now.rain, forecast, handling, laps, entrants,
     phase: 'lights', clock: -LIGHTS, lightsOut,
   };
 }
@@ -148,7 +140,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   // (how each car was moving going into the step: a crash throws its parts on that way)
   const moving = entrants.map((e) => ({ vx: e.car.vx, vy: e.car.vy }));
   const events = entrants.map((e): StepEvents => {
-    const quiet: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 };
+    const quiet: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0, impact: 0, scrape: 0, rolledNow: false, rolling: false };
     if (!running(e)) return quiet;
     const others = cars.filter((c) => c !== e.car);
     let input: DriveInput;
@@ -164,7 +156,7 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
       const off = Math.hypot(e.car.x - slot.x, e.car.y - slot.y);
       if (off > GRID_HOLD) {
         const k = GRID_HOLD / off;
-        Object.assign(e.car, { x: slot.x + (e.car.x - slot.x) * k, y: slot.y + (e.car.y - slot.y) * k, heading: slot.heading, vx: 0, vy: 0 });
+        Object.assign(e.car, { x: slot.x + (e.car.x - slot.x) * k, y: slot.y + (e.car.y - slot.y) * k, heading: slot.heading, vx: 0, vy: 0, spin: 0 });
       }
       return ev;
     }
@@ -184,22 +176,11 @@ export function stepRace(race: Race, dt: number, player: (e: Entrant) => DriveIn
   }
   if (racing) for (const e of onTrack) e.progress = stepProgress(e.progress, track, e.car, race.clock, race.laps, dt);
 
-  // track limits: a cut across a corner's inside (racing only: not a wreck, nor after the finish)
-  if (racing) {
-    entrants.forEach((e, i) => {
-      if (!running(e) || e.car.wrecked || e.progress.finished !== undefined) return;
-      const cut = judge(e.limits, track, race.corners, e.progress.idx, e.car.x, e.car.y, e.car.cls.width);
-      if (offTrack(e.limits, track, e.progress.idx, e.car.x, e.car.y, e.car.cls.width)) out.push({ kind: 'off-track', who: i });
-      if (!cut) return;
-      if (cut.seconds) e.progress = { ...e.progress, penalty: e.progress.penalty + cut.seconds };
-      out.push({ kind: 'track-limits', who: i, ...cut });
-    });
-  }
-
   // big crashes and wrecks: a wreck is out after a moment
   entrants.forEach((e, i) => {
     if (!running(e)) return;
     const wreckedNow = events[i].wreckedNow || (e.car.wrecked && e.wreckedAt === undefined);
+    if (events[i].rolledNow) out.push({ kind: 'roll', who: i });
     if (isBigCrash(e.car, before[i], wreckedNow)) out.push({ kind: 'crash', who: i, ...moving[i], hit: (before[i] - e.car.health) / e.car.cls.health, wrecked: e.car.wrecked });
     if (e.car.wrecked && e.wreckedAt === undefined) {
       e.wreckedAt = race.clock;

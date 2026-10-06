@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { deckLabels, type DeckState } from '../src/f1/race/deckLabels';
 import { bannerMessage, evenLines, type BannerState } from '../src/f1/race/banner';
-import { blocks, limitsText, readoutRows, readoutText, tyreText } from '../src/f1/race/readout';
+import { blocks, readoutRows, readoutText, tyreText } from '../src/f1/race/readout';
 import { ICON_ART } from '../src/f1/race/icons';
-import { LIMITS } from '../src/f1/trackLimits';
 
 const deck = (s: Partial<DeckState> = {}): DeckState => ({
   settings: false, resultsUp: false, tutorial: false, learnt: false, done: false, paused: false, ...s,
@@ -69,9 +68,6 @@ describe('the readout', () => {
     expect(tyreText('SFT', 0.8, true)).toBe('TYRE SFT ■□□□□ 20%\nWORN\n');
     expect(tyreText('SFT', 0.8, false)).toBe('TYRE SFT ■□□□□\nWORN\n');
     expect(tyreText('MED', 0, false)).toBe('TYRE MED ■■■■■\n');
-    expect(limitsText(0)).toBe('');
-    expect(limitsText(1)).toBe(`LIMITS 1/${LIMITS.warnings}\n`);
-    expect(limitsText(LIMITS.warnings + 1)).toBe(`LIMITS +${LIMITS.penalty}S\n`);
   });
 });
 
@@ -86,7 +82,6 @@ describe("the readout's rows", () => {
       { icon: 'tyre', label: 'TYRE', value: 'SFT ■□□□□' },
       { label: '', value: 'WORN' },
     ]);
-    expect(readoutRows(limitsText(1))).toEqual([{ icon: 'warn', label: 'LIMITS', value: `1/${LIMITS.warnings}`, span: true }]);
     expect(readoutRows('')).toEqual([]);
   });
 

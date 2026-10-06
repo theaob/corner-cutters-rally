@@ -21,9 +21,7 @@ export function createHud(scheme: Scheme, number: number, difficulty: Difficulty
   // the stage clock and your car
   const mainLines = readoutRun();
   const tyreLine = readoutRun();
-  // track limits: your strikes, amber while they're warnings, red once they cost you
-  const limitsLine = readoutRun();
-  readout.append(mainLines, tyreLine, limitsLine);
+  readout.append(mainLines, tyreLine);
   const banner = document.createElement('div');
   style(banner, {
     position: 'absolute', left: '0', right: '0', top: '30%', zIndex: '2', textAlign: 'center', padding: '0 16px',
@@ -122,5 +120,5 @@ export function createHud(scheme: Scheme, number: number, difficulty: Difficulty
       results.style.fontSize = (host.clientWidth || 390) >= 380 ? '12px' : '11px';
     }
   };
-  return { readout, mainLines, tyreLine, limitsLine, banner, results, crewCard, weatherTag, mini, miniCtx, pauseScreen, pauseTitle, pauseButton, MINI_W, MINI_H, place };
+  return { readout, mainLines, tyreLine, banner, results, crewCard, weatherTag, mini, miniCtx, pauseScreen, pauseTitle, pauseButton, MINI_W, MINI_H, place };
 }

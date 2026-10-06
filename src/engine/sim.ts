@@ -76,6 +76,44 @@ export function circleBlocked(g: Grid, x: number, y: number, r: number): boolean
   return false;
 }
 
+/** A circle's contact with the solid tiles: the way out of the deepest (unit normal, from the tile to the circle), how far in it is, and the point touched. */
+export interface Contact {
+  nx: number;
+  ny: number;
+  depth: number;
+  px: number;
+  py: number;
+}
+
+/** Where a circle at (x, y) with radius r digs deepest into a solid tile (undefined: it touches none). */
+export function circleContact(g: Grid, x: number, y: number, r: number): Contact | undefined {
+  const t = g.tile;
+  let best: Contact | undefined;
+  for (let ty = Math.floor((y - r) / t); ty <= Math.floor((y + r) / t); ty++) {
+    for (let tx = Math.floor((x - r) / t); tx <= Math.floor((x + r) / t); tx++) {
+      if (!isSolidTile(g, tx, ty)) continue;
+      const px = Math.max(tx * t, Math.min(x, tx * t + t));
+      const py = Math.max(ty * t, Math.min(y, ty * t + t));
+      const d = Math.hypot(x - px, y - py);
+      if (d >= r) continue;
+      let k: Contact;
+      if (d > 1e-9) k = { nx: (x - px) / d, ny: (y - py) / d, depth: r - d, px, py };
+      else {
+        // (its middle inside the tile: out through the nearest face)
+        const faces = [
+          { nx: -1, ny: 0, d: x - tx * t },
+          { nx: 1, ny: 0, d: tx * t + t - x },
+          { nx: 0, ny: -1, d: y - ty * t },
+          { nx: 0, ny: 1, d: ty * t + t - y },
+        ].sort((a, b) => a.d - b.d)[0];
+        k = { nx: faces.nx, ny: faces.ny, depth: r + faces.d, px: x + faces.nx * faces.d, py: y + faces.ny * faces.d };
+      }
+      if (!best || k.depth > best.depth) best = k;
+    }
+  }
+  return best;
+}
+
 export interface MoveResult {
   x: number;
   y: number;

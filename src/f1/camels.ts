@@ -1,8 +1,8 @@
-// Camels at a desert circuit (layout.desert): a few caravans of three to five,
+// Camels on a desert stage (layout.desert): a few caravans of three to five,
 // nose to tail, walking slowly round long loops on the sand just past the
-// barriers, where you see them as you drive by. Each loop runs beside a stretch
-// of track, out and back on two lines a little apart; none comes near the
-// track, the pit lane, a grandstand or a palm. A camel paces as camels do
+// rocks along the road, where you see them as you drive by. Each loop runs beside a stretch
+// of road, out and back on two lines a little apart; none comes near the
+// road, its rocks or a palm. A camel paces as camels do
 // (both legs on a side together), its body rising and falling with each step,
 // a bright saddle blanket over its back.
 
@@ -26,7 +26,7 @@ export const CAMELS = {
   length: 240,
   longer: 160,
   across: 14,
-  /** px out past the barriers its near line runs (at least, and up to this much more): close, as the camera shows
+  /** px out past the furthest the roadside goes its near line runs (at least, and up to this much more): close, as the camera shows
    * little either side of a stretch running across the screen */
   out: 0,
   further: 14,

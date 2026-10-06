@@ -1,5 +1,10 @@
 // A road from its layout (layouts.ts). Pure layout (no rendering): the road's
-// tiles, run-off, heights and starting place.
+// tiles, its roadside, heights and starting place. There are no track limits:
+// what keeps a car on the road is what stands beside it. Past a verge kept
+// clear, the treeline (in the desert a line of rocks) at a distance from the
+// edge that wanders, each side, between ROADSIDE.near and RUNOFF px, and here
+// and there a tree or rock standing alone in front of it: solid tiles, each
+// with a tree or a rock drawn on it (forest3d.ts's roadsideOf).
 
 import type { Grid } from '../engine/sim';
 import type { CircuitLayout } from './layouts';
@@ -8,14 +13,22 @@ import { buildTrack, type Track } from './racing';
 export const TILE = 16;
 /** px from the centreline to the track edge */
 export const HALF_WIDTH = 44;
-/** px of run-off (grass or gravel) beyond the track edge before the barriers */
+/** px of open ground (grass or gravel) beyond the road's edge, at most, before the treeline */
 export const RUNOFF = 72;
+/**
+ * The roadside (see the top): `verge` px past the road's edge always clear; the treeline from `near` px past it out to
+ * RUNOFF, wandering in and out over `wave` px along the road; on a tight bend no further than `inside` px on its
+ * inside (it can't be cut by much) and no nearer than `outside` px on its outside (room to run wide), eased in and
+ * out over `ease` px; and between the verge and the treeline, the chance of a tile having a tree or rock alone on
+ * it (`lone`; `apex` on a tight bend's inside).
+ */
+export const ROADSIDE = { verge: 14, near: 24, wave: 280, inside: 34, outside: 46, ease: 48, lone: 0.02, apex: 0.1 };
 /**
  * The barrier between two stretches side by side: tiles from px past the track's edge, within px of the line midway
  * between them (a band a tile or so wide, so no gap is left where it runs at a slant across the grid)
  */
 export const SPLIT = { clear: 8, band: 20 };
-/** |curvature| (1/px) from which a bend is tight: kerbed, with gravel on the outside, and a marked corner for track limits */
+/** |curvature| (1/px) from which a bend is tight: kerbed, with gravel on the outside, the treeline nearer on the inside */
 export const TIGHT = 1 / 260;
 /**
  * The kerbs: which stretches of the track have them (both sides), from its tight bends, made whole: a gap
@@ -107,7 +120,73 @@ export function elevationAt(profile: [number, number][], share: number): number 
   return profile[0][1];
 }
 
+/** a tile: the road (and its kerbs), the open ground beside it, or solid (the treeline, a tree or rock alone, and the forest past it) */
 export type CircuitCell = 'track' | 'kerb' | 'grass' | 'gravel' | 'wall';
+
+/** A whole number from a string (a layout's id), to seed its roadside. */
+function hashOf(text: string): number {
+  let h = 2166136261;
+  for (let k = 0; k < text.length; k++) h = Math.imul(h ^ text.charCodeAt(k), 16777619) >>> 0;
+  return h;
+}
+
+/** A number in [0, 1) for whole numbers `a`, `b` and `seed`, always the same for them. */
+function noise(a: number, b: number, seed: number): number {
+  let h = Math.imul(a, 374761393) + Math.imul(b, 668265263) + Math.imul(seed, 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/**
+ * px past the road's edge to the treeline at each of `track`'s samples, each side: [the side along +(cos dir, sin
+ * dir), the other] (see ROADSIDE).
+ */
+export function treeline(track: Track, seed: number): [number[], number[]] {
+  const n = track.samples.length;
+  const { near, wave, inside, outside, ease } = ROADSIDE;
+  const reach = Math.round(ease / track.spacing);
+  const sides = [1, -1].map((side, k) =>
+    track.samples.map((p) => {
+      // (wandering: eased between a height drawn every `wave` px)
+      const at = p.s / wave;
+      const a = noise(Math.floor(at), k, seed);
+      const b = noise(Math.floor(at) + 1, k, seed);
+      const t = (1 - Math.cos((at - Math.floor(at)) * Math.PI)) / 2;
+      return near + (RUNOFF - near) * (a + (b - a) * t);
+    }).map((d, i) => {
+      // (a tight bend nearby: in on its inside, out on its outside)
+      let bend = 0;
+      for (let j = Math.max(0, i - reach); j <= Math.min(n - 1, i + reach); j++) {
+        const c = track.samples[j].curve;
+        if (Math.abs(c) >= TIGHT && Math.abs(c) > Math.abs(bend)) bend = c;
+      }
+      if (!bend) return d;
+      return Math.sign(bend) === side ? Math.min(d, inside) : Math.max(d, outside);
+    }),
+  );
+  // (smoothed, so it never steps in or out from one sample to the next)
+  return sides.map((d) =>
+    d.map((_, i) => {
+      let sum = 0;
+      let count = 0;
+      for (let j = Math.max(0, i - reach); j <= Math.min(n - 1, i + reach); j++) [sum, count] = [sum + d[j], count + 1];
+      return sum / count;
+    }),
+  ) as [number[], number[]];
+}
+
+/** The solid tiles (i, j) that face open ground (on one of their four sides): where the trees and rocks along the road stand. */
+export function edgeTiles(circuit: Circuit): [number, number][] {
+  const { cells, width: W, height: H } = circuit;
+  const open = (i: number, j: number) => i >= 0 && j >= 0 && i < W && j < H && cells[j * W + i] !== 'wall';
+  const out: [number, number][] = [];
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      if (cells[j * W + i] === 'wall' && (open(i - 1, j) || open(i + 1, j) || open(i, j - 1) || open(i, j + 1))) out.push([i, j]);
+    }
+  }
+  return out;
+}
 
 export interface Circuit {
   layout: CircuitLayout;
@@ -196,6 +275,8 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     return best < 0 ? undefined : { i: best, d: Math.sqrt(bestD) };
   };
   const kerbs = kerbed(track);
+  const seed = hashOf(layout.id);
+  const [along, against] = treeline(track, seed);
   const cells: CircuitCell[] = [];
   for (let ty = 0; ty < H; ty++) {
     for (let tx = 0; tx < W; tx++) {
@@ -207,9 +288,8 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         cells.push('wall');
         continue;
       }
-      // two stretches of the lap side by side, their run-offs meeting (Suzuka's figure of eight round its crossing): a
-      // barrier down the middle between them, so no one drives across from one to the other (never on either road: at
-      // a bridge's crossing it stands in the angles between them)
+      // two stretches of the road side by side, their open ground meeting (where it doubles back on itself): a
+      // line of trees down the middle between them, so no one drives across from one to the other (never on either road)
       if (d > HALF_WIDTH + SPLIT.clear) {
         const o = otherStretch(x, y, i);
         if (o && o.d - d <= SPLIT.band) {
@@ -219,14 +299,23 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
       }
       const tight = Math.abs(p.curve) > TIGHT;
       const kerb = kerbs[i];
+      const side = (x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir);
+      const outside = p.curve > 0 ? side < 0 : side > 0;
+      // the treeline, this side
+      const edge = HALF_WIDTH + (side >= 0 ? along : against)[i];
+      if (d > edge) {
+        cells.push('wall');
+        continue;
+      }
+      // a tree or a rock alone, between the verge and the treeline (clear of both)
+      if (d - TILE / 2 > HALF_WIDTH + ROADSIDE.verge && d < edge - 1.5 * TILE && noise(tx, ty, seed) < (tight && !outside ? ROADSIDE.apex : ROADSIDE.lone)) {
+        cells.push('wall');
+        continue;
+      }
       if (d <= HALF_WIDTH - 6) cells.push('track');
       else if (d <= HALF_WIDTH + 4) cells.push(kerb ? 'kerb' : 'track');
-      else {
-        // gravel on the outside of tight bends, where a car that runs wide ends up
-        const side = (x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir);
-        const outside = p.curve > 0 ? side < 0 : side > 0;
-        cells.push(tight && outside ? 'gravel' : 'grass');
-      }
+      // gravel on the outside of tight bends, where a car that runs wide ends up
+      else cells.push(tight && outside ? 'gravel' : 'grass');
     }
   }
 

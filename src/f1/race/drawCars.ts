@@ -62,7 +62,7 @@ export function drawCars(f: CarsFrame): void {
     l.mesh.visible = true;
     const tilt = bodyTilt(e.car, grid);
     const at = f.pose(i);
-    l.mesh.position.set(at.x, at.z, at.y);
+    l.mesh.position.set(at.x, at.z + tilt.lift, at.y);
     l.mesh.rotation.set(tilt.pitch, -at.heading, tilt.roll, 'YXZ');
     const speed = speedOf(e.car);
     l.fx.update(dt, condition(e.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
@@ -78,6 +78,8 @@ export function drawCars(f: CarsFrame): void {
     const back = speed > 1 ? { x: -e.car.vx / speed, z: -e.car.vy / speed } : { x: 0, z: 0 };
     if (lost > 0.5) particles.sparks(e.car.x, e.car.y, e.car.z, Math.min(14, 4 + Math.round(lost)), back.x * 0.6, back.z * 0.6);
     if (ev.landed > 160) particles.sparks(e.car.x, e.car.y, e.car.z, 6);
+    // (and off a scrape along a tree or rock, now and then while it lasts)
+    if (ev.scrape > 60 && lost <= 0.5 && Math.random() < dt * 20) particles.sparks(e.car.x, e.car.y, e.car.z, 2, back.x * 0.4, back.z * 0.4);
     l.was = { speed, health: e.car.health };
     if (spray && speed > 60 && Math.random() < dt * (6 + 8 * race.rain) * Math.min(1, speed / 250)) {
       particles.spray(e.car.x - Math.sin(e.car.heading) * 14, e.car.y + Math.cos(e.car.heading) * 14, e.car.z);

@@ -248,11 +248,6 @@ export class RaceSounds {
     }
   }
 
-  /** Your cut across a corner: a low double buzz, harsher when it's a penalty. */
-  trackLimits(penalty: boolean): void {
-    for (const at of [0, 0.16]) beep(penalty ? 147 : 196, 0.12, penalty ? 0.2 : 0.14, 'sawtooth', at);
-  }
-
   /** A champagne cork: the pop, then the fizz. */
   cork(): void {
     pop(1, 700);

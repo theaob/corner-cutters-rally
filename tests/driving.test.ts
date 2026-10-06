@@ -3,8 +3,10 @@ import {
   CAR_CLASS_IDS,
   CLASS_TABLE,
   DEFAULT_HANDLING,
+  IMPACT,
   applyDamage,
   bodyOffsets,
+  bodyTilt,
   maxClimb,
   zeroToTop,
   carClass,
@@ -23,7 +25,7 @@ import type { Grid } from '../src/engine/sim';
 const open: Grid = { width: 200, height: 200, tile: 16, solid: new Array(40000).fill(false) };
 const dt = 1 / 60;
 const drive = (car: Car, input: DriveInput, seconds: number, grid = open, p = DEFAULT_HANDLING) => {
-  let events: ReturnType<typeof stepCar> = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 };
+  let events: ReturnType<typeof stepCar> = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0, impact: 0, scrape: 0, rolledNow: false, rolling: false };
   let skidded = false;
   for (let t = 0; t < seconds; t += dt) {
     events = stepCar(car, input, p, dt, grid);
@@ -157,6 +159,117 @@ describe('damage', () => {
   });
 });
 
+describe('crashes', () => {
+  // a wall along the top of a big open area: rows 0-1 solid (its face at y = 32)
+  const top: Grid = { width: 60, height: 60, tile: 16, solid: Array.from({ length: 3600 }, (_, i) => Math.floor(i / 60) < 2) };
+  // a wall column at x = 10 tiles (its face at x = 160)
+  const side: Grid = { width: 60, height: 60, tile: 16, solid: Array.from({ length: 3600 }, (_, i) => i % 60 === 10) };
+  /** a car coasting at `speed` px/s at `angle` (radians off straight up the screen), its body pointing `heading` */
+  const moving = (x: number, y: number, heading: number, angle: number, speed: number) => {
+    const car = newCar(ROAD, x, y, heading);
+    car.vx = Math.sin(angle) * speed;
+    car.vy = -Math.cos(angle) * speed;
+    return car;
+  };
+  /** step it with no input, collecting what happened */
+  const run = (car: Car, seconds: number, grid: Grid) => {
+    const seen = { impact: 0, scrape: 0, rolls: 0, rolling: 0 };
+    for (let t = 0; t < seconds; t += dt) {
+      const ev = stepCar(car, { handbrake: false }, DEFAULT_HANDLING, dt, grid);
+      seen.impact = Math.max(seen.impact, ev.impact);
+      seen.scrape = Math.max(seen.scrape, ev.scrape);
+      if (ev.rolledNow) seen.rolls++;
+      if (ev.rolling) seen.rolling += dt;
+    }
+    return seen;
+  };
+
+  it('scrapes along a wall it meets at a glancing angle: no damage, and most of its speed kept along it', () => {
+    // 10° off running alongside it
+    const a = (80 * Math.PI) / 180;
+    const car = moving(200, 44, a, a, 180);
+    const seen = run(car, 0.6, top);
+    expect(seen.impact).toBeGreaterThan(0);
+    expect(seen.impact).toBeLessThan(DEFAULT_HANDLING.crashThreshold);
+    expect(seen.scrape).toBeGreaterThan(100);
+    expect(car.health).toBe(ROAD.health);
+    expect(car.vx).toBeGreaterThan(80);
+    // (and never in the wall)
+    expect(car.y).toBeGreaterThan(32);
+  });
+
+  it('takes the full force of a hit head-on: far more damage than the same speed glancing off', () => {
+    const glancing = moving(200, 44, (80 * Math.PI) / 180, (80 * Math.PI) / 180, 180);
+    run(glancing, 0.6, top);
+    const straight = moving(200, 60, 0, 0, 180);
+    const seen = run(straight, 0.6, top);
+    expect(seen.impact).toBeGreaterThan(150);
+    expect(ROAD.health - straight.health).toBeGreaterThan(40);
+    expect(ROAD.health - glancing.health).toBe(0);
+    // (bounced back off it, a little)
+    expect(straight.y).toBeGreaterThan(32 + 7);
+  });
+
+  it('spins when it hits with a corner, and the tyres soon stop the spin', () => {
+    // the body turned 30° to the right, going straight up into the wall: the right of its nose hits first
+    const car = moving(300, 70, Math.PI / 6, 0, 160);
+    let most = 0;
+    for (let t = 0; t < 0.5; t += dt) {
+      stepCar(car, { handbrake: false }, DEFAULT_HANDLING, dt, top);
+      most = Math.max(most, Math.abs(car.spin ?? 0));
+    }
+    expect(most).toBeGreaterThan(0.5);
+    run(car, 2, top);
+    expect(Math.abs(car.spin ?? 0)).toBeLessThan(0.05);
+  });
+
+  it('doesn\'t spin hitting square on', () => {
+    const car = moving(300, 70, 0, 0, 160);
+    run(car, 0.5, top);
+    expect(Math.abs(car.spin ?? 0)).toBeLessThan(1e-6);
+  });
+
+  it('rolls over when it slides side-on into something hard enough, lands on its wheels, and the roof takes a knock', () => {
+    // facing up the screen, sliding right into the wall column (just short of it: the tyres soon kill a slide)
+    const car = moving(151, 300, 0, Math.PI / 2, IMPACT.rollFrom + 30);
+    const seen = run(car, 3, side);
+    expect(seen.rolls).toBe(1);
+    // (one turn over, at the roll rate)
+    expect(seen.rolling).toBeCloseTo((Math.PI * 2) / IMPACT.rollRate, 1);
+    expect(car.rolling).toBeUndefined();
+    expect(car.rolled).toBe(0);
+    expect(ROAD.health - car.health).toBeGreaterThan(IMPACT.roofDamage - 1);
+    // (slower, and it doesn't)
+    const gentle = moving(151, 300, 0, Math.PI / 2, IMPACT.rollFrom - 60);
+    expect(run(gentle, 2, side).rolls).toBe(0);
+  });
+
+  it('turns over on its side as it rolls, lifted off the ground by it', () => {
+    const car = moving(151, 300, 0, Math.PI / 2, IMPACT.rollFrom + 30);
+    for (let t = 0; t < 2 && !car.rolling; t += dt) stepCar(car, { handbrake: false }, DEFAULT_HANDLING, dt, side);
+    for (let k = 0; k < 10; k++) stepCar(car, { handbrake: false }, DEFAULT_HANDLING, dt, side);
+    const tilt = bodyTilt(car, side);
+    expect(Math.abs(car.rolled ?? 0)).toBeGreaterThan(1);
+    expect(tilt.lift).toBeGreaterThan(3);
+  });
+
+  it('digs in and rolls sliding sideways fast on soft ground, but not at a drift', () => {
+    const rough: Grid = { ...open, rough: new Array(40000).fill(true) };
+    const fast = moving(1600, 1600, 0, Math.PI / 2, IMPACT.digFrom + 50);
+    expect(run(fast, 0.2, rough).rolls).toBe(1);
+    const drift = moving(1600, 1600, 0, Math.PI / 2, IMPACT.digFrom - 80);
+    expect(run(drift, 0.5, rough).rolls).toBe(0);
+  });
+
+  it('never passes through a solid tile, however fast', () => {
+    const lone: Grid = { width: 40, height: 40, tile: 16, solid: Array.from({ length: 1600 }, (_, i) => i === 20 * 40 + 20) };
+    const car = moving(328, 500, 0, 0, 1200);
+    car.y = 400;
+    run(car, 0.5, lone);
+    expect(car.y).toBeGreaterThan(336);
+  });
+});
+
 describe('collideCars', () => {
   it('pushes the lighter car further and damages both by closing speed and mass', () => {
     const light = newCar(ROAD, 100, 100);
@@ -170,6 +283,17 @@ describe('collideCars', () => {
     expect(heavy.cls.health - heavy.health).toBeLessThan(light.cls.health - light.health);
     // side by side: half-widths (7 + 7) plus 2 px
     expect(Math.hypot(heavy.x - light.x, heavy.y - light.y)).toBeCloseTo(16);
+  });
+
+  it('spins a car hit on its rear quarter, and keeps the momentum the two had', () => {
+    const a = newCar(ROAD, 100, 100, 0);
+    const b = newCar(ROAD, 114, 118, 0);
+    b.vx = -150;
+    expect(collideCars(a, b, DEFAULT_HANDLING)).toBeGreaterThan(100);
+    // (pushed left at its tail: its nose swings right, clockwise)
+    expect(a.spin).toBeGreaterThan(0.5);
+    expect(a.vx + b.vx).toBeCloseTo(-150, 6);
+    expect(a.vy + b.vy).toBeCloseTo(0, 6);
   });
 
   it('ignores cars that are apart or already separating', () => {

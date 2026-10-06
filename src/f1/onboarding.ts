@@ -1,15 +1,15 @@
-// The controls lap: on first launch, a lap of the first circuit on your own
+// The controls lap: on first launch, a run down the shakedown on your own
 // before the menu, with a prompt at a time for the controls on the device
 // you're using (the touch stick, keys, or a gamepad): go, full speed, slowing
-// for a bend, drifting (on the keys or a gamepad: not on touch), the track limits, and on round to the line. Each
+// for a bend, drifting (on the keys or a gamepad: not on touch), the co-driver's calls, and on to the finish. Each
 // prompt moves on once you've done it (or, for the ones that wait for a bend,
 // once you've been through one). Engine-free.
 
 /** The device you're driving with. */
 export type Device = 'touch' | 'keys' | 'pad';
 
-export type Step = 'go' | 'faster' | 'bend' | 'drift' | 'limits' | 'lap' | 'done';
-export const STEPS: Step[] = ['go', 'faster', 'bend', 'drift', 'limits', 'lap', 'done'];
+export type Step = 'go' | 'faster' | 'bend' | 'drift' | 'notes' | 'lap' | 'done';
+export const STEPS: Step[] = ['go', 'faster', 'bend', 'drift', 'notes', 'lap', 'done'];
 
 /** What the prompt says for `step` on `device`, driving where you point (`points`: the touch stick's way, unless DRIVING
  * in the settings says otherwise) or steering the car. */
@@ -25,10 +25,10 @@ export function prompt(step: Step, device: Device, points = device === 'touch'):
       return device === 'touch' ? 'BRAKE BEFORE A BEND' : device === 'keys' ? 'DOWN TO BRAKE BEFORE A BEND' : 'LEFT TRIGGER TO BRAKE BEFORE A BEND';
     case 'drift':
       return device === 'keys' ? 'HOLD X IN A BEND TO DRIFT ROUND IT' : 'HOLD A IN A BEND TO DRIFT ROUND IT';
-    case 'limits':
-      return 'KEEP INSIDE THE WHITE LINES: CUTTING A CORNER COSTS TIME';
+    case 'notes':
+      return 'THE CO-DRIVER CALLS EACH BEND: 6 IS FAST, 1 IS SLOW · MIND THE TREES';
     case 'lap':
-      return 'ON ROUND TO THE LINE: THAT MAKES A LAP';
+      return 'ON TO THE FLYING FINISH';
     case 'done':
       return device === 'keys' ? "YOU'RE READY! Z FOR THE MENU" : "YOU'RE READY! A FOR THE MENU";
   }
@@ -42,7 +42,7 @@ export interface Onboarding {
 
 export const newOnboarding = (): Onboarding => ({ step: 'go', from: 0 });
 
-/** What's happened so far: your speed (and top speed), the bends you've been through, whether you're drifting, whether you've done a lap. */
+/** What's happened so far: your speed (and top speed), the bends you've been through, whether you're drifting, whether you're past the finish. */
 export interface Facts {
   speed: number;
   top: number;
@@ -62,7 +62,7 @@ export function advance(o: Onboarding, f: Facts): boolean {
     : o.step === 'bend' ? through >= 1
     // (a drift, or two bends without one: it's there when you want it)
     : o.step === 'drift' ? f.canDrift === false || (f.drifting && f.speed > 80) || through >= 2
-    : o.step === 'limits' ? through >= 1
+    : o.step === 'notes' ? through >= 1
     : o.step === 'lap' ? f.lapDone
     : false;
   if (!done) return false;
@@ -73,7 +73,7 @@ export function advance(o: Onboarding, f: Facts): boolean {
 
 /**
  * How many of the bends (their apexes, as samples) a car passed going from
- * sample `from` to `to` (forwards, round the loop of `n`, less than half a lap).
+ * sample `from` to `to` (forwards, less than half the road's `n` samples on).
  */
 export function apexesPassed(apexes: number[], from: number, to: number, n: number): number {
   const ahead = (((to - from) % n) + n) % n;

@@ -1,18 +1,14 @@
 // A stage in 3D: the road painted over the ground (gravel and earth, packed
-// snow, sand, or tarmac with white edge lines and red-and-white kerbs), yellow
-// track-limit strips inside the marked corners, the start and finish lines and
-// the split lines, all draped over the road's heights; the barriers along the
-// run-off (hay bales on dirt, tyre walls on tarmac), and the scenery beyond: a
-// forest, the mountains, the snow or the desert.
+// snow, sand, or tarmac with white edge lines and red-and-white kerbs), the
+// start and finish lines and the split lines, all draped over the road's heights; the trees and rocks along it
+// (forest3d.ts), and the scenery beyond: a forest, the mountains, the snow or the desert.
 
 import * as THREE from 'three';
 import { canvas } from '../engine/render/sprites';
 import { pixelTexture } from '../engine/render/textures';
 import { addDaylight, type Daylight } from '../engine/render/daylight';
-import { groundAt } from '../engine/sim';
 import { sectorStarts, type Pt } from './racing';
 import { HALF_WIDTH, KERB, TILE as T, kerbed, type Circuit } from './circuit';
-import { markCorners } from './trackLimits';
 import { DRY, type Weather } from './weather';
 import { buildForest } from './forest3d';
 import { buildCamels } from './camels';
@@ -41,36 +37,35 @@ const SECTOR_WIDTH = 3;
 /** px across each square of the chequered start and finish lines (as near as fits the road's width evenly) */
 const START_SQUARE = 6;
 
-/** A forest's floor, past the barriers */
+/** A forest's floor, past the treeline */
 const FOREST_FLOOR = '#2f5a2c';
 
-/** The desert's colours: the sand (its run-off, beyond the barriers, and the specks in it), and the gravel traps, redder so they stand out from it */
+/** The desert's colours: the sand (its run-off, past the treeline, and the specks in it), and the gravel traps, redder so they stand out from it */
 const DESERT = { runoff: '#e4c896', runoffStripe: '#dcbf8a', sand: '#d8b47c', speck: '#c49e66', ripple: '#e8d0a2', gravel: '#c08a5e', gravelDot: ['#ad7a50', '#d29e72'] };
 
-/** The mountains' colours beyond the barriers: alpine meadow, bare rock on the steep ground, and snow up high */
+/** The mountains' colours past the treeline: alpine meadow, bare rock on the steep ground, and snow up high */
 const MOUNTAIN = { meadow: '#5c7f3c', meadowDot: ['#4b6c31', '#7a7a58'], rock: '#7e7a72', rockDot: ['#69655e', '#99948b'], snow: '#eef2f6', snowDot: '#cdd6df' };
-/** px up past which the ground beyond the barriers is snow; the steepness (rise per px) past which it's bare rock */
+/** px up past which the ground past the treeline is snow; the steepness (rise per px) past which it's bare rock */
 const SNOW_LINE = 150;
 /** On dirt (layout.dirt): dirt everywhere. The road's wet, dark earth, its ruts deeper still where the cars run, wet
  * clods over it and puddles catching the light; the berms along its edges (in place of kerbs) drier; the run-off's
- * dry earth, graded in stripes, and beyond the barriers the dry, rougher ground, stones strewn over it; and the
- * barriers hay bales */
+ * dry earth, graded in stripes, and past the treeline the dry, rougher ground, stones strewn over it */
 const DIRT = {
   track: '#4e3220', rut: '#382214', clods: ['#5e3d28', '#3f2818'], puddle: '#5b5650', shine: '#8c8c96', berm: '#7a5332',
-  graded: ['#b88a5a', '#b08254'], gradedDot: '#9c7148', ground: '#a87a4c', groundDot: ['#8e6440', '#c49464', '#d2b48c'], bale: ['#d9b25a', '#c39a40'],
+  graded: ['#b88a5a', '#b08254'], gradedDot: '#9c7148', ground: '#a87a4c', groundDot: ['#8e6440', '#c49464', '#d2b48c'],
 };
-/** Under snow (layout.snow): the run-off groomed in stripes, and the snow beyond the barriers, its shadows blue */
+/** Under snow (layout.snow): the run-off groomed in stripes, and the snow past the treeline, its shadows blue */
 const SNOWFIELD = { groomed: ['#f4f7fa', '#e9eef3'], groomedDot: '#dbe3ea', snow: '#eef2f6', snowDot: ['#d2dbe4', '#c6d2de'], rockDot: '#8a8f96' };
 /** A stage on snow (layout.dirt and layout.snow): packed snow and ice for the road, its ruts worn grey-blue,
  * clumps of snow thrown up over it, sheet ice catching the light; snow banks along its edges, and walls of snow */
 const SNOW_ROAD: typeof DIRT = {
   track: '#c4ced8', rut: '#98a6b4', clods: ['#e8eef3', '#aebbc7'], puddle: '#9fc0de', shine: '#f4faff', berm: '#f2f6f9',
-  graded: ['#f4f7fa', '#e9eef3'], gradedDot: '#dbe3ea', ground: '#eef2f6', groundDot: ['#d2dbe4', '#c6d2de', '#8a8f96'], bale: ['#f4f7fa', '#d6e0ea'],
+  graded: ['#f4f7fa', '#e9eef3'], gradedDot: '#dbe3ea', ground: '#eef2f6', groundDot: ['#d2dbe4', '#c6d2de', '#8a8f96'],
 };
 /** A stage in the desert (layout.dirt and layout.desert): a sandy road, pale ruts and berms of drifted sand */
 const SAND_ROAD: typeof DIRT = {
   track: '#b88a56', rut: '#9a6e40', clods: ['#caa070', '#8e6438'], puddle: '#c8a676', shine: '#e8d0a2', berm: '#dcbf8a',
-  graded: ['#e4c896', '#dcbf8a'], gradedDot: '#c49e66', ground: '#d8b47c', groundDot: ['#c49e66', '#e8d0a2', '#b08a5a'], bale: ['#d9b25a', '#c39a40'],
+  graded: ['#e4c896', '#dcbf8a'], gradedDot: '#c49e66', ground: '#d8b47c', groundDot: ['#c49e66', '#e8d0a2', '#b08a5a'],
 };
 /** The colours of a dirt road: gravel and earth, unless it's on snow or in the desert. */
 const dirtOf = (layout: { snow?: boolean; desert?: boolean }): typeof DIRT => (layout.snow ? SNOW_ROAD : layout.desert ? SAND_ROAD : DIRT);
@@ -119,22 +114,6 @@ export function offsetLine(samples: { x: number; y: number; dir: number }[], nor
   return out;
 }
 
-/** The tiles the barriers stand on (i, j): every wall tile that touches the run-off. */
-export function barrierTiles(circuit: Circuit): [number, number][] {
-  const { width: W, height: H, cells } = circuit;
-  const cell = (i: number, j: number) => (i >= 0 && j >= 0 && i < W && j < H ? cells[j * W + i] : 'wall');
-  const walls: [number, number][] = [];
-  for (let j = 0; j < H; j++) {
-    for (let i = 0; i < W; i++) {
-      if (cells[j * W + i] !== 'wall') continue;
-      let near = false;
-      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) near ||= cell(i + di, j + dj) !== 'wall';
-      if (near) walls.push([i, j]);
-    }
-  }
-  return walls;
-}
-
 function paint(circuit: Circuit): HTMLCanvasElement {
   const { width: W, height: H, cells, track } = circuit;
   const [c, x] = canvas(W * T, H * T);
@@ -167,7 +146,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
         }
       } else if (dirt && !snowy && !desert) {
-        // on dirt, dry earth: the run-off graded in stripes; beyond the barriers rougher, stones strewn over it
+        // on dirt, dry earth: the run-off graded in stripes; past the treeline rougher, stones strewn over it
         const wall = cell === 'wall';
         x.fillStyle = wall ? D.ground : D.graded[(i + j) % 4 < 2 ? 0 : 1];
         x.fillRect(px, py, T, T);
@@ -176,7 +155,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), wall ? 2 : 1, 1);
         }
       } else if (snowy) {
-        // under snow: the run-off groomed in stripes; beyond the barriers deep snow, the steep ground's rock showing through it
+        // under snow: the run-off groomed in stripes; past the treeline deep snow, the steep ground's rock showing through it
         const { steep } = relief(i, j);
         const wall = cell === 'wall';
         const rock = wall && steep > ROCK_STEEP;
@@ -187,7 +166,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), wall ? 2 : 1, 1);
         }
       } else if (mountain && cell === 'wall') {
-        // in the mountains, beyond the barriers: snow up high, bare rock where it's steep, alpine meadow elsewhere
+        // in the mountains, past the treeline: snow up high, bare rock where it's steep, alpine meadow elsewhere
         const { h, steep } = relief(i, j);
         const snow = h > SNOW_LINE;
         const rock = !snow && steep > ROCK_STEEP;
@@ -198,7 +177,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), rock ? 2 : 1, rock ? 1 : 2);
         }
       } else if (desert) {
-        // in the desert, sand: smoothed and striped on the run-off, rippled beyond the barriers
+        // in the desert, sand: smoothed and striped on the run-off, rippled past the treeline
         x.fillStyle = cell === 'wall' ? DESERT.sand : (i + j) % 4 < 2 ? DESERT.runoff : DESERT.runoffStripe;
         x.fillRect(px, py, T, T);
         for (let k = 0; k < 3; k++) {
@@ -206,7 +185,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), cell === 'wall' ? 3 : 1, 1);
         }
       } else {
-        // grass everywhere else (the track is painted over it); mown stripes on the run-off; in a forest, its dark floor past the barriers
+        // grass everywhere else (the track is painted over it); mown stripes on the run-off; in a forest, its dark floor past the treeline
         x.fillStyle = cell === 'wall' ? (forest ? FOREST_FLOOR : '#4b9444') : (i + j) % 4 < 2 ? '#5aa84f' : '#62b156';
         x.fillRect(px, py, T, T);
         for (let k = 0; k < 3; k++) {
@@ -320,20 +299,6 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       }
     }
   }
-  // track limits: a yellow-and-black strip round each marked corner's apex, just off the inside edge (past it is a cut)
-  x.lineWidth = 4;
-  for (const k of markCorners(track)) {
-    const edge = offset(k.side * (HALF_WIDTH + 6));
-    for (let j = -5; j < 5; j++) {
-      const a = edge[(k.apex + j + pts.length) % pts.length];
-      const b = edge[(k.apex + j + 1 + pts.length) % pts.length];
-      x.strokeStyle = (j + 5) % 2 === 0 ? '#f2c14e' : '#1b1b26';
-      x.beginPath();
-      x.moveTo(a.x, a.y);
-      x.lineTo(b.x, b.y);
-      x.stroke();
-    }
-  }
   // grid boxes: a white bracket in front of each slot
   x.strokeStyle = '#f4f4f8';
   x.lineWidth = 2;
@@ -408,22 +373,7 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   outer.receiveShadow = true;
   scene.add(ground, outer);
 
-  // the barriers: on every wall tile that touches the run-off, tyre walls stacked red and white (on dirt, hay bales: two straws)
-  const walls = barrierTiles(circuit);
-  const tyres = new THREE.InstancedMesh(new THREE.CylinderGeometry(7, 7, 7, 8), new THREE.MeshLambertMaterial({ color: 0xffffff }), walls.length);
-  const m = new THREE.Matrix4();
-  const dirtTrack = !!circuit.layout.dirt;
-  const red = new THREE.Color(dirtTrack ? dirtOf(circuit.layout).bale[0] : '#d8323c');
-  const white = new THREE.Color(dirtTrack ? dirtOf(circuit.layout).bale[1] : '#f4f4f8');
-  walls.forEach(([i, j], k) => {
-    const h = groundAt(grid, (i + 0.5) * T, (j + 0.5) * T).h;
-    m.makeTranslation((i + 0.5) * T, h + 3.5, (j + 0.5) * T);
-    tyres.setMatrixAt(k, m);
-    tyres.setColorAt(k, (i + j) % 2 === 0 ? red : white);
-  });
-  tyres.castShadow = tyres.receiveShadow = true;
-  scene.add(tyres);
-  // (in a forest, or in the mountains: the trees)
+  // the trees and rocks along the road (its edges: what a car hits), and the forest, mountains or desert past them
   buildForest(scene, circuit);
 
   const minimap = (mw: number, mh: number) => {
