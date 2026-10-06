@@ -335,7 +335,8 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fillStyle = r() < 0.5 ? '#a8a6a0' : '#c0beb8';
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
         }
-      } else if (cell === 'gravel') {
+      } else if (cell === 'gravel' && !(dirt && snowy)) {
+        // (a snow stage's run-off is snow all through: its own branch, below)
         x.fillStyle = desert ? DESERT.gravel : '#d8c49a';
         x.fillRect(px, py, T, T);
         for (let k = 0; k < 10; k++) {

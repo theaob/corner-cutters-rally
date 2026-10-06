@@ -4,7 +4,7 @@ android {
     namespace = "io.github.theaob.cornercutters"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "io.github.theaob.cornercutters"
+        applicationId "io.github.theaob.cornercuttersrally"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // CI passes these in (versionCode must rise for an update to install over the last build)

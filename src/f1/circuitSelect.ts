@@ -95,9 +95,10 @@ function ownTabButton(): HTMLButtonElement {
 }
 
 /** What the menu comes back with. */
-/** What to play: a race weekend, a Championship season, a Time Attack (beat the clock), or a Time Trial (flying laps against your ghost). */
-export type GameMode = 'daily' | 'race' | 'championship' | 'timeattack' | 'timetrial';
+/** What to play: a rally (its own screen), a race weekend, a Championship season, a Time Attack (beat the clock), or a Time Trial (flying laps against your ghost). */
+export type GameMode = 'rally' | 'daily' | 'race' | 'championship' | 'timeattack' | 'timetrial';
 export const MODES: { id: GameMode; name: string; about: string }[] = [
+  { id: 'rally', name: 'RALLY', about: 'stage by stage against the clock, the co-driver calling the bends' },
   { id: 'daily', name: 'DAILY CHALLENGE', about: 'one Time Attack a day, the same for everyone: get on the board' },
   { id: 'race', name: 'QUICK RACE', about: 'a race against the field, your circuit, your laps' },
   { id: 'championship', name: 'CHAMPIONSHIP', about: 'a season: a round on every circuit, points and standings' },
@@ -109,7 +110,7 @@ export const MODES: { id: GameMode; name: string; about: string }[] = [
 export const rowsOf = (mode: GameMode, layout?: CircuitLayout): ('team' | 'car' | 'weather' | 'qualifying' | 'laps' | 'tyres')[] =>
   mode === 'race'
     ? ['team', 'car', 'weather', 'qualifying', 'laps', ...(layout?.dirt ? [] : ['tyres' as const])]
-    : mode === 'championship' || mode === 'daily' ? [] : ['team', 'car', 'weather'];
+    : mode === 'championship' || mode === 'daily' || mode === 'rally' ? [] : ['team', 'car', 'weather'];
 
 /** The dry tyres you start a race on: the pit wall's strategy's (AUTO), or the SOFTs or the HARDs. */
 export type TyrePick = 'auto' | DryCompound;
@@ -305,7 +306,7 @@ export function chooseCircuit(
   const menu = document.createElement('div');
   menu.className = 'circuit-menu';
   const title = document.createElement('h1');
-  title.textContent = 'CORNER CUTTERS';
+  title.textContent = 'CORNER CUTTERS RALLY';
   const hint = document.createElement('p');
   hint.textContent = MODES_HINT;
   menu.append(title, hint);
@@ -594,7 +595,7 @@ export function chooseCircuit(
   /** a mode picked: a Championship to its screen; the others on to the circuit screen, with the mode's rows */
   const pickMode = (m: (typeof MODES)[number]) => {
     current = m;
-    if (m.id === 'championship' || m.id === 'daily') {
+    if (m.id === 'championship' || m.id === 'daily' || m.id === 'rally') {
       finish(layouts[selected]);
       return;
     }
@@ -723,7 +724,7 @@ export function chooseCircuit(
     finish = (layout) => {
       if (done) return;
       // a locked circuit: raced only in a Championship (any circuit picked there goes to its screen)
-      if (!resumePicked && !open.has(layout.id) && current.id !== 'championship' && current.id !== 'daily') {
+      if (!resumePicked && !open.has(layout.id) && current.id !== 'championship' && current.id !== 'daily' && current.id !== 'rally') {
         menuTick();
         hint.textContent = `${layout.name.toUpperCase()}: REACH IT IN A CHAMPIONSHIP TO UNLOCK`;
         return;

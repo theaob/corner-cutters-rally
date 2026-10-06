@@ -49,10 +49,10 @@ export function bannerMessage(s: BannerState): [string, string] {
     : s.pit ? [s.pit.limiter ? 'PIT LIMITER' : 'PIT LANE', '#f2c14e']
     : s.boxBox ? [`BOX, BOX · PITS ${s.pitSide}`, '#f2c14e']
     : s.wrongWay > 1 ? ['WRONG WAY', '#d8323c']
-    : s.clock < 1.2 && s.session === 'race' ? ['GO!', '#5fe0d0']
+    : s.clock < 1.2 && (s.session === 'race' || s.session === 'rally') ? ['GO!', '#5fe0d0']
     : s.clock < s.notice.until ? [s.notice.text, s.notice.color]
     : s.learn ? [s.learn.text, s.learn.last ? '#f2c14e' : '#f4f4f8']
-    : s.session !== 'race' && s.session !== 'tutorial' && s.beforeLine ? ['TIMING STARTS AT THE LINE', '#9d9ab8']
+    : s.session !== 'race' && s.session !== 'rally' && s.session !== 'tutorial' && s.beforeLine ? ['TIMING STARTS AT THE LINE', '#9d9ab8']
     : s.safetyCar ? ['SAFETY CAR', '#f2c14e']
     : s.vsc ? ['VIRTUAL SAFETY CAR', '#f2c14e']
     // (a Time Attack's clock, red in its last seconds)

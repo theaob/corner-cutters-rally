@@ -44,7 +44,7 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
   page.className = 'splash';
   const logo = document.createElement('h1');
   logo.className = 'splash-logo';
-  logo.setAttribute('aria-label', 'Corner Cutters');
+  logo.setAttribute('aria-label', 'Corner Cutters Rally');
   const word = (text: string) => {
     const w = document.createElement('span');
     w.className = 'splash-word';
@@ -54,10 +54,13 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
   };
   const kerb = document.createElement('span');
   kerb.className = 'splash-kerb';
-  logo.append(word('CORNER'), kerb, word('CUTTERS'));
+  // (RALLY under the name, smaller, in the dust's orange)
+  const rally = word('RALLY');
+  rally.classList.add('splash-rally');
+  logo.append(word('CORNER'), kerb, word('CUTTERS'), rally);
   const tag = document.createElement('p');
   tag.className = 'splash-tag';
-  tag.textContent = 'ARCADE GRAND PRIX';
+  tag.textContent = 'ARCADE RALLY';
   const prompt = document.createElement('p');
   prompt.className = 'splash-start';
   const touch = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;

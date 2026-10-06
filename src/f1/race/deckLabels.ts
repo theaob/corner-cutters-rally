@@ -12,13 +12,13 @@ export interface DeckState {
   settings: boolean;
   /** the results (or qualifying's times) are up */
   resultsUp: boolean;
-  /** a Championship round, over */
+  /** a Championship round, or a rally's stage, over */
   roundOver: boolean;
   /** qualifying's over (its times are up) */
   qualifyingOver: boolean;
   /** a Time Attack's over (its result is up) */
   attackOver: boolean;
-  session: 'qualifying' | 'race' | 'timetrial' | 'timeattack' | 'tutorial';
+  session: 'qualifying' | 'race' | 'timetrial' | 'timeattack' | 'tutorial' | 'rally';
   /** the controls lap is done */
   learnt: boolean;
   /** the grid pan or a replay is on */

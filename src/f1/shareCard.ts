@@ -8,7 +8,7 @@
 import { MEDAL_COLOR, MEDAL_NAME, type Medal } from './medals';
 
 /** Where the game is played (on the card and in the text). */
-export const SHARE_URL = (import.meta.env?.VITE_SHARE_URL as string | undefined) || 'theaob.itch.io/corner-cutters';
+export const SHARE_URL = (import.meta.env?.VITE_SHARE_URL as string | undefined) || 'theaob.itch.io/corner-cutters-rally';
 
 export interface ShareCard {
   circuit: string;
@@ -87,15 +87,15 @@ export function shareText(c: ShareCard): string {
     const how = c.season.over
       ? c.sub === 'CHAMPION' ? 'won the championship 🏆' : `finished the championship ${c.headline}`
       : `am ${c.headline} in the championship after round ${c.season.round} of ${c.season.rounds}`;
-    return `I ${how} in Corner Cutters 🏁 Can you beat it? https://${SHARE_URL}`;
+    return `I ${how} in Corner Cutters Rally 🏁 Can you beat it? https://${SHARE_URL}`;
   }
   const how = c.headline === 'DNF' ? 'crashed out' : /^P\d+$/.test(c.headline) ? `finished ${c.headline}` : `reached ${c.headline.toLowerCase()}`;
-  return `I ${how} at ${titleCase(c.circuit)} in Corner Cutters 🏁 ${c.sub === 'WINNER' ? '🏆 ' : ''}Can you beat it? https://${SHARE_URL}`;
+  return `I ${how} at ${titleCase(c.circuit)} in Corner Cutters Rally 🏁 ${c.sub === 'WINNER' ? '🏆 ' : ''}Can you beat it? https://${SHARE_URL}`;
 }
 const titleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
 
 /** The card's file name. */
-export const cardFile = (c: ShareCard) => `corner-cutters-${c.circuit.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${c.date}.png`;
+export const cardFile = (c: ShareCard) => `corner-cutters-rally-${c.circuit.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${c.date}.png`;
 
 /** px: the card's size (square, for any feed) */
 export const CARD = 1080;
@@ -135,10 +135,10 @@ export function drawCard(ctx: CanvasRenderingContext2D, c: ShareCard, map?: Canv
     }
   };
   ctx.font = font(48);
-  const nameW = ctx.measureText('CORNER CUTTERS').width;
+  const nameW = ctx.measureText('CORNER CUTTERS RALLY').width;
   chequer(mid - nameW / 2 - 84);
   chequer(mid + nameW / 2 + 28);
-  text('CORNER CUTTERS', 116, 48, '#f2c14e');
+  text('CORNER CUTTERS RALLY', 116, 48, '#f2c14e');
   text(c.circuit, 200, 56, '#f4f4f8');
   text(c.mode, 258, 26, '#9d9ab8');
   // the circuit's map, faint, behind your result

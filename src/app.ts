@@ -45,14 +45,15 @@ import { NORMAL, difficultyById } from './f1/difficulty';
 import { DRY, WEATHERS, weatherById } from './f1/weather';
 import { roundForecast } from './f1/forecast';
 import { openReport, reportOpen } from './f1/report';
+import { loadRally, newRally, nextStage, rallyEvent, rallyOver, saveRally } from './f1/rally';
 
 const screen = document.getElementById('screen')!;
 const deck = document.getElementById('deck')!;
 
 const app = document.getElementById('app')!;
 
-// this game's saves (each game has its own prefix: itch.io games share one origin's storage), in its save format
-useStore('cc:');
+// this game's saves (Corner Cutters Rally's own, apart from Corner Cutters'; each game has its own prefix: itch.io games share one origin's storage), in its save format
+useStore('ccr:');
 useSave(CC_SAVE);
 // (TEXT: LARGE in the settings, from the start)
 applyText();
@@ -156,7 +157,7 @@ const startTyres = (): DryCompound | undefined => {
   const t = savedTyres();
   return t === 'auto' ? undefined : t;
 };
-const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'timeattack' || v === 'championship' || v === 'daily' ? v : 'race');
+const asMode = (v: string | null): GameMode => (v === 'timetrial' || v === 'timeattack' || v === 'championship' || v === 'daily' || v === 'rally' ? v : 'race');
 const savedMode = (): GameMode => asMode(choice('mode'));
 
 /** RESUME RACE picked on the menu: the kept race (raceSave.ts) the next race screen picks up */
@@ -218,6 +219,7 @@ async function route(): Promise<void> {
   if (params.get('mode') === 'tutorial' && layout) await showRace(id, layout, 'tutorial');
   else if (mode === 'championship' && !layout) await showSeason(id);
   else if (mode === 'daily' && !layout) await showDailyScreen(id);
+  else if (mode === 'rally' && !layout) await showRallyScreen(id);
   else if (!layout) await showMenu(id);
   else await showRace(id, layout, mode);
 }
@@ -226,6 +228,10 @@ async function route(): Promise<void> {
 function raceLine(mode: string | null): string {
   if (mode === 'tutorial') return 'CONTROLS LAP';
   if (mode === 'daily') return `DAILY CHALLENGE · ${challengeOn(dayOf()).weather.name}`;
+  if (mode === 'rally') {
+    const r = loadRally();
+    if (r && !rallyOver(r)) return `${rallyEvent(r).name} · SS${nextStage(r) + 1} OF ${rallyEvent(r).stages.length}`;
+  }
   const season = mode === 'championship' ? loadSeason() : undefined;
   const what = season ? `CHAMPIONSHIP · ROUND ${season.round + 1} OF ${season.rounds.length}` : mode === 'timetrial' ? 'TIME TRIAL' : mode === 'timeattack' ? 'TIME ATTACK' : 'QUICK RACE';
   if (season) return `${what} · FORECAST: ${roundForecast(roundSeed(season, season.round), 1).name}`;
@@ -320,8 +326,8 @@ async function showMenu(id: number): Promise<void> {
   save('choices', 'laps', String(picked.laps));
   save('choices', 'tyres', picked.tyres);
   save('choices', 'mode', picked.mode);
-  // (a Championship picks its own circuits, and the Daily Challenge has the day's: to their screens)
-  navigate(withCircuit(picked.mode === 'championship' || picked.mode === 'daily' ? null : picked.layout.id, picked.mode));
+  // (a Championship picks its own circuits, the Daily Challenge has the day's, and a rally its stages: to their screens)
+  navigate(withCircuit(picked.mode === 'championship' || picked.mode === 'daily' || picked.mode === 'rally' ? null : picked.layout.id, picked.mode));
 }
 
 /** The circuit the menu's backdrop races on: the one last picked, if it's open, else the first. */
@@ -404,6 +410,31 @@ async function showDailyScreen(id: number): Promise<void> {
   navigate(action === 'play' ? withCircuit(today.layout.id, 'daily') : withCircuit(null));
 }
 
+/** The rally's screen: the rallies to pick from, or the one under way, its standings and its next stage. */
+async function showRallyScreen(id: number): Promise<void> {
+  menuScreen();
+  menuName = 'rally';
+  playMusic(THEME_MUSIC);
+  const closed = new AbortController();
+  current = { close: () => closed.abort() };
+  const { showRally } = await import('./f1/screens/rally');
+  if (id !== routeId) return;
+  const rally = loadRally();
+  const showing = showRally(screen, services, rally, closed.signal);
+  curtainUp();
+  const action = await showing;
+  if (id !== routeId) return;
+  if (action === 'stage' && rally && !rallyOver(rally)) navigate(withCircuit(rallyEvent(rally).stages[nextStage(rally)].layout, 'rally'));
+  else if (action === 'abandon') {
+    saveRally(undefined);
+    void route();
+  } else if (typeof action === 'object') {
+    // a new rally, for the team and car last picked, at the difficulty in the settings
+    saveRally(newRally({ event: action.start, seed: newSeed(), team: savedTeam(), seat: savedSeat(), difficulty: savedDifficulty().id }));
+    void route();
+  } else navigate(withCircuit(null));
+}
+
 async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tutorial'): Promise<void> {
   racingOn = { circuit: layout.id, mode };
   // the Daily Challenge: today's circuit only (another, or yesterday's left open: to today's screen)
@@ -414,7 +445,14 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
   }
   // (a draft from the designer: a quick race or a time trial, never a Championship round)
   // a Championship round: the season's next round (any other circuit: back to its screen)
-  if (layout.id === DESIGNER_DRAFT_ID && mode === 'championship') mode = 'race';
+  if (layout.id === DESIGNER_DRAFT_ID && (mode === 'championship' || mode === 'rally')) mode = 'race';
+  // a rally's stage: the rally's next (any other: back to its screen)
+  const rally = mode === 'rally' ? loadRally() : undefined;
+  const rallyStage = rally && !rallyOver(rally) ? rallyEvent(rally).stages[nextStage(rally)] : undefined;
+  if (mode === 'rally' && (!rally || !rallyStage || rallyStage.layout !== layout.id)) {
+    history.replaceState(null, '', withCircuit(null, 'rally'));
+    return route();
+  }
   const season = mode === 'championship' ? loadSeason() : undefined;
   // (a round of a Championship not bought, or a circuit not open: to the Championship's screen, its shop first)
   if (mode === 'championship' && (!ownsChampionship() || !season || seasonOver(season) || season.rounds[season.round] !== layout.id)) {
@@ -427,8 +465,11 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
   const { raceOn } = await import('./f1/race');
   if (id !== routeId) return;
   const toSeason = () => navigate(withCircuit(null, 'championship'));
+  const toRally = () => navigate(withCircuit(null, 'rally'));
   const quit = season
     ? toSeason
+    : rally
+      ? toRally
     : today
       ? () => navigate(withCircuit(null, 'daily'))
     : layout.id === DESIGNER_DRAFT_ID
@@ -444,7 +485,13 @@ async function showRace(id: number, layout: CircuitLayout, mode: GameMode | 'tut
           navigate(withCircuit(null));
         }
       : () => navigate(withCircuit(null));
-  let options: RaceOptions = season
+  let options: RaceOptions = rally && rallyStage
+    ? {
+        team: teamById(rally.crews[rally.you].team) ?? savedTeam(), seat: rally.crews[rally.you].seat, difficulty: difficultyById(rally.difficulty) ?? NORMAL,
+        weather: weatherById(rallyStage.weather) ?? DRY, mode: 'rally',
+        rally: { rally, stage: nextStage(rally), onDone: toRally },
+      }
+    : season
     ? {
         team: teamOf(season.drivers[season.you]), difficulty: difficultyById(season.difficulty) ?? NORMAL, qualifying: season.qualifying, laps: season.laps ?? RACE_LAPS,
         championship: {

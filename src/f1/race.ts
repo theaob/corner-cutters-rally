@@ -92,6 +92,9 @@ import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
 import { dropKeptRace, keepRace, restoreRace, snapshotRace, type KeptRace } from './raceSave';
 import { DESIGNER_DRAFT_ID } from './designerDraft';
+import { aiStage, rallyEvent, recordBest, recordStage, referenceStage, saveRally, stageOrder, stageSeed, type Rally } from './rally';
+import { newCaller, paceNotes, stepCaller, type Caller } from './paceNotes';
+import { createPaceCard, renderStageResults } from './race/rallyView';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
@@ -143,7 +146,9 @@ export interface RaceOptions {
   /** a race kept on the device to come back to (raceSave.ts): built as it was and picked up where it was left, paused */
   resume?: KeptRace;
   /** a race weekend, a Time Trial (flying laps on your own against your best lap's ghost), or the controls lap for a new player */
-  mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial';
+  mode?: 'race' | 'timetrial' | 'timeattack' | 'tutorial' | 'rally';
+  /** a rally's special stage: the rally, and the stage (its index); on with `onDone` once its results have been seen */
+  rally?: { rally: Rally; stage: number; onDone(): void };
   /**
    * a round of a Championship: the season (its field, all season), and where the result goes once you've seen the
    * results: the drivers (the season's indexes) in finishing order, and those who didn't finish
@@ -160,6 +165,8 @@ export interface RaceOptions {
 export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceOptions = {}): MountStandalone => async ({ host, services, tuning, fit }) => {
   const { team = TEAMS[0], seat: yourSeat = 0, difficulty = NORMAL, weather = DRY, qualifying = false, mode = 'race', championship } = options;
   const LAPS = Math.max(1, Math.round(options.laps ?? RACE_LAPS));
+  /** a rally's stage: one lap of it from a standing start, against the clock */
+  const rallyRun = mode === 'rally' ? options.rally : undefined;
   const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   loadVehicleEdits(); // (any saved stat edits apply to the cars)
@@ -286,6 +293,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     }
     bannerShown = { text, drawn: banner.textContent };
   };
+  // a rally's stage: the co-driver's card
+  const paceCard = createPaceCard();
+  host.append(paceCard.el);
   host.append(streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, flagOverlay.el);
   placeHud = (desktop) => {
     phoneHud = !desktop;
@@ -445,7 +455,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const seedParam = Number(new URLSearchParams(window.location.search).get('seed'));
   let seed = 0;
   /** the session on track: qualifying (your flying lap, alone), the race, or a Time Trial (flying laps, alone, against your ghost) */
-  let session: 'qualifying' | 'race' | 'timetrial' | 'timeattack' | 'tutorial' = 'race';
+  let session: 'qualifying' | 'race' | 'timetrial' | 'timeattack' | 'tutorial' | 'rally' = 'race';
   /** The replay over (or skipped): back to the race, live (after your flag, the ceremony follows). */
   const endReplay = () => {
     // (a crash's replay over, the race goes on; the finish's is shown once)
@@ -473,6 +483,15 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     /** the run as it's driven (from the clock starting), and the Daily Challenge's leading run to chase */
     rec: LapRecorder; rival?: DailyRival;
     result?: { passed: number; record: boolean; medal?: Medal; newMedal: boolean; daily?: { best: boolean; dayBest: Run; place?: number; entries?: number } };
+  } | undefined;
+
+  /**
+   * a rally's stage: the co-driver's notes, the reference run (its time and splits: the rivals' are off it), the splits
+   * passed, and once it's over its result (when, your time, your place on it)
+   */
+  let stage: {
+    caller: Caller; reference: { time: number; splits: number[] }; leader: number; rivals: (number | undefined)[]; sector: number;
+    result?: { at: number; time?: number; place: number; shown: boolean; recorded: boolean };
   } | undefined;
 
   /** The champagne ceremony, after your finish's replay: the race finished at once (the rest at their pace, everyone put
@@ -727,6 +746,96 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     announce(best ? `TIME ATTACK · BEAT ${distance(best)}` : 'TIME ATTACK · THE CLOCK STARTS AT THE LINE', '#f2c14e', 3);
   };
 
+  /** a rally's stage's reference run, worked out once */
+  let stageReference: { time: number; splits: number[] } | undefined;
+  /** seconds of the countdown on the line (five, four… one) before GO: the lights' run-up and the wait after it */
+  const COUNTDOWN = 5;
+  /**
+   * A rally's stage: you on your own on the line, the countdown, then one lap against the clock with the co-driver
+   * calling the notes; your car as the last stage (or the service park) left it.
+   */
+  const startStage = () => {
+    if (!rallyRun) return;
+    session = 'rally';
+    gridPan = undefined;
+    learn = undefined;
+    quali = undefined;
+    trial = undefined;
+    attack = undefined;
+    resetSession();
+    const w = drawWeekend();
+    noteStat('race_start', { circuit: layout.id, mode: statsMode(), data: pickOf(w) });
+    you = 0;
+    const d = w.drivers[w.youDriver];
+    looks = [addLook(d.livery, d.seat, true)];
+    const slot = circuit.slots[0];
+    race = newRace(track, grid, HANDLING, 1, [{ car: newCar(carClass('f1'), slot.x, slot.y, slot.heading) }], COUNTDOWN - LIGHTS, undefined, sessionWeather());
+    const car = race.entrants[0].car;
+    car.z = groundAt(grid, car.x, car.y).h;
+    car.health = car.cls.health * Math.max(0.05, Math.min(1, rallyRun.rally.health));
+    // (the same all through the stage's restarts)
+    const reference = (stageReference ??= referenceStage(track, grid, HANDLING, sessionWeather(), slot));
+    const rivals = aiStage(rallyRun.rally, rallyRun.stage, reference.time, difficulty).times;
+    const leader = Math.min(...rivals.filter((t): t is number => t !== undefined));
+    stage = { caller: newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at))), reference, leader, rivals, sector: 0 };
+    paceCard.hush();
+    hudState = { gaps: newGapTimer(1), lastPos: 0, flashUntil: 0, lapsSeen: [0], fastest: undefined };
+    const k = rallyRun.stage;
+    const event = rallyEvent(rallyRun.rally);
+    announce(`SS${k + 1} OF ${event.stages.length} · ${layout.name.toUpperCase()}`, '#f2c14e', 3);
+  };
+  /** Your place among the crews at time `t` on the stage, against their times scaled to the same share of it (`share`: of the reference's). */
+  const placeAt = (t: number, share: (time: number) => number) =>
+    1 + (stage?.rivals.filter((r) => r !== undefined && share(r) < t).length ?? 0);
+  /** A stage step: a split at each sector (against the stage's quickest crew), and the stage over at the line or a wreck. */
+  const stepStage = () => {
+    if (!stage || !rallyRun || stage.result) return;
+    const me = race.entrants[you];
+    const p = me.progress;
+    // no tyre wear on a stage: a fresh set for each one
+    me.tyres.wear = 0;
+    fitTyres(me.tyres, me.car, race.wetness);
+    if (race.phase !== 'racing') return;
+    if (p.lapStart !== undefined && p.finished === undefined && p.sector > stage.sector) {
+      stage.sector = p.sector;
+      const k = p.sector - 1;
+      const t = race.clock;
+      const ref = stage.reference;
+      const share = (time: number) => (time * (ref.splits[k] ?? t)) / ref.time;
+      const delta = t - share(stage.leader);
+      const place = placeAt(t, share);
+      announce(`SPLIT ${k + 1} · ${fmt(t)} · ${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(2)} · P${place}`, delta < 0 ? splitColor('record') : splitColor('worse'), 2.5);
+    }
+    const out = me.car.wrecked || !!p.retired;
+    if (p.finished !== undefined || out) {
+      const time = out ? undefined : p.finished! + p.penalty;
+      const place = time === undefined ? stage.rivals.length : placeAt(time, (x) => x);
+      stage.result = { at: race.clock, time, place, shown: false, recorded: false };
+      done = true;
+      paceCard.hush();
+      noteStat('race_finish', { circuit: layout.id, mode: 'rally', data: { place: time === undefined ? null : place, stage: rallyRun.stage } });
+      noteDriven();
+      // into the rally at once (and kept): the stage is run, whatever happens next
+      const r = rallyRun.rally;
+      recordStage(r, rallyRun.stage, { time, penalty: p.penalty, health: me.car.wrecked ? 0 : me.car.health / me.car.cls.health }, aiStage(r, rallyRun.stage, stage.reference.time, difficulty));
+      stage.result.recorded = true;
+      if (recordBest(r)) sounds.record();
+      saveRally(r);
+      const mine = stageOrder(r, rallyRun.stage).findIndex((o) => o.crew === r.you) + 1;
+      stage.result.place = mine;
+      if (time === undefined) announce('OUT OF THE STAGE', '#d8323c', 3);
+      else announce(`STAGE TIME ${fmt(time)} · P${mine}${p.penalty ? ` · +${p.penalty} S` : ''}`, mine === 1 ? '#f2c14e' : '#f4f4f8', 3);
+    }
+  };
+  /** The stage's results: every crew's time, then the rally after it. */
+  const showStageResults = () => {
+    if (!stage?.result || !rallyRun) return;
+    stage.result.shown = true;
+    results.style.animation = 'row-in 0.25s ease-out both';
+    renderStageResults(results, rallyRun.rally, rallyRun.stage, layout.name);
+    results.style.display = 'block';
+  };
+
   /** The controls lap: you on your own on the run-up, a prompt at a time for the controls. */
   const startTutorial = () => {
     session = 'tutorial';
@@ -818,12 +927,13 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   };
   /** A new weekend: a new seed (unless ?seed= gave one), then qualifying if it's on, or straight to the race. */
   const newWeekend = () => {
-    seed = resuming ? resuming.seed : championship ? roundSeed(championship.season, championship.season.round) : Number.isInteger(seedParam) && seedParam > 0 ? seedParam : newSeed();
+    seed = rallyRun ? stageSeed(rallyRun.rally, rallyRun.stage) : resuming ? resuming.seed : championship ? roundSeed(championship.season, championship.season.round) : Number.isInteger(seedParam) && seedParam > 0 ? seedParam : newSeed();
     reference = undefined;
     // (a Championship round's weather is its own; a changeable weekend's drawn afresh)
     forecast = roundWeather || (weather.id === 'changeable' ? changeableForecast(seed, raceSeconds) : fixedForecast(weather.id));
     weatherTag.textContent = forecast.name;
     if (mode === 'tutorial') startTutorial();
+    else if (rallyRun) startStage();
     else if (mode === 'timetrial') startTimeTrial();
     else if (mode === 'timeattack') startTimeAttack();
     else if (resuming) resumeRace(resuming);
@@ -835,7 +945,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
    * Restart: in qualifying, qualifying afresh; in a race after qualifying, the same race again from the grid it set (no
    * need to qualify again); without qualifying, a new weekend (new rivals), as ever.
    */
-  const restart = () => (dropOurs(), session === 'race' && qualifying ? startRace(raceGrid) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? startTutorial() : newWeekend());
+  const restart = () => (dropOurs(), session === 'race' && qualifying ? startRace(raceGrid) : session === 'timetrial' ? startTimeTrial() : session === 'timeattack' ? startTimeAttack() : session === 'tutorial' ? startTutorial() : session === 'rally' ? startStage() : newWeekend());
 
   const seen = new Map<Button, number>();
   /** SELECT was pressed: back to the circuits when it's released */
@@ -884,6 +994,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
         /** a Time Attack's clock run down now (once it's started), for trying out its end */
         timeUp: () => attack && attack.a.left !== undefined && (attack.a.left = 0.01),
         trial: () => trial && { laps: race.entrants[you].progress.lapTimes, best: trial.best?.time, record: trial.record?.time, splits: trial.record?.splits, ghost: ghostMesh.visible },
+        /** a rally's stage: its notes, the reference run, the rivals' times, the next note to call, the card's call, and its result */
+        stage: () => stage && { notes: stage.caller.notes.length, next: stage.caller.next, reference: stage.reference, leader: stage.leader, card: paceCard.el.style.display === 'flex' ? paceCard.el.textContent : undefined, result: stage.result },
         /** a street circuit's landmarks (where they stand on the map), and the camera held on a point of the map (none: back on your car), for looking at the scenery */
         landmarks: () => landmarksOf(circuit),
         /** the circuit's grandstands */
@@ -1131,7 +1243,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     leaveButton.style.boxShadow = exitFocus === 1 ? '0 0 0 2px #ff6b6b' : '';
   };
   /** What leaving loses, said under the question. */
-  const exitCost = () => championship ? "THE ROUND WON'T COUNT" : options.daily ? 'THIS RUN WON\'T COUNT' : session === 'race' || session === 'qualifying' ? "THIS RACE WON'T COUNT" : 'BACK TO THE CIRCUITS';
+  const exitCost = () => rallyRun && !done ? "THE STAGE WON'T COUNT" : championship ? "THE ROUND WON'T COUNT" : options.daily ? 'THIS RUN WON\'T COUNT' : session === 'race' || session === 'qualifying' ? "THIS RACE WON'T COUNT" : 'BACK TO THE CIRCUITS';
   const askExit = (on: boolean) => {
     if (on === asking) return;
     if (on) menuPick();
@@ -1338,7 +1450,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
 
   /** What each deck button does just now (race/deckLabels.ts). */
   const deckLabels = () => labelsFor({
-    settings: pauseSettingsOn, resultsUp: results.style.display === 'block', roundOver: !!championship && done, qualifyingOver: !!quali?.over,
+    settings: pauseSettingsOn, resultsUp: results.style.display === 'block', roundOver: (!!championship || !!rallyRun) && done, qualifyingOver: !!quali?.over,
     attackOver: !!attack?.result, session, learnt: learn?.o.step === 'done', watching: !!gridPan || !!replay, done, paused,
   });
   const deckEl = document.getElementById('deck');
@@ -1436,9 +1548,14 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // a Championship round, over: on to the standings with the result, once you've seen the results (and a finished
     // round can't be restarted)
     if (championship && done && (aPressed || startPressed) && results.style.display === 'block') finishRound();
+    // a rally's stage, over: its results (at once, at A), then on to the rally's screen
+    else if (rallyRun && done && (aPressed || startPressed)) {
+      if (results.style.display === 'block') rallyRun.onDone();
+      else showStageResults();
+    }
     else if (quali?.over && (aPressed || startPressed)) startRace(quali.over.grid);
     else if (attack?.result && (aPressed || startPressed)) startTimeAttack();
-    else if (startPressed && !(championship && done)) restart();
+    else if (startPressed && !((championship || rallyRun) && done)) restart();
     else if (aPressed && session === 'qualifying') startRace();
     // the controls lap: A skips it, or once it's done goes on to the menu
     else if (aPressed && session === 'tutorial') onQuit();
@@ -1529,7 +1646,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       : source === 'keyboard' ? wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car)
       : wheelInput(stickWheel(pad.stick, pad.b), car);
     // the start: once all five lights are lit, going is a jump start; after they're out, your reaction is judged
-    if (session === 'race' && !gridPan) {
+    if ((session === 'race' || session === 'rally') && !gridPan) {
       const car = race.entrants[you].car;
       const input = driveInput(car);
       const gas = input.wheel ? (input.wheel.reverse ? 0 : input.wheel.gas) : Math.hypot(input.steer?.x ?? 0, input.steer?.y ?? 0);
@@ -1598,6 +1715,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       if (race.phase === 'racing') stepGaps(hudState.gaps, race.entrants.map((e) => e.progress), track, race.clock);
       if (trial) stepTrial(s.race.some((e) => (e.kind === 'track-limits' || e.kind === 'off-track') && e.who === you));
       if (attack) stepTimeAttack(s.race.some((e) => e.kind === 'track-limits' && e.who === you));
+      if (stage) stepStage();
       if (session === 'race' && race.phase === 'racing') {
         const scCar = race.sc?.car;
         recordReplay(recorder, race.clock, [...race.entrants.map((e) => (running(e) && e.pit?.phase !== 'garage' ? { x: e.car.x, y: e.car.y, z: e.car.z, heading: e.car.heading, condition: condition(e.car) } : undefined)), scCar]);
@@ -1705,7 +1823,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       }
       else if (e.kind === 'penalty' && e.who === you) announce(`NO PASSING UNDER ${race.vsc ? 'VSC' : 'SC'} · +${e.seconds} S`, '#d8323c', 3);
       else if (e.kind === 'track-limits' && e.who === you && session === 'tutorial') announce("THAT'S A CUT: IN A RACE, A WARNING, THEN +5 S", '#d8323c', 3);
-      else if (e.kind === 'track-limits' && e.who === you && session === 'race') {
+      else if (e.kind === 'track-limits' && e.who === you && (session === 'race' || session === 'rally')) {
         sayRadio(e.seconds ? 'penalty' : 'warning');
         announce(e.seconds ? `TRACK LIMITS · +${e.seconds} S` : `TRACK LIMITS · WARNING ${e.strike}/${LIMITS.warnings}`, e.seconds ? '#d8323c' : '#f2c14e', 2.5);
         sounds.trackLimits(e.seconds > 0);
@@ -1882,7 +2000,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       lastAt = { x: c.x, y: c.y };
     }
     // your last lap: called, with a bell, as you start it
-    if (race.phase === 'racing' && p.lapStart !== undefined && p.finished === undefined && !p.retired && p.lap === laps - 1 && !soundState.finalLap) {
+    if (session !== 'rally' && race.phase === 'racing' && p.lapStart !== undefined && p.finished === undefined && !p.retired && p.lap === laps - 1 && !soundState.finalLap) {
       soundState.finalLap = true;
       announce('FINAL LAP', '#f4f4f8', 3);
       sounds.finalLap();
@@ -1920,8 +2038,18 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // the ceremony to a march
     if (podium) playMusic(PODIUM_MUSIC, 1);
     const showNow = podium ? podium.time >= PODIUM_HOLD : p.finished === undefined && others.every((e) => e.progress.finished !== undefined);
-    if (done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
-    hud.setPosition(session === 'qualifying' ? 'QUALI' : session === 'timetrial' ? 'TIME TRIAL' : session === 'timeattack' ? 'TIME ATTACK' : session === 'tutorial' ? 'CONTROLS' : `P${pos}/${race.entrants.length}`);
+    if (session !== 'rally' && done && (results.style.display === 'block' || showNow)) showResults(order); // live as the others finish
+    // (a rally's stage: its results a few seconds after the line)
+    if (stage?.result && !stage.result.shown && clock >= stage.result.at + 3) showStageResults();
+    // the co-driver: each note called far enough ahead of it, at your speed
+    if (stage && !stage.result && race.phase === 'racing' && !paused && running(me)) {
+      const n = track.samples.length;
+      const along = (p.lapStart === undefined ? p.idx - n : p.idx) * track.spacing;
+      const call = stepCaller(stage.caller, along, speedOf(me.car));
+      if (call) paceCard.call(call, clock);
+    }
+    paceCard.update(clock, !stage || !!stage.result || paused);
+    hud.setPosition(rallyRun ? `SS${rallyRun.stage + 1}/${rallyEvent(rallyRun.rally).stages.length}` : session === 'qualifying' ? 'QUALI' : session === 'timetrial' ? 'TIME TRIAL' : session === 'timeattack' ? 'TIME ATTACK' : session === 'tutorial' ? 'CONTROLS' : `P${pos}/${race.entrants.length}`);
     // a place gained or lost lights the position up in the strip below, green ▲ or red ▼, for a moment
     // (not while the lights are on, nor after your flag)
     if (race.phase === 'racing' && !done && hudState.lastPos && pos !== hudState.lastPos) {
@@ -1942,7 +2070,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (session === 'race' && !done && p.lap !== keptAtLap && race.phase === 'racing') keepNow();
     hudState.lastPos = pos;
     hudState.lastOrder = order;
-    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+    hud.setLap(session === 'rally' ? (stage?.result ? (stage.result.time === undefined ? 'DNF' : `P${stage.result.place}`) : race.phase === 'lights' ? 'ON THE LINE' : 'STAGE') : learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // box, box: on the radio once a lap, as the pit wall's call goes up
     if (session === 'race' && soundState.boxLap !== p.lap && boxBox()) {
@@ -1976,7 +2104,19 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       const k = panAt(circuit.slots, gridPan.t).car;
       banner.textContent = `P${k + 1} ${numbered(looks[k])} · ${looks[k].team.code}`;
       banner.style.color = k === you ? '#f2c14e' : '#f4f4f8';
+    } else if (race.phase === 'lights' && session === 'rally') {
+      // the countdown on the line: five, four… one, then GO
+      const left = Math.max(1, Math.ceil(race.lightsOut - clock));
+      if (left <= COUNTDOWN && left < (soundState.lights || COUNTDOWN + 1)) {
+        sounds.light();
+        soundState.lights = left;
+      }
+      banner.textContent = left <= COUNTDOWN ? String(left) : '';
+      banner.style.color = left <= 1 ? '#f2c14e' : '#f4f4f8';
+      // (big: the one thing to watch on the line)
+      banner.style.fontSize = 'calc(64px * var(--ts, 1))';
     } else if (race.phase === 'lights') {
+      banner.style.fontSize = '';
       const lit = Math.max(0, Math.min(5, Math.floor((clock + LIGHTS) / 0.6)));
       // a beep as each light comes on
       if (clock < 0 && lit > soundState.lights) sounds.light();
@@ -1985,9 +2125,10 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       banner.style.color = '#d8323c';
     } else {
       const stop = me.pit;
+      banner.style.fontSize = '';
       const [text, color] = bannerMessage({
         replay: !!replay, blink: Math.floor(performance.now() / 500) % 2 === 1, ceremony: !!podium, resultsUp: results.style.display === 'block',
-        out: me.car.wrecked || !!p.retired, championship: !!championship, done, finishedPlace: p.finished !== undefined ? order.indexOf(you) + 1 : undefined,
+        out: me.car.wrecked || !!p.retired, championship: !!championship || !!rallyRun, done, finishedPlace: stage?.result ? stage.result.place : p.finished !== undefined ? order.indexOf(you) + 1 : undefined,
         pit: stop && { stopped: stop.phase === 'stopped', left: stop.left, limiter: inLimitZone(circuit.pit, circuit.pit.points[stop.at].s) },
         boxBox: !done && !stop && boxBox(), pitSide, wrongWay: p.wrongWay, clock, session, notice,
         learn: learn && { text: prompt(learn.o.step, device(), pointsOn(device())), last: learn.o.step === 'done' },
@@ -1996,7 +2137,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       showBanner(text);
       banner.style.color = color;
     }
-    const lapTime = p.lapStart !== undefined && p.finished === undefined ? clock - p.lapStart : undefined;
+    const lapTime = session === 'rally' ? (race.phase === 'racing' && p.finished === undefined && !stage?.result ? clock : stage?.result?.time) : p.lapStart !== undefined && p.finished === undefined ? clock - p.lapStart : undefined;
     // (in a Time Trial your best good lap: a deleted one doesn't count)
     const best = session === 'timetrial' ? trial?.best?.time : p.lapTimes.length ? Math.min(...p.lapTimes) : undefined;
     // the cars either side of you (by the timing points), while you're racing (on the wide screen: the phone's tower has them)
@@ -2160,6 +2301,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     renderer.forceContextLoss();
     renderer.domElement.remove();
     offBack();
+    paceCard.hush();
+    paceCard.el.remove();
     for (const el of [streaks.el, rain.el, readout, banner, radioPanel, results, mini, tower, teamCard, pauseScreen, pauseSettings, flagOverlay.el, shareButton.float, tyrePick, ...plates]) el.remove();
     deckEl?.classList.remove('results-up');
     deckEl?.classList.remove('steer-deck');

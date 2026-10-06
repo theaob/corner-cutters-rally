@@ -13,8 +13,8 @@ describe('the result card to share', () => {
     expect(c.color).toBe('#f2c14e');
     expect(c.sub).toBe('WINNER');
     expect(c.stats).toEqual([['GRID', 'P6'], ['PLACES', '▲5'], ['FASTEST LAP', '0:29.81']]);
-    expect(shareText(c)).toBe('I finished P1 at Crescent Park in Corner Cutters 🏁 🏆 Can you beat it? https://theaob.itch.io/corner-cutters');
-    expect(cardFile(c)).toBe('corner-cutters-crescent-park-2026-10-04.png');
+    expect(shareText(c)).toBe('I finished P1 at Crescent Park in Corner Cutters Rally 🏁 🏆 Can you beat it? https://theaob.itch.io/corner-cutters-rally');
+    expect(cardFile(c)).toBe('corner-cutters-rally-crescent-park-2026-10-04.png');
   });
 
   it('a podium, a lower place, and a DNF', () => {
@@ -51,17 +51,17 @@ describe("a Championship's card", () => {
     const c = card({});
     expect(c).toMatchObject({ circuit: 'CHAMPIONSHIP', headline: 'P3', sub: 'AFTER ROUND 4 OF 10', medal: undefined });
     expect(c.stats).toEqual([['POINTS', '40'], ['WINS', '1'], ['PODIUMS', '2']]);
-    expect(shareText(c)).toMatch(/^I am P3 in the championship after round 4 of 10 in Corner Cutters/);
+    expect(shareText(c)).toMatch(/^I am P3 in the championship after round 4 of 10 in Corner Cutters Rally/);
   });
 
   it('over: the title between gold cups, the podium in its colour', () => {
     const won = card({ over: true, place: 1, round: 10 });
     expect(won).toMatchObject({ sub: 'CHAMPION', medal: 'gold' });
-    expect(shareText(won)).toMatch(/^I won the championship 🏆 in Corner Cutters/);
+    expect(shareText(won)).toMatch(/^I won the championship 🏆 in Corner Cutters Rally/);
     expect(card({ over: true, place: 2, round: 10 })).toMatchObject({ sub: 'P2 OF 10 IN THE STANDINGS', medal: 'silver' });
     const fifth = card({ over: true, place: 5, round: 10 });
     expect(fifth.medal).toBeUndefined();
-    expect(shareText(fifth)).toMatch(/^I finished the championship P5 in Corner Cutters/);
+    expect(shareText(fifth)).toMatch(/^I finished the championship P5 in Corner Cutters Rally/);
   });
 
   it("is made from your season: a win in the only round raced, P1 on 25 points", () => {
