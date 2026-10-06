@@ -1488,6 +1488,21 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
   const target = new THREE.Vector3();
   let miniTime = 0;
 
+  /**
+   * CAMERAS to try out with ?cam=: classic (the HD-2D view, north up: the game's own), heading (the same, turned with
+   * the car so it drives up the screen), road (turned with the road ahead instead, steady through a slide), chase (low,
+   * behind the car), bonnet (from the front of the car) and iso (a fixed diagonal)
+   */
+  const CAMERAS = ['classic', 'heading', 'road', 'chase', 'bonnet', 'iso'];
+  const camParam = new URLSearchParams(window.location.search).get('cam') ?? 'classic';
+  const camMode = CAMERAS.includes(camParam) ? camParam : 'classic';
+  /** the way a turning camera looks (eased), radians */
+  let camYaw: number | undefined;
+  const setFov = (fov: number) => {
+    if (camera.fov === fov) return;
+    camera.fov = fov;
+    camera.updateProjectionMatrix();
+  };
   /** the camera held on a point of the map (a debug hook, for looking at the scenery) */
   let lookAt: { x: number; y: number } | undefined;
   /** the camera's zoom for the grid pan, eased */
@@ -2246,8 +2261,41 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       && race.entrants.some((e, i) => i !== you && running(e) && !e.pit && Math.hypot(e.car.x - meNow.car.x, e.car.y - meNow.car.y) < BATTLE.near) ? 1 : 0;
     battleNow += (battleWant - battleNow) * Math.min(1, dt * (battleWant ? 2 : 0.8));
     const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (t.zoom * (podium ? CEREMONY_ZOOM : panZoom))) * (1 + RUSH.pullBack * rushNow + BATTLE.pullBack * battleNow);
-    camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
-    camera.lookAt(focus.x, focus.y, focus.z);
+    // (?cam= tries out another camera while following your car: CAMERAS)
+    const following = !lookAt && !mineThen && !gridPan && !podium;
+    const mode = following ? camMode : 'classic';
+    if (mode === 'classic') {
+      setFov(LOOK.fov);
+      camera.up.set(0, 0, -1);
+      camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
+      camera.lookAt(focus.x, focus.y, focus.z);
+      camYaw = undefined;
+    } else {
+      camera.up.set(0, 1, 0);
+      // the way the view looks: the car's heading (eased), the road's a little ahead, or a fixed diagonal
+      const n = track.samples.length;
+      const roadAhead = track.samples[track.open ? Math.min(n - 1, me.progress.idx + 25) : (me.progress.idx + 25) % n].dir;
+      const want = mode === 'road' ? roadAhead : mode === 'iso' ? -Math.PI / 4 : drawn.heading;
+      camYaw = camYaw === undefined ? want : lerpAngle(camYaw, want, 1 - Math.exp(-dt * (mode === 'chase' ? 2.5 : 3)));
+      const fx = Math.sin(camYaw);
+      const fz = -Math.cos(camYaw);
+      if (mode === 'bonnet') {
+        // on the front of the car, looking down the road
+        setFov(62);
+        const hx = Math.sin(drawn.heading);
+        const hz = -Math.cos(drawn.heading);
+        camera.position.set(drawn.x + hx * 17, drawn.z + 11, drawn.y + hz * 17);
+        camera.lookAt(drawn.x + hx * 260, drawn.z + 2, drawn.y + hz * 260);
+      } else {
+        const chase = mode === 'chase';
+        setFov(chase ? 50 : LOOK.fov);
+        const p = chase ? deg(20) : mode === 'iso' ? deg(42) : pitch;
+        const d = chase ? 130 / t.zoom : dist;
+        const aim = chase ? { x: drawn.x + fx * 50, y: drawn.z + 6, z: drawn.y + fz * 50 } : focus;
+        camera.position.set(aim.x - fx * Math.cos(p) * d, aim.y + Math.sin(p) * d, aim.z - fz * Math.cos(p) * d);
+        camera.lookAt(aim.x, aim.y, aim.z);
+      }
+    }
     // the shake: the camera moved across and up its own view (SCREEN SHAKE off in the settings: still)
     if (shakeOn()) {
       const o = shakeOffset(shake);
