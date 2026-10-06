@@ -119,6 +119,19 @@ const DIRT = {
 };
 /** Under snow (layout.snow): the run-off groomed in stripes, and the snow beyond the barriers, its shadows blue */
 const SNOWFIELD = { groomed: ['#f4f7fa', '#e9eef3'], groomedDot: '#dbe3ea', snow: '#eef2f6', snowDot: ['#d2dbe4', '#c6d2de'], rockDot: '#8a8f96' };
+/** A rally stage on snow (layout.dirt and layout.snow): packed snow and ice for the road, its ruts worn grey-blue,
+ * clumps of snow thrown up over it, sheet ice catching the light; snow banks along its edges, and walls of snow */
+const SNOW_ROAD: typeof DIRT = {
+  track: '#c4ced8', rut: '#98a6b4', clods: ['#e8eef3', '#aebbc7'], puddle: '#9fc0de', shine: '#f4faff', berm: '#f2f6f9', lane: '#b4c0cc',
+  graded: ['#f4f7fa', '#e9eef3'], gradedDot: '#dbe3ea', ground: '#eef2f6', groundDot: ['#d2dbe4', '#c6d2de', '#8a8f96'], bale: ['#f4f7fa', '#d6e0ea'],
+};
+/** A rally stage in the desert (layout.dirt and layout.desert): a sandy track, pale ruts and berms of drifted sand */
+const SAND_ROAD: typeof DIRT = {
+  track: '#b88a56', rut: '#9a6e40', clods: ['#caa070', '#8e6438'], puddle: '#c8a676', shine: '#e8d0a2', berm: '#dcbf8a', lane: '#c49e66',
+  graded: ['#e4c896', '#dcbf8a'], gradedDot: '#c49e66', ground: '#d8b47c', groundDot: ['#c49e66', '#e8d0a2', '#b08a5a'], bale: ['#d9b25a', '#c39a40'],
+};
+/** The colours of a dirt road: gravel and earth, unless it's on snow or in the desert. */
+const dirtOf = (layout: { snow?: boolean; desert?: boolean }): typeof DIRT => (layout.snow ? SNOW_ROAD : layout.desert ? SAND_ROAD : DIRT);
 const ROCK_STEEP = 0.45;
 
 /** The banking's concrete, and the seams along it */
@@ -281,6 +294,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const mountain = !!circuit.layout.mountain;
   const snowy = !!circuit.layout.snow;
   const dirt = !!circuit.layout.dirt;
+  const D = dirtOf(circuit.layout);
   const sea = seaOf(circuit);
   /** a tile's height (its corners' average) and steepness (its corners' spread over its width) */
   const relief = (i: number, j: number) => {
@@ -328,13 +342,13 @@ function paint(circuit: Circuit): HTMLCanvasElement {
           x.fillStyle = desert ? DESERT.gravelDot[r() < 0.5 ? 0 : 1] : r() < 0.5 ? '#c4ae82' : '#e6d6b0';
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
         }
-      } else if (dirt) {
+      } else if (dirt && !snowy && !desert) {
         // on dirt, dry earth: the run-off graded in stripes; beyond the barriers rougher, stones strewn over it
         const wall = cell === 'wall';
-        x.fillStyle = wall ? DIRT.ground : DIRT.graded[(i + j) % 4 < 2 ? 0 : 1];
+        x.fillStyle = wall ? D.ground : D.graded[(i + j) % 4 < 2 ? 0 : 1];
         x.fillRect(px, py, T, T);
         for (let k = 0; k < (wall ? 4 : 3); k++) {
-          x.fillStyle = wall ? DIRT.groundDot[Math.floor(r() * 3)] : DIRT.gradedDot;
+          x.fillStyle = wall ? D.groundDot[Math.floor(r() * 3)] : D.gradedDot;
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), wall ? 2 : 1, 1);
         }
       } else if (snowy) {
@@ -407,7 +421,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       pen = true;
     });
   };
-  x.strokeStyle = dirt ? DIRT.lane : '#4a4d59';
+  x.strokeStyle = dirt ? D.lane : '#4a4d59';
   x.lineWidth = LANE_IN + LANE_OUT;
   laneLine((LANE_OUT - LANE_IN) / 2);
   x.stroke();
@@ -441,18 +455,18 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   }
   // asphalt (on dirt, wet earth: ruts worn deep along it where the cars run, wet clods strewn over it, puddles in
   // the ruts catching the light, and a berm of drier earth thrown up along each edge)
-  x.strokeStyle = dirt ? DIRT.track : '#4a4d59';
+  x.strokeStyle = dirt ? D.track : '#4a4d59';
   x.lineWidth = HALF_WIDTH * 2;
   path(pts);
   x.stroke();
   if (dirt) {
-    x.strokeStyle = DIRT.berm;
+    x.strokeStyle = D.berm;
     x.lineWidth = 6;
     for (const side of [-1, 1]) {
       path(offset(side * (HALF_WIDTH - 3)));
       x.stroke();
     }
-    x.strokeStyle = DIRT.rut;
+    x.strokeStyle = D.rut;
     x.lineWidth = 3;
     for (const off of [-24, -12, 12, 24]) {
       path(offset(off));
@@ -461,7 +475,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
     for (const p of pts) {
       for (let k = 0; k < 6; k++) {
         const across = (r() * 2 - 1) * (HALF_WIDTH - 4);
-        x.fillStyle = DIRT.clods[r() < 0.6 ? 0 : 1];
+        x.fillStyle = D.clods[r() < 0.6 ? 0 : 1];
         x.fillRect(Math.round(p.x + Math.cos(p.dir) * across + (r() - 0.5) * 8), Math.round(p.y + Math.sin(p.dir) * across + (r() - 0.5) * 8), r() < 0.3 ? 2 : 1, 1);
       }
     }
@@ -471,7 +485,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       if (r() > 0.05) continue;
       const rut = ruts[Math.floor(r() * ruts.length)];
       const len = 2 + Math.floor(r() * 4);
-      x.strokeStyle = DIRT.puddle;
+      x.strokeStyle = D.puddle;
       x.lineWidth = 4;
       x.beginPath();
       for (let k = 0; k <= len; k++) {
@@ -481,7 +495,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       }
       x.stroke();
       const q = rut[(i + 1) % pts.length];
-      x.fillStyle = DIRT.shine;
+      x.fillStyle = D.shine;
       x.fillRect(Math.round(q.x), Math.round(q.y), 2, 1);
     }
   }
@@ -680,8 +694,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
   const m = new THREE.Matrix4();
   // (on dirt, hay bales instead: two straws)
   const dirtTrack = !!circuit.layout.dirt;
-  const red = new THREE.Color(dirtTrack ? DIRT.bale[0] : '#d8323c');
-  const white = new THREE.Color(dirtTrack ? DIRT.bale[1] : '#f4f4f8');
+  const red = new THREE.Color(dirtTrack ? dirtOf(circuit.layout).bale[0] : '#d8323c');
+  const white = new THREE.Color(dirtTrack ? dirtOf(circuit.layout).bale[1] : '#f4f4f8');
   const steel = new THREE.Color('#b8bcc6');
   walls.forEach(([i, j], k) => {
     const h = groundAt(grid, (i + 0.5) * T, (j + 0.5) * T).h;

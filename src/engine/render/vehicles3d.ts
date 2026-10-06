@@ -1,5 +1,5 @@
-// The F1 car in 3D: a low-poly open-wheel racer in its team paint, which
-// darkens as the car burns.
+// The rally car in 3D: a low-poly hatchback in its team paint (the pattern over
+// the bonnet and roof, the door number on the roof), which darkens as the car burns.
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -14,7 +14,7 @@ export interface CarLook {
   body: string;
   /** wings and nose, and the pattern's colour */
   stripe?: string;
-  /** sidepods (the body colour when unset) */
+  /** the shell's sides (the body colour when unset) */
   accent?: string;
   /** the pattern painted along the top of the car */
   pattern?: LiveryPattern;
@@ -23,7 +23,7 @@ export interface CarLook {
    * green on its second, so teammates tell apart (carbon when unset)
    */
   tcam?: string;
-  /** the driver's helmet: plain white unless set; 'gold' is shiny metallic gold (the player's) */
+  /** the roof scoop: the trim colour unless set; 'gold' is shiny metallic gold (the player's) */
   helmet?: string | 'gold';
   /** the driver's race number, on a white plate filling the engine cover (none when unset) */
   number?: number;
@@ -174,8 +174,8 @@ export interface CarMesh extends THREE.Group {
 }
 
 /**
- * The car facing north (−z): a narrow tub with a long nose, sidepods, cockpit
- * and helmet, front and rear wings, and fat exposed tyres (bigger at the back).
+ * The car facing north (−z): a hatchback shell, glass cabin and roof, a roof
+ * scoop, a wing on the hatch, flared arches, and spotlights on the front bumper.
  * On `offRoad` tyres (a dirt circuit), bigger and wider, knobbly all round: a
  * staggered ring of tread blocks standing proud of each tyre.
  */
@@ -220,43 +220,59 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
     paint.push(m);
     return m;
   };
-  // the pattern along the top of the tub, from the nose back
-  const tubTop = look.pattern && look.pattern !== 'plain' ? painted(canvasTexture(paintPattern(8, 48, look.pattern, look.body, second))) : body;
-  box(5, 3.5, L - 6, 3.5, 1, [body, body, tubTop, dark, body, body]); // tub
-  box(3, 2.5, 8, 3, 0, [body, body, trim, dark, body, body], nose); // nose
-  for (const x of [-4, 4]) {
-    const pod = box(3, 3, 9, 3, 3, [pods, pods, pods, dark, pods, pods]);
-    pod.position.x = x;
+  // a rally car: a little hatchback, the shell in the team's paint, the pattern over the bonnet and the roof (with
+  // the door number on the roof, read from above), glass all round the cabin, a roof scoop, a big wing on the hatch,
+  // and a bank of spotlights on the front bumper (with the bumper, the part a crash tears off)
+  const glass = lambert({ color: 0x26303c });
+  const bonnetTop = look.pattern && look.pattern !== 'plain' ? painted(canvasTexture(paintPattern(12, 8, look.pattern, look.body, second))) : body;
+  box(W - 2, 5, L - 5, 4.6, 0.5, [pods, pods, body, dark, body, body]); // the shell, sills to the waistline (its sides in the accent)
+  box(W - 2.4, 0.5, 9, 7.3, -(L / 2 - 7.5), [body, body, bonnetTop, dark, body, body]); // the bonnet
+  box(W - 3, 4.4, 13, 9.3, 2.5, [glass, glass, glass, dark, glass, glass]); // the cabin's glass
+  // the roof: the pattern, and the number on a white plate across it
+  const roofTop = look.pattern || look.number !== undefined ? painted(deckTexture(look, second, W - 3.4, 11, [0.08, 0.12, 0.84, 0.76])) : body;
+  box(W - 3.4, 0.7, 11, 11.7, 3, [body, body, roofTop, dark, body, body]);
+  // pillars, so the cabin reads as a car's and not a box of glass
+  for (const x of [-(W - 3.2) / 2, (W - 3.2) / 2]) for (const z of [-3.6, 8.6]) {
+    const pillar = box(0.5, 4.4, 1, 9.3, z, [body, body, body, body, body, body]);
+    pillar.position.x = x;
   }
-  box(3.5, 1.5, 5, 5.8, 0, [carbon, carbon, carbon, dark, carbon, carbon]); // cockpit
-  // the engine cover, spanning the sidepods behind the cockpit: the biggest surface seen from above,
-  // carrying the team's pattern
-  if (look.pattern || look.number !== undefined) box(11, 0.6, 8, 5.4, 7, [pods, pods, painted(deckTexture(look, second, 11, 8, [1.6 / 11, 1.2 / 8, 7.8 / 11, 6.6 / 8])), dark, pods, pods]);
-  // the air intake above the driver's head, and the T-camera on it: dark, or bright green to mark the
-  // team's second car (unlit, so it stays bright in shade and from afar)
-  box(2.6, 2.4, 3, 7.6, 2.6, [body, body, body, dark, body, carbon]);
-  const tcam = look.tcam ? new THREE.MeshBasicMaterial({ color: look.tcam, toneMapped: false }) : carbon;
-  box(4.2, 1, 1.6, 9.3, 2.4, [tcam, tcam, tcam, dark, tcam, tcam]);
-  // (the gold one shines: a bright highlight where the sun catches it, and a warm glow of its own)
-  const helmetMat =
+  // wheel arches flared out over the tyres, in the trim colour
+  for (const z of [-(L / 2 - 7), L / 2 - 7]) for (const x of [-(W / 2 - 0.4), W / 2 - 0.4]) {
+    const arch = box(1.4, 1.2, 8, 6.4, z, [trim, trim, trim, dark, trim, trim]);
+    arch.position.x = x;
+  }
+  // the roof scoop: the driver's own colour on it (yours gold, shining), and the light bar marking a team's second car
+  const scoopMat =
     look.helmet === 'gold'
       ? new THREE.MeshPhongMaterial({ color: 0xf5b82e, specular: 0xfff4c8, shininess: 90, emissive: 0x4a3000 })
-      : mat(look.helmet ?? '#e8e8ee');
-  const helmet = new THREE.Mesh(new THREE.SphereGeometry(1.7, 12, 10), helmetMat);
-  helmet.position.set(0, 7.2, 0.5);
-  helmet.castShadow = true;
-  car.add(helmet);
-  box(W, 0.8, 3, 1.4, -(L / 2 - 1.5) - noseZ, [trim, trim, trim, dark, trim, trim], nose); // front wing
-  box(W - 3, 0.8, 2.5, 8.5, L / 2 - 1.5, [trim, trim, body, dark, trim, trim]); // rear wing
-  for (const x of [-(W - 3) / 2, (W - 3) / 2]) {
-    const plate = box(0.6, 5, 3, 6.5, L / 2 - 1.5, [carbon, carbon, carbon, carbon, carbon, carbon]);
-    plate.position.x = x;
+      : mat(look.helmet ?? second);
+  box(3.2, 1.2, 3.4, 12.6, -1, [scoopMat, scoopMat, scoopMat, dark, scoopMat, scoopMat]);
+  const tcam = look.tcam ? new THREE.MeshBasicMaterial({ color: look.tcam, toneMapped: false }) : carbon;
+  box(W - 5, 0.8, 1, 12.4, -2.8, [tcam, tcam, tcam, dark, tcam, tcam]);
+  // the rear wing on the hatch, on two stays
+  box(W - 1.5, 0.7, 3, 13.4, L / 2 - 3, [trim, trim, trim, dark, trim, trim]);
+  for (const x of [-(W - 6) / 2, (W - 6) / 2]) {
+    const stay = box(0.6, 2.4, 1.6, 12, L / 2 - 3, [carbon, carbon, carbon, carbon, carbon, carbon]);
+    stay.position.x = x;
+  }
+  // the front bumper, and the spotlight pod on it (unlit, so the lamps glow)
+  box(W - 1.6, 2.6, 2.4, 3, -(L / 2 - 1.2) - noseZ, [carbon, carbon, carbon, dark, carbon, carbon], nose);
+  const lamp = new THREE.MeshBasicMaterial({ color: 0xfff2c0, toneMapped: false });
+  box(W - 4, 2, 1, 6.2, -(L / 2 - 1.6) - noseZ, [carbon, carbon, carbon, dark, carbon, carbon], nose);
+  for (const x of [-4.2, -1.4, 1.4, 4.2]) {
+    const l = box(2, 1.6, 0.4, 6.2, -(L / 2 - 1.05) - noseZ, [lamp, lamp, lamp, lamp, lamp, lamp], nose);
+    l.position.x = x;
+  }
+  // mud flaps behind the rear wheels
+  for (const x of [-(W / 2 - 1.5), W / 2 - 1.5]) {
+    const flap = box(3, 2.6, 0.3, 1.6, L / 2 - 2.6, [carbon, carbon, carbon, carbon, carbon, carbon]);
+    flap.position.x = x;
   }
 
   // wheels: [z, radius, tyre width, half-track] per axle
   const axles: [number, number, number, number][] = [
-    [-(L / 2 - 8), 3.2, 3, W / 2 - 1.5],
-    [L / 2 - 6, 3.8, 3.6, W / 2 - 1.2],
+    [-(L / 2 - 7), 3.5, 3, W / 2 - 1.6],
+    [L / 2 - 7, 3.5, 3, W / 2 - 1.6],
   ].map(([z, wr, ww, half]) => (offRoad ? [z, wr + OFF_ROAD.radius, ww + OFF_ROAD.width, half + OFF_ROAD.width / 2] : [z, wr, ww, half]));
   // (the tread blocks caked in earth, so the knobbly tread shows against the tyre)
   const tread = offRoad ? lambert({ color: 0x6a5038 }) : undefined;
@@ -283,7 +299,7 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
 
   // the rain light: a red lamp at the back, under the rear wing (unlit, so it glows; the bloom picks it up)
   const rainLight = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2, 1), new THREE.MeshBasicMaterial({ color: 0xff2a2a, toneMapped: false }));
-  rainLight.position.set(0, 4.2, L / 2 - 0.2);
+  rainLight.position.set(0, 9, L / 2 - 0.2);
   rainLight.visible = false;
   car.add(rainLight);
 
