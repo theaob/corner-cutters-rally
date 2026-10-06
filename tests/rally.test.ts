@@ -114,17 +114,18 @@ describe('a rally', () => {
 });
 
 describe('a stage reference run', () => {
-  it('runs the stage from a standing start, with a split at each sector', () => {
-    const layout = layoutById('ss-dust-bowl')!;
+  it('runs the stage from a standing start to its flying finish, with a split at each third of it', () => {
+    const layout = layoutById('ss-fox-hollow')!;
     const h = handlingFor(NORMAL);
     const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(carClass('f1'), h), decel: lineDecel(carClass('f1')) });
     const ref = referenceStage(c.track, c.grid, h, 'dry', c.slots[0]);
-    expect(ref.time).toBeGreaterThan(10);
-    expect(ref.time).toBeLessThan(40);
+    // (a long road: a minute or more)
+    expect(ref.time).toBeGreaterThan(45);
+    expect(ref.time).toBeLessThan(150);
     expect(ref.splits).toHaveLength(2);
     expect(ref.splits[0]).toBeLessThan(ref.splits[1]);
     expect(ref.splits[1]).toBeLessThan(ref.time);
-  }, 30000);
+  }, 60000);
 });
 
 it('shows gaps under and over a minute', () => {

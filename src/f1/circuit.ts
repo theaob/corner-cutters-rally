@@ -140,8 +140,10 @@ export interface CircuitOptions {
 
 export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circuit {
   const control = layout.points.map((p) => ({ x: p.x * layout.scale, y: p.y * layout.scale }));
-  const track = buildTrack(control, 8, opts.cornerSpeed, opts.decel);
+  // (a rally's stage: a road with two ends)
+  const track = buildTrack(control, 8, opts.cornerSpeed, opts.decel, !!layout.stage);
   track.tyreWear = layout.tyreWear;
+  if (layout.stage) track.stage = { ...layout.stage };
   if (layout.dirt) track.dirt = true;
   // (room round the track for its run-off, or for the pit lane and its garages)
   const margin = Math.max(HALF_WIDTH + RUNOFF + 64, PIT.offset + LANE_OUT + 80);
@@ -208,7 +210,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     let bestD = (HALF_WIDTH + runoff + SPLIT.band) ** 2;
     for (const j of near(x, y, HALF_WIDTH + runoff + SPLIT.band)) {
       const along = Math.abs(j - i);
-      if (Math.min(along, n - along) <= sameStretch) continue;
+      if ((track.open ? along : Math.min(along, n - along)) <= sameStretch) continue;
       const p = track.samples[j];
       const d = (p.x - x) ** 2 + (p.y - y) ** 2;
       if (d < bestD) [best, bestD] = [j, d];
@@ -336,8 +338,8 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         let lift = 0;
         for (const j of layout.jumps) {
           let along = s - j.at;
-          if (along > track.length / 2) along -= track.length;
-          if (along < -track.length / 2) along += track.length;
+          if (!track.open && along > track.length / 2) along -= track.length;
+          if (!track.open && along < -track.length / 2) along += track.length;
           lift += jumpLift(along, j.rise);
         }
         heights[cy * (W + 1) + cx] += lift * fade;
@@ -354,10 +356,11 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     heights,
   };
 
-  // starting grid: two staggered columns behind the line
+  // starting grid: two staggered columns behind the line (a stage's start line, on a stage)
+  const line = layout.stage ? Math.round(layout.stage.start / track.spacing) : n;
   const slots = Array.from({ length: 10 }, (_, k) => {
     const back = 24 + k * 30;
-    const p = track.samples[(n - Math.round(back / track.spacing)) % n];
+    const p = track.samples[(line - Math.round(back / track.spacing) + n) % n];
     const lane = k % 2 === 0 ? -16 : 16;
     return { x: p.x + Math.cos(p.dir) * lane, y: p.y + Math.sin(p.dir) * lane, heading: p.dir };
   });

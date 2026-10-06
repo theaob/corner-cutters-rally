@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { carClass } from '../src/engine/driving';
 import { buildCircuit } from '../src/f1/circuit';
-import { LAYOUTS, STAGE_LAYOUTS, layoutById } from '../src/f1/layouts';
+import { LAYOUTS, layoutById } from '../src/f1/layouts';
+import { STAGE_SPECS } from '../src/f1/stages';
 import { buildTrack, lineCornerSpeed, lineDecel, type Pt } from '../src/f1/racing';
 import { NOTES, newCaller, noteText, paceNotes, shown, spoken, stepCaller, type PaceNote } from '../src/f1/paceNotes';
 
@@ -42,10 +43,21 @@ describe('pace notes', () => {
     expect(jump.gap).toBeGreaterThanOrEqual(NOTES.distance);
     expect(jump.gap! % 50).toBe(0);
   });
-  it.each([...LAYOUTS, ...STAGE_LAYOUTS])('give $name a note for its bends, in order along the lap', (layout) => {
+  it.each(LAYOUTS)('give $name a note for its bends, in order along the lap', (layout) => {
     const notes = paceNotes(trackOf(layout.id));
     expect(notes.length).toBeGreaterThanOrEqual(5);
     notes.forEach((n, i) => i && expect(n.at).toBeGreaterThanOrEqual(notes[i - 1].at));
+  });
+  it.each(STAGE_SPECS)('give the $name stage its bends from the start line on, ending with the flying finish', (spec) => {
+    const track = trackOf(spec.id);
+    const notes = paceNotes(track);
+    expect(notes.length).toBeGreaterThanOrEqual(20);
+    notes.forEach((n, i) => i && expect(n.at).toBeGreaterThanOrEqual(notes[i - 1].at));
+    expect(notes[0].end).toBeGreaterThanOrEqual(track.stage!.start);
+    const last = notes[notes.length - 1];
+    expect(noteText(last)).toBe('FLYING FINISH');
+    expect(last.at).toBe(track.stage!.finish);
+    expect(last.gap).toBeUndefined();
   });
   it('find the Harbour hairpin', () => {
     expect(paceNotes(trackOf('harbour')).some((n) => n.grade === 'hairpin')).toBe(true);

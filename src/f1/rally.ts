@@ -1,5 +1,5 @@
-// The rallies. A rally is a run of special stages, each one lap of its road
-// from a standing start at the line, on your own against the clock; the crew
+// The rallies. A rally is a run of special stages, each a long road from a
+// standing start at its start line to its flying finish, on your own against the clock; the crew
 // with the least time over all the stages wins it. Nine rival crews run each
 // stage too: their times come from a reference run (one car on the racing line,
 // alone, from the same standing start) scaled by each crew's pace, spread a
@@ -17,7 +17,7 @@ import { save, saved } from '../engine/save';
 import { seededRandom } from '../engine/rng';
 import { aiPaceFor, paceRanks, type Difficulty } from './difficulty';
 import { newRace, stepRace } from './raceControl';
-import type { Track } from './racing';
+import { stageSplits, type Track } from './racing';
 import { TEAMS, type Seat, type Team } from './teams';
 import type { WeatherId } from './weather';
 
@@ -59,26 +59,26 @@ export const RALLIES: RallyEvent[] = [
   {
     id: 'forests', name: 'RALLY OF THE FORESTS', surface: 'GRAVEL', about: 'gravel roads over the hills and through the forests',
     stages: [
-      { layout: 'ss-crescent-hills', weather: 'dry' }, { layout: 'ss-ardennes-forest', weather: 'damp' },
-      { layout: 'ss-alpine-woods', weather: 'dry' }, { layout: 'ss-twin-lakes', weather: 'dry' },
+      { layout: 'ss-pine-ridge', weather: 'dry' }, { layout: 'ss-old-mill', weather: 'damp' },
+      { layout: 'ss-fox-hollow', weather: 'dry' }, { layout: 'ss-high-moor', weather: 'dry' },
     ],
     service: [1],
   },
   {
     id: 'winter', name: 'WINTER RALLY', surface: 'SNOW', about: 'snow and ice up in the mountains',
-    stages: [{ layout: 'ss-glacier-pass', weather: 'dry' }, { layout: 'ss-frozen-ring', weather: 'dry' }, { layout: 'ss-frozen-lakes', weather: 'dry' }],
+    stages: [{ layout: 'ss-glacier-road', weather: 'dry' }, { layout: 'ss-frozen-pass', weather: 'dry' }, { layout: 'ss-ice-lake', weather: 'dry' }],
     service: [0],
   },
   {
     id: 'desert', name: 'DESERT RALLY', surface: 'SAND', about: 'sand and dust under the desert sun',
-    stages: [{ layout: 'ss-oasis-dunes', weather: 'dry' }, { layout: 'ss-dust-bowl', weather: 'dry' }, { layout: 'ss-silver-sands', weather: 'dry' }],
+    stages: [{ layout: 'ss-dune-run', weather: 'dry' }, { layout: 'ss-red-canyon', weather: 'dry' }, { layout: 'ss-salt-flats', weather: 'dry' }],
     service: [1],
   },
   {
-    id: 'tarmac', name: 'TARMAC RALLY', surface: 'TARMAC', about: 'sealed roads through the towns and the parks',
+    id: 'tarmac', name: 'TARMAC RALLY', surface: 'TARMAC', about: 'sealed mountain roads, hairpins and all',
     stages: [
-      { layout: 'ss-harbour-streets', weather: 'dry' }, { layout: 'ss-caspian-shores', weather: 'dry' },
-      { layout: 'ss-nippon', weather: 'damp' }, { layout: 'ss-royal-park', weather: 'dry' },
+      { layout: 'ss-mountain-col', weather: 'dry' }, { layout: 'ss-vineyards', weather: 'dry' },
+      { layout: 'ss-coast-road', weather: 'damp' }, { layout: 'ss-castle-hill', weather: 'dry' },
     ],
     service: [1],
   },
@@ -143,21 +143,23 @@ export const crewTeam = (c: RallyCrew): Team => TEAMS.find((t) => t.id === c.tea
 /** A crew's name: its driver's code. */
 export const crewName = (c: RallyCrew): string => crewTeam(c).drivers[c.seat];
 
-/** A stage's reference run: one car flat out on the racing line, alone, from a standing start at `start`; its time at the line and its splits. */
+/**
+ * A stage's reference run: one car flat out on the racing line, alone, from a standing start at `start`; its time from
+ * GO to the flying finish, and its time at each split (stageSplits).
+ */
 export function referenceStage(track: Track, grid: Grid, handling: HandlingParams, weather: WeatherId, start: { x: number; y: number; heading: number }): { time: number; splits: number[] } {
   const race = newRace(track, grid, handling, 1, [{ car: newCar(carClass('f1'), start.x, start.y, start.heading), ai: { lane: 0, pace: 1 } }], 0, undefined, weather);
+  const marks = stageSplits(track);
+  const finish = track.stage?.finish ?? track.length;
   const splits: number[] = [];
-  let sector = 0;
-  const p = () => race.entrants[0].progress;
-  for (let t = 0; t < 400 && p().finished === undefined; t += SIM_DT) {
+  const along = () => race.entrants[0].progress.idx * track.spacing;
+  for (let t = 0; t < 600; t += SIM_DT) {
     stepRace(race, SIM_DT);
     if (race.phase !== 'racing') continue;
-    if (p().lapStart !== undefined && p().sector > sector) {
-      sector = p().sector;
-      splits.push(race.clock);
-    }
+    while (splits.length < marks.length && along() >= marks[splits.length]) splits.push(race.clock);
+    if (along() >= finish) return { time: race.clock, splits };
   }
-  return { time: p().finished ?? track.length / 250, splits };
+  return { time: (finish - (track.stage?.start ?? 0)) / 250, splits };
 }
 
 /**

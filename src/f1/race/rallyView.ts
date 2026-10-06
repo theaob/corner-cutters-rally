@@ -30,7 +30,7 @@ export function createPaceCard() {
     /** Show and say `call` (the notes in it), for a couple of seconds from `now` (s). */
     call(call: PaceNote[], now: number) {
       const first = call[0];
-      big.textContent = first.jump ? '▲ JUMP ▲' : first.grade === 'hairpin' ? (first.dir === 'left' ? '◀◀ HP' : 'HP ▶▶') : first.dir === 'left' ? `◀ ${first.grade}` : `${first.grade} ▶`;
+      big.textContent = first.finish ? '▣ FINISH ▣' : first.jump ? '▲ JUMP ▲' : first.grade === 'hairpin' ? (first.dir === 'left' ? '◀◀ HP' : 'HP ▶▶') : first.dir === 'left' ? `◀ ${first.grade}` : `${first.grade} ▶`;
       words.textContent = shown(call);
       el.style.display = 'flex';
       until = now + 2.4;

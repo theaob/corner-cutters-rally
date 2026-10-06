@@ -12,7 +12,7 @@ import { applyDamage, bodyTilt, carClass, condition, newCar, speedOf, type Car, 
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { newSeed, seededRandom } from '../engine/rng';
 import { groundAt } from '../engine/sim';
-import { SECTORS, keysWheel, lineCornerSpeed, lineDecel, nearestSample, playerInput, stickWheel, wheelInput, type AiDriver } from './racing';
+import { SECTORS, keysWheel, stageSplits, lineCornerSpeed, lineDecel, nearestSample, playerInput, stickWheel, wheelInput, type AiDriver } from './racing';
 import { NORMAL, aiCraftFor, aiIncidentsFor, aiMistakesFor, aiPaceFor, handlingFor, paceRanks, type Difficulty } from './difficulty';
 import { numberOf, styleOf } from './drivers';
 import { DRY, lookAt as weatherLook, type Weather, type WeatherId } from './weather';
@@ -796,9 +796,11 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     me.tyres.wear = 0;
     fitTyres(me.tyres, me.car, race.wetness);
     if (race.phase !== 'racing') return;
-    if (p.lapStart !== undefined && p.finished === undefined && p.sector > stage.sector) {
-      stage.sector = p.sector;
-      const k = p.sector - 1;
+    // how far along the road you are, against its splits and its flying finish
+    const along = p.idx * track.spacing;
+    const marks = stageSplits(track);
+    if (stage.sector < marks.length && along >= marks[stage.sector]) {
+      const k = stage.sector++;
       const t = race.clock;
       const ref = stage.reference;
       const share = (time: number) => (time * (ref.splits[k] ?? t)) / ref.time;
@@ -807,8 +809,9 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
       announce(`SPLIT ${k + 1} · ${fmt(t)} · ${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(2)} · P${place}`, delta < 0 ? splitColor('record') : splitColor('worse'), 2.5);
     }
     const out = me.car.wrecked || !!p.retired;
-    if (p.finished !== undefined || out) {
-      const time = out ? undefined : p.finished! + p.penalty;
+    const finished = along >= (track.stage?.finish ?? track.length);
+    if (finished || out) {
+      const time = out ? undefined : race.clock + p.penalty;
       const place = time === undefined ? stage.rivals.length : placeAt(time, (x) => x);
       stage.result = { at: race.clock, time, place, shown: false, recorded: false };
       done = true;
@@ -1700,7 +1703,8 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const cars: StepEvents[] = race.entrants.map(() => ({ damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 }));
     for (let k = 0; k < steps; k++) {
       before = [...race.entrants.map((e) => e.car), ...(race.sc ? [race.sc.car] : [])].map((c) => ({ x: c.x, y: c.y, z: c.z, heading: c.heading }));
-      const s = stepRace(race, SIM_DT, (e) => driveInput(e.car));
+      // (past a stage's flying finish, on the brakes to the stop)
+      const s = stepRace(race, SIM_DT, (e) => (stage?.result ? wheelInput({ turn: 0, gas: 0, brake: 1, drift: false }, e.car) : driveInput(e.car)));
       raceEvents.push(...s.race);
       s.cars.forEach((ev, i) => {
         const m = cars[i];
@@ -2010,10 +2014,12 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     const flagOut = race.entrants.some((e) => e.progress.finished !== undefined);
     chequered.group.visible = flagOut;
     if (flagOut) chequered.update(performance.now() / 1000);
-    const yourFlag = p.finished !== undefined && clock < p.finished + 3.5 && !podium && !replay && results.style.display !== 'block';
+    // (a rally's stage: your flag at its flying finish)
+    const flagAt = p.finished ?? (stage?.result && stage.result.time !== undefined ? stage.result.at : undefined);
+    const yourFlag = flagAt !== undefined && clock < flagAt + 3.5 && !podium && !replay && results.style.display !== 'block';
     flagOverlay.el.style.display = yourFlag ? 'block' : 'none';
     if (yourFlag) flagOverlay.draw(performance.now() / 1000);
-    if (p.finished !== undefined && !soundState.flag) {
+    if (flagAt !== undefined && !soundState.flag) {
       soundState.flag = true;
       sounds.flag();
       sounds.cheer(1);
@@ -2044,7 +2050,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     // the co-driver: each note called far enough ahead of it, at your speed
     if (stage && !stage.result && race.phase === 'racing' && !paused && running(me)) {
       const n = track.samples.length;
-      const along = (p.lapStart === undefined ? p.idx - n : p.idx) * track.spacing;
+      const along = (track.open || p.lapStart !== undefined ? p.idx : p.idx - n) * track.spacing;
       const call = stepCaller(stage.caller, along, speedOf(me.car));
       if (call) paceCard.call(call, clock);
     }
@@ -2070,7 +2076,7 @@ export const raceOn = (layout: CircuitLayout, onQuit: () => void, options: RaceO
     if (session === 'race' && !done && p.lap !== keptAtLap && race.phase === 'racing') keepNow();
     hudState.lastPos = pos;
     hudState.lastOrder = order;
-    hud.setLap(session === 'rally' ? (stage?.result ? (stage.result.time === undefined ? 'DNF' : `P${stage.result.place}`) : race.phase === 'lights' ? 'ON THE LINE' : 'STAGE') : learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
+    hud.setLap(session === 'rally' ? (stage?.result ? (stage.result.time === undefined ? 'DNF' : `P${stage.result.place}`) : race.phase === 'lights' ? 'ON THE LINE' : `${Math.max(0, kmOf((track.stage?.finish ?? track.length) - p.idx * track.spacing)).toFixed(1)} KM TO GO`) : learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}` : session === 'timetrial' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : trial?.lap.deleted ? 'LAP DELETED' : `LAP ${p.lapTimes.length + 1}`) : session === 'timeattack' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : `LAP ${p.lapTimes.length + 1}`) : session === 'qualifying' ? (p.lapStart === undefined ? 'OUT TO THE LINE' : quali?.lap.deleted ? 'LAP DELETED' : 'FLYING LAP') : p.retired ? 'OUT' : p.finished === undefined && p.lap === laps - 1 && p.lapStart !== undefined ? 'FINAL LAP' : `LAP ${Math.min(laps, p.lap + 1)}/${laps}`);
 
     // box, box: on the radio once a lap, as the pit wall's call goes up
     if (session === 'race' && soundState.boxLap !== p.lap && boxBox()) {

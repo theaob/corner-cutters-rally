@@ -398,7 +398,8 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   // kerbs painted just inside the edge back on themselves)
   const normal = paintNormals(pts);
   const offset = (off: number) => offsetLine(pts, normal, off);
-  const path = (list: Pt[], closed = true) => {
+  // (a rally's stage: a road with two ends, never joined up)
+  const path = (list: Pt[], closed = !track.open) => {
     x.beginPath();
     list.forEach((p, i) => (i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y)));
     if (closed) x.closePath();
@@ -490,12 +491,12 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       x.lineWidth = 4;
       x.beginPath();
       for (let k = 0; k <= len; k++) {
-        const q = rut[(i + k) % pts.length];
+        const q = rut[Math.min(pts.length - 1, i + k)];
         if (k) x.lineTo(q.x, q.y);
         else x.moveTo(q.x, q.y);
       }
       x.stroke();
-      const q = rut[(i + 1) % pts.length];
+      const q = rut[Math.min(pts.length - 1, i + 1)];
       x.fillStyle = D.shine;
       x.fillRect(Math.round(q.x), Math.round(q.y), 2, 1);
     }
@@ -597,7 +598,8 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   // grid boxes: a white bracket in front of each slot
   x.strokeStyle = '#f4f4f8';
   x.lineWidth = 2;
-  for (const g of circuit.slots) {
+  // (a rally's stage: one car on the line at a time, so one box)
+  for (const g of circuit.layout.stage ? circuit.slots.slice(0, 1) : circuit.slots) {
     const gfx = Math.sin(g.heading);
     const gfy = -Math.cos(g.heading);
     const grx = Math.cos(g.heading);
@@ -623,20 +625,25 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   }
   // the chequered start/finish line across the track at sample 0: squares in the track's own frame (turned with
   // it, so as even on a straight at an angle as on one up the map), edge to edge, two rows centred on the line (over the pole's grid box, should they touch)
-  const s0 = pts[0];
+  // (a rally's stage: its start line, and its flying finish far along the road)
+  const stage = track.stage;
+  const lines = stage ? [stage.start, stage.finish].map((d) => Math.round(d / track.spacing)) : [0];
   const across = Math.round((HALF_WIDTH * 2) / START_SQUARE);
   const sq = (HALF_WIDTH * 2) / across;
-  x.save();
-  x.translate(s0.x, s0.y);
-  // (local x: across the track, to the right of the way of the race; local y: back down the track)
-  x.rotate(s0.dir);
-  for (let k = 0; k < across; k++) {
-    for (let row = 0; row < 2; row++) {
-      x.fillStyle = (k + row) % 2 === 0 ? '#f4f4f8' : '#1b1b26';
-      x.fillRect(-HALF_WIDTH + k * sq, (row - 1) * sq, sq + 0.5, sq + 0.5);
+  for (const at of lines) {
+    const s0 = pts[at];
+    x.save();
+    x.translate(s0.x, s0.y);
+    // (local x: across the track, to the right of the way of the race; local y: back down the track)
+    x.rotate(s0.dir);
+    for (let k = 0; k < across; k++) {
+      for (let row = 0; row < 2; row++) {
+        x.fillStyle = (k + row) % 2 === 0 ? '#f4f4f8' : '#1b1b26';
+        x.fillRect(-HALF_WIDTH + k * sq, (row - 1) * sq, sq + 0.5, sq + 0.5);
+      }
     }
+    x.restore();
   }
-  x.restore();
   return c;
 }
 
@@ -798,7 +805,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
       if (i) mx.lineTo(q.x, q.y);
       else mx.moveTo(q.x, q.y);
     });
-    mx.closePath();
+    // (a rally's stage: from its start to its end, not joined up)
+    if (!track.open) mx.closePath();
     mx.stroke();
     // the pit lane, thin and grey
     mx.strokeStyle = '#9d9ab8';

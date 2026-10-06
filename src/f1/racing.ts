@@ -60,17 +60,26 @@ export interface Track {
   levels?: Levels;
   /** on dirt: every car on off-road tyres (tyres.ts) */
   dirt?: boolean;
+  /** a road with two ends (a rally's stage), not a loop: its samples run from one end to the other, never round */
+  open?: boolean;
+  /** a rally's stage: its start line and its flying finish, px along the road */
+  stage?: { start: number; finish: number };
 }
 
-/** A closed Catmull-Rom spline through `points`, resampled every `spacing` px. The first point is the start line. */
-export function smoothLoop(points: Pt[], spacing: number): Pt[] {
+/**
+ * A closed Catmull-Rom spline through `points`, resampled every `spacing` px. The first point is the start line.
+ * `open`: a road with two ends instead, from the first point to the last.
+ */
+export function smoothLoop(points: Pt[], spacing: number, open = false): Pt[] {
   const n = points.length;
   const dense: Pt[] = [];
-  for (let i = 0; i < n; i++) {
-    const p0 = points[(i - 1 + n) % n];
-    const p1 = points[i];
-    const p2 = points[(i + 1) % n];
-    const p3 = points[(i + 2) % n];
+  // (open: each end's point stands in for the one beyond it, and there's no stretch from the last back to the first)
+  const pt = (i: number) => (open ? points[Math.max(0, Math.min(n - 1, i))] : points[((i % n) + n) % n]);
+  for (let i = 0; i < (open ? n - 1 : n); i++) {
+    const p0 = pt(i - 1);
+    const p1 = pt(i);
+    const p2 = pt(i + 1);
+    const p3 = pt(i + 2);
     for (let k = 0; k < 24; k++) {
       const t = k / 24;
       const t2 = t * t;
@@ -80,10 +89,11 @@ export function smoothLoop(points: Pt[], spacing: number): Pt[] {
       dense.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) });
     }
   }
+  if (open) dense.push(points[n - 1]);
   // walk the dense curve, dropping a point every `spacing` px
   const out: Pt[] = [dense[0]];
   let carry = 0;
-  for (let i = 0; i < dense.length; i++) {
+  for (let i = 0; i < (open ? dense.length - 1 : dense.length); i++) {
     const a = dense[i];
     const b = dense[(i + 1) % dense.length];
     const seg = Math.hypot(b.x - a.x, b.y - a.y);
@@ -97,7 +107,7 @@ export function smoothLoop(points: Pt[], spacing: number): Pt[] {
   }
   // the last point may sit on top of the first
   const last = out[out.length - 1];
-  if (Math.hypot(last.x - out[0].x, last.y - out[0].y) < spacing * 0.5) out.pop();
+  if (!open && Math.hypot(last.x - out[0].x, last.y - out[0].y) < spacing * 0.5) out.pop();
   return out;
 }
 
@@ -106,29 +116,33 @@ const headingOf = (dx: number, dy: number) => Math.atan2(dx, -dy);
 /**
  * Build a track from control points. `cornerSpeed(|curvature|)` is how fast a
  * bend can be taken; `decel` (px/s²) is how hard the line brakes into it.
+ * `open`: a road from the first point to the last (a rally's stage), not a loop.
  */
-export function buildTrack(control: Pt[], spacing: number, cornerSpeed: (absCurve: number) => number, decel: number): Track {
-  const pts = smoothLoop(control, spacing);
+export function buildTrack(control: Pt[], spacing: number, cornerSpeed: (absCurve: number) => number, decel: number, open = false): Track {
+  const pts = smoothLoop(control, spacing, open);
   const n = pts.length;
-  const at = (i: number) => pts[((i % n) + n) % n];
+  /** sample `i`: round the loop, or on an open road the nearest end past either end */
+  const wrap = (i: number) => (open ? Math.max(0, Math.min(n - 1, i)) : ((i % n) + n) % n);
+  const at = (i: number) => pts[wrap(i)];
   const dirs = pts.map((_, i) => headingOf(at(i + 1).x - at(i - 1).x, at(i + 1).y - at(i - 1).y));
-  const raw = dirs.map((_, i) => angleDiff(dirs[(i + 1) % n], dirs[(i - 1 + n) % n]) / (2 * spacing));
+  const raw = dirs.map((_, i) => angleDiff(dirs[wrap(i + 1)], dirs[wrap(i - 1)]) / (2 * spacing));
   // smooth the curvature a little so single wobbles don't read as corners
   const curve = raw.map((_, i) => {
     let sum = 0;
-    for (let k = -3; k <= 3; k++) sum += raw[(((i + k) % n) + n) % n];
+    for (let k = -3; k <= 3; k++) sum += raw[wrap(i + k)];
     return sum / 7;
   });
   const speed = curve.map((k) => cornerSpeed(Math.abs(k)));
-  // braking: nothing can be faster than what still lets it slow for the bend ahead (twice round the loop)
-  for (let pass = 0; pass < 2; pass++) {
-    for (let i = n - 1; i >= 0; i--) {
+  // braking: nothing can be faster than what still lets it slow for the bend ahead (twice round the loop; once
+  // along an open road, from its far end back)
+  for (let pass = 0; pass < (open ? 1 : 2); pass++) {
+    for (let i = (open ? n - 2 : n - 1); i >= 0; i--) {
       const next = speed[(i + 1) % n];
       speed[i] = Math.min(speed[i], Math.sqrt(next * next + 2 * decel * spacing));
     }
   }
   const samples = pts.map((p, i) => ({ x: p.x, y: p.y, s: i * spacing, dir: dirs[i], curve: curve[i], speed: speed[i] }));
-  return { samples, spacing, length: n * spacing };
+  return { samples, spacing, length: n * spacing, ...(open ? { open: true } : {}) };
 }
 
 /**
@@ -138,8 +152,10 @@ export function buildTrack(control: Pt[], spacing: number, cornerSpeed: (absCurv
  */
 export function nearestSample(track: Track, x: number, y: number, hint?: number, stay = false): number {
   const n = track.samples.length;
+  /** sample `i`, round the loop (on an open road: held at its ends) */
+  const at = (i: number) => (track.open ? Math.max(0, Math.min(n - 1, i)) : ((i % n) + n) % n);
   const d2 = (i: number) => {
-    const p = track.samples[((i % n) + n) % n];
+    const p = track.samples[at(i)];
     return (p.x - x) ** 2 + (p.y - y) ** 2;
   };
   let best = 0;
@@ -147,7 +163,7 @@ export function nearestSample(track: Track, x: number, y: number, hint?: number,
   if (hint !== undefined) {
     for (let k = -40; k <= 40; k++) {
       const d = d2(hint + k);
-      if (d < bestD) [best, bestD] = [(((hint + k) % n) + n) % n, d];
+      if (d < bestD) [best, bestD] = [at(hint + k), d];
     }
     // lost (reset, or cut across the infield): fall back to a full search (unless it must stay)
     if (bestD < 200 * 200 || stay) return best;
@@ -162,7 +178,14 @@ export function nearestSample(track: Track, x: number, y: number, hint?: number,
 export const SECTORS = 3;
 
 /** The samples where each sector after the first starts (the first starts at the line): where a lap's split is taken. */
-export const sectorStarts = (track: Track): number[] => Array.from({ length: SECTORS - 1 }, (_, k) => (k + 1) * Math.floor(track.samples.length / SECTORS));
+export const sectorStarts = (track: Track): number[] =>
+  track.stage ? stageSplits(track).map((s) => Math.round(s / track.spacing)) : Array.from({ length: SECTORS - 1 }, (_, k) => (k + 1) * Math.floor(track.samples.length / SECTORS));
+
+/** A rally stage's split points (px along it): the stage from its start line to its finish in SECTORS equal parts. */
+export const stageSplits = (track: Track): number[] => {
+  const { start, finish } = track.stage ?? { start: 0, finish: track.length };
+  return Array.from({ length: SECTORS - 1 }, (_, k) => start + ((finish - start) * (k + 1)) / SECTORS);
+};
 
 export interface RaceProgress {
   /** completed laps */
@@ -446,7 +469,8 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   const top = car.cls.topSpeed;
   const craft = ai.craft ?? 0.6;
   const ahead = Math.round((40 + v * 0.3) / track.spacing);
-  const t = track.samples[(idx + ahead) % n];
+  // (an open road: never past its far end, round to its start)
+  const t = track.samples[track.open ? Math.min(n - 1, idx + ahead) : (idx + ahead) % n];
   // the line's speed a little ahead (it already includes braking for what's beyond); on worn tyres
   // the car turns less, so it takes the bends (and the braking into them) that much slower
   const line = track.samples[(idx + 2) % n].speed;

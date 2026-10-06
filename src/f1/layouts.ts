@@ -4,6 +4,7 @@
 
 import type { PitSpec } from './pits';
 import type { Pt } from './racing';
+import { stageById } from './stages';
 
 export interface CircuitLayout {
   id: string;
@@ -64,6 +65,11 @@ export interface CircuitLayout {
   podiumDeck?: number;
   /** a word painted across the garages' roofs, a few letters on each, read from the camera (AZERBAIJAN) */
   pitRoof?: string;
+  /**
+   * a rally's stage: a road with two ends (its points from one to the other, not round a loop), the start line `start`
+   * px along it and the flying finish `finish` px along (the road runs on past it, to the stop at its end)
+   */
+  stage?: { start: number; finish: number };
 }
 
 export interface StreetSpec {
@@ -950,38 +956,7 @@ export const CHAMPIONSHIP_LAYOUTS: CircuitLayout[] = LAYOUTS.filter((l) => !l.fr
 /** The free circuits: open to everyone from the start. */
 export const FREE_LAYOUTS: CircuitLayout[] = LAYOUTS.filter((l) => l.free);
 
-/**
- * A rally's special stage on `base`'s roads: its own id and name (its records apart from the circuit's), on `extra`'s
- * surface (dirt: gravel, or with snow or desert, packed snow or sand; else tarmac). Every stage is one lap, from a
- * standing start at the line, against the clock (rally.ts).
- */
-const stage = (base: CircuitLayout, id: string, name: string, about: string, extra: Partial<CircuitLayout> = {}): CircuitLayout => ({
-  ...base, id, name, about, free: true, ...extra,
-});
-
-/** The rallies' special stages (not circuits of their own: a rally's screen leads to them, rally.ts). */
-export const STAGE_LAYOUTS: CircuitLayout[] = [
-  // gravel: through the hills and the forests
-  stage(CRESCENT_PARK, 'ss-crescent-hills', 'Crescent Hills', 'gravel · over the hills', { dirt: true }),
-  stage(ARDENNES, 'ss-ardennes-forest', 'Ardennes Forest', 'gravel · up and down through the forest', { dirt: true }),
-  stage(ALPINE_RING, 'ss-alpine-woods', 'Alpine Woods', 'gravel · short and steep in the woods', { dirt: true }),
-  stage(TWIN_LAKES, 'ss-twin-lakes', 'Twin Lakes', 'gravel · round the lakes, gophers about', { dirt: true }),
-  // snow: in the mountains in winter
-  stage(GLACIER_PASS, 'ss-glacier-pass', 'Glacier Pass', 'snow · up the switchbacks, over two jumps', { dirt: true }),
-  stage(ALPINE_RING, 'ss-frozen-ring', 'Frozen Ring', 'snow · steep, through the snowy spruces', { dirt: true, snow: true, mountain: true }),
-  stage(TWIN_LAKES, 'ss-frozen-lakes', 'Frozen Lakes', 'snow · round the frozen lakes', { dirt: true, snow: true, gophers: false }),
-  // sand: in the desert
-  stage(OASIS, 'ss-oasis-dunes', 'Oasis Dunes', 'sand · through the dunes', { dirt: true }),
-  stage(DUST_BOWL, 'ss-dust-bowl', 'Dust Bowl', 'dirt · the super special, over the jump'),
-  stage(SILVER_HEATH, 'ss-silver-sands', 'Silver Sands', 'sand · fast across the desert', { dirt: true, desert: true }),
-  // tarmac: the streets and the parks
-  stage(HARBOUR, 'ss-harbour-streets', 'Harbour Streets', 'tarmac · tight streets, walls close'),
-  stage(BAKU, 'ss-caspian-shores', 'Caspian Shores', 'tarmac · the old town, then by the sea'),
-  stage(SUZUKA, 'ss-nippon', 'Nippon', 'tarmac · the figure of eight, over the bridge'),
-  stage(ROYAL_PARK, 'ss-royal-park', 'Royal Park', 'tarmac · round the old park and the banking'),
-];
-
 /** The layout with this id (a circuit, or a rally's stage), or undefined. */
 export function layoutById(id: string | null | undefined): CircuitLayout | undefined {
-  return LAYOUTS.find((l) => l.id === id) ?? STAGE_LAYOUTS.find((l) => l.id === id);
+  return LAYOUTS.find((l) => l.id === id) ?? stageById(id);
 }

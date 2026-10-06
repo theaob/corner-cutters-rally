@@ -48,6 +48,8 @@ export interface PaceNote {
   dir?: 'left' | 'right';
   grade?: Grade;
   jump?: boolean;
+  /** a rally stage's flying finish */
+  finish?: boolean;
   mods: Modifier[];
   /** called with the next one, as one (… INTO …) */
   into?: boolean;
@@ -57,7 +59,7 @@ export interface PaceNote {
 
 const DEG = 180 / Math.PI;
 
-/** The notes for `track` (one lap of it, from the line), with jumps at `jumps` px along it. */
+/** The notes for `track` (one lap of it from the line; a rally's stage from its start to its finish), with jumps at `jumps` px along it. */
 export function paceNotes(track: Track, jumps: number[] = []): PaceNote[] {
   const { samples, spacing, length } = track;
   const n = samples.length;
@@ -118,10 +120,16 @@ export function paceNotes(track: Track, jumps: number[] = []): PaceNote[] {
     notes.push({ at: r.from * spacing, end: r.to * spacing, dir: turn > 0 ? 'right' : 'left', grade, mods });
   }
   for (const at of jumps) notes.push({ at, end: at, jump: true, mods: [] });
+  // a rally's stage: its bends from the start line to the flying finish, and the finish itself
+  const stage = track.stage;
+  if (stage) {
+    for (let i = notes.length - 1; i >= 0; i--) if (notes[i].end < stage.start || notes[i].at > stage.finish) notes.splice(i, 1);
+    notes.push({ at: stage.finish, end: stage.finish, finish: true, mods: [] });
+  }
   notes.sort((a, b) => a.at - b.at);
-  // links and distances, to the next note (the last: back round to the first, on a loop)
+  // links and distances, to the next note (the last: back round to the first, on a loop; on an open road, none)
   notes.forEach((note, i) => {
-    const next = notes[i + 1] ?? (notes[0] && { at: notes[0].at + length });
+    const next = notes[i + 1] ?? (notes[0] && !track.open ? { at: notes[0].at + length } : undefined);
     if (!next || next === note) return;
     const gap = next.at - note.end;
     if (gap <= NOTES.link && i < notes.length - 1) note.into = true;
@@ -133,6 +141,7 @@ export function paceNotes(track: Track, jumps: number[] = []): PaceNote[] {
 /** A note as the co-driver's card shows it: 'LEFT 4 LONG', 'HAIRPIN RIGHT', 'OVER JUMP'. */
 export function noteText(note: PaceNote): string {
   if (note.jump) return 'OVER JUMP';
+  if (note.finish) return 'FLYING FINISH';
   const dir = note.dir === 'left' ? 'LEFT' : 'RIGHT';
   const head = note.grade === 'hairpin' ? `HAIRPIN ${dir}` : `${dir} ${note.grade}`;
   return [head, ...note.mods].join(' ');

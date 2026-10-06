@@ -279,7 +279,8 @@ export function newRace(
   if (track.dirt) handling = { ...handling, crashThreshold: handling.crashThreshold * DIRT_KNOCKS };
   const forecast = typeof weather === 'string' ? undefined : weather;
   const now = forecast ? startWeather(forecast) : { wetness: WETNESS[weather as WeatherId], rain: weather === 'wet' ? 1 : 0 };
-  const entrants: Entrant[] = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tow: 0, limits: newLimits(), tyres: freshTyres(tyreFor(now.wetness, track.dirt)), progress: newProgress(track.samples.length - 4) }));
+  const entrants: Entrant[] = field.map((f) => ({ ...f, box: f.box ?? 0, stops: 0, tow: 0, limits: newLimits(), tyres: freshTyres(tyreFor(now.wetness, track.dirt)), progress: newProgress(track.open ? nearestSample(track, f.car.x, f.car.y) : track.samples.length - 4) }));
+  // (on a rally's open road, each car's progress from where it stands on it: there's no line just ahead to cross)
   const race: Race = {
     track, grid, corners: markCorners(track), pit, weather: conditionOf(now.wetness), wetness: now.wetness, rain: now.rain, forecast, handling, laps, entrants,
     phase: 'lights', clock: -LIGHTS, lightsOut, holdBehind: entrants.map(() => new Set()),
