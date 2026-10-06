@@ -4,8 +4,8 @@ import { versionText } from '../src/f1/settingsRows';
 import { DUST_BOWL, GLACIER_PASS } from '../src/f1/layouts';
 
 describe('the menu', () => {
-  it('starts with the modes: the Daily Challenge, Quick Race, Championship, Time Attack and Time Trial', () => {
-    expect(MODES.map((m) => m.name)).toEqual(['DAILY CHALLENGE', 'QUICK RACE', 'CHAMPIONSHIP', 'TIME ATTACK', 'TIME TRIAL']);
+  it('starts with the modes: Rally first, then the Daily Challenge, Quick Race, Championship, Time Attack and Time Trial', () => {
+    expect(MODES.map((m) => m.name)).toEqual(['RALLY', 'DAILY CHALLENGE', 'QUICK RACE', 'CHAMPIONSHIP', 'TIME ATTACK', 'TIME TRIAL']);
   });
 
   it("then shows each mode's own options with the circuit: a Quick Race's qualifying and laps, the time modes' team and weather", () => {
@@ -17,6 +17,8 @@ describe('the menu', () => {
     expect(rowsOf('timetrial')).toEqual(['team', 'car', 'weather']);
     // (the Daily Challenge too: the day's circuit and weather are everyone's)
     expect(rowsOf('daily')).toEqual([]);
+    // (and a rally: its own screen, its stages and its crews)
+    expect(rowsOf('rally')).toEqual([]);
     // (a Championship has its own screen: a season races every circuit)
     expect(rowsOf('championship')).toEqual([]);
   });
