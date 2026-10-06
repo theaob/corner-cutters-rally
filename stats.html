@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Corner Cutters Pit Wall</title>
+    <meta name="robots" content="noindex" />
+    <style>
+      /* A pit-wall timing monitor: the night-navy of the game, amber readouts, one cyan accent for the live line.
+         Summary readouts across the top, the 30-day line under them, then the splits and today's board. */
+      @font-face {
+        font-family: 'Silkscreen';
+        src: url('./public/fonts/silkscreen.woff2') format('woff2');
+        font-display: swap;
+      }
+      :root {
+        --ground: #0e0d16;
+        --panel: #17162a;
+        --edge: #2a2840;
+        --ink: #f4f2fa;
+        --muted: #9d9ab8;
+        --faint: #5d5a7a;
+        --amber: #f2c14e;
+        --cyan: #5fe0d0;
+        --bad: #ff6b74;
+        --pixel: 'Silkscreen', ui-monospace, monospace;
+        --body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.5 var(--body); }
+      body { padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom)); }
+      main { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+      header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; border-bottom: 1px solid var(--edge); padding-bottom: 14px; }
+      h1 { margin: 0; font: 22px/1.2 var(--pixel); color: var(--amber); letter-spacing: 1px; text-wrap: balance; }
+      h1 small { display: block; font: 11px/1.6 var(--pixel); color: var(--muted); letter-spacing: 1.5px; }
+      .live { display: flex; align-items: center; gap: 10px; font: 11px var(--pixel); color: var(--muted); letter-spacing: 1px; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+      .dot.on { background: var(--cyan); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 25%, transparent); }
+      .dot.off { background: var(--bad); }
+      button { font: 11px var(--pixel); letter-spacing: 1px; color: var(--ink); background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+      button:hover { border-color: var(--muted); }
+      button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+      .notice { border: 1px solid var(--edge); border-left: 3px solid var(--bad); background: var(--panel); border-radius: 6px; padding: 12px 14px; color: var(--ink); }
+      .notice code { font: 13px var(--mono); color: var(--amber); }
+      .tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+      .tile { box-shadow: inset -1px -1px 0 var(--edge); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+      /* (ten readouts: five by two, or two by five on a phone) */
+      @media (max-width: 760px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      .tile .k { font: 10px var(--pixel); letter-spacing: 1.2px; color: var(--muted); }
+      .tile .v { font: 28px/1.1 var(--pixel); color: var(--amber); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .tile .s { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+      section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+      h2 { margin: 0; font: 12px var(--pixel); letter-spacing: 1.5px; color: var(--muted); }
+      .chart { position: relative; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 12px 12px 4px; }
+      .chart svg { display: block; width: 100%; height: auto; }
+      .tip { position: absolute; pointer-events: none; background: var(--ground); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 9px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -110%); }
+      .tip b { font: 12px var(--pixel); color: var(--amber); }
+      .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+      .splits { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: start; }
+      .bars { list-style: none; margin: 0; padding: 12px 14px; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; display: flex; flex-direction: column; gap: 9px; }
+      .bars li { display: grid; grid-template-columns: minmax(0, 10.5em) 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+      .bars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+      .bars .swatch { flex: none; width: 8px; height: 8px; border-radius: 2px; box-shadow: 0 0 0 1px var(--edge); }
+      .bars li.zero .name, .bars li.zero .n { color: var(--faint); }
+      .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: start; }
+      .callouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+      .callout { box-shadow: inset -1px -1px 0 var(--edge); padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+      .callout .k { font: 10px var(--pixel); letter-spacing: 1.2px; color: var(--muted); }
+      .callout .v { font: 16px/1.3 var(--pixel); color: var(--amber); overflow-wrap: anywhere; }
+      .callout .s { font-size: 12px; color: var(--muted); }
+      .bars .track { display: block; height: 10px; border-radius: 0 4px 4px 0; background: color-mix(in srgb, var(--edge) 55%, transparent); }
+      .bars .fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--cyan); min-width: 2px; }
+      .bars .n { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+      .empty { color: var(--muted); font-size: 13px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+      .board { background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 6px 14px; overflow-x: auto; }
+      th { font: 10px var(--pixel); letter-spacing: 1.2px; color: var(--muted); text-align: left; padding: 8px 6px; font-weight: normal; }
+      td { padding: 6px; border-top: 1px solid var(--edge); }
+      td.r, th.r { text-align: right; }
+      td.name { font-family: var(--pixel); color: var(--amber); }
+      tr.mode td { border-top: none; padding-top: 2px; padding-bottom: 2px; color: var(--muted); font-size: 12px; }
+      tr.mode td:first-child { padding-left: 22px; }
+      tr.circuit td { font-weight: 600; }
+      tr.zero td { color: var(--faint); font-weight: normal; }
+      @media (max-width: 480px) {
+        #circuits { padding: 6px 8px; }
+        #circuits table { font-size: 12px; }
+        #circuits th { letter-spacing: 0.4px; }
+        #circuits td, #circuits th { padding: 6px 3px; }
+        #circuits tr.mode td:first-child { padding-left: 12px; }
+      }
+      .reports { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+      .lock { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; font-size: 13px; color: var(--muted); }
+      .lock[hidden] { display: none; }
+      .lock-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+      .lock input { width: min(260px, 60vw); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--edge); background: var(--ground); color: var(--ink); font: 13px var(--mono); }
+      .reports button, .lock button { font: 11px var(--pixel); letter-spacing: 1px; color: var(--amber); background: transparent; border: 1px solid var(--edge); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+      .reports-head { display: flex; justify-content: space-between; align-items: center; font: 11px var(--pixel); color: var(--muted); letter-spacing: 1px; }
+      .reports-head[hidden] { display: none; }
+      .reports-list { display: flex; flex-direction: column; gap: 10px; }
+      .report { display: grid; grid-template-columns: 160px 1fr; gap: 14px; align-items: start; padding-top: 10px; border-top: 1px solid var(--edge); }
+      .report:first-child { border-top: none; padding-top: 0; }
+      .report .shot { width: 160px; max-height: 240px; object-fit: contain; border-radius: 6px; border: 1px solid var(--edge); background: #000; cursor: zoom-in; }
+      .report .noshot { width: 160px; height: 90px; display: flex; align-items: center; justify-content: center; text-align: center; border-radius: 6px; border: 1px dashed var(--edge); color: var(--faint); font-size: 11px; padding: 6px; box-sizing: border-box; }
+      .report .words { margin: 0 0 8px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .report .words.none { color: var(--faint); font-style: italic; }
+      .report .meta { margin: 0; font: 12px var(--mono); color: var(--muted); line-height: 1.6; white-space: pre-line; }
+      .errors { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+      .errors-list { display: flex; flex-direction: column; gap: 10px; }
+      .error { padding-top: 10px; border-top: 1px solid var(--edge); }
+      .error:first-child { border-top: none; padding-top: 0; }
+      .error .what { margin: 0 0 4px; font: 13px var(--mono); color: var(--text); overflow-wrap: anywhere; }
+      .error .count { color: var(--amber); }
+      .error .meta { margin: 0; font: 12px var(--mono); color: var(--muted); line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
+      .error details { margin-top: 4px; font: 11px var(--mono); color: var(--faint); }
+      .error summary { cursor: pointer; }
+      .error pre { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .report .path { margin: 4px 0 0; font: 11px var(--mono); color: var(--faint); overflow-wrap: anywhere; }
+      .more { display: flex; justify-content: center; }
+      .lightbox { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
+      .lightbox[hidden] { display: none; }
+      .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+      @media (max-width: 520px) {
+        .report { grid-template-columns: 1fr; justify-items: center; }
+        .report .body { width: 100%; }
+        .report .shot { width: auto; max-width: 100%; max-height: 50vh; }
+      }
+      footer { font-size: 12px; color: var(--faint); border-top: 1px solid var(--edge); padding-top: 12px; }
+      @media (prefers-reduced-motion: no-preference) { .fill { transition: width .5s ease-out; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>CORNER CUTTERS <small>PIT WALL · PLAY STATS</small></h1>
+        <div class="live"><span class="dot" id="dot"></span><span id="status">CONNECTING…</span><button id="refresh" type="button">REFRESH</button></div>
+      </header>
+      <div class="notice" id="notice" hidden></div>
+      <div class="tiles" id="tiles"></div>
+      <section>
+        <h2>PLAYERS PER DAY · LAST 30 DAYS (UTC)</h2>
+        <div class="chart" id="chart"><p class="empty">Waiting for the first day of play.</p></div>
+      </section>
+      <div class="pair">
+        <section>
+          <h2>LAUNCHES PER DAY · LAST 30 DAYS (UTC)</h2>
+          <div class="chart" id="chart-launches"><p class="empty">Waiting for the first launch.</p></div>
+        </section>
+        <section>
+          <h2 id="time-title">TIME PLAYED PER DAY · LAST 30 DAYS (UTC)</h2>
+          <div class="chart" id="chart-time"><p class="empty">Waiting for the first minutes of play.</p></div>
+        </section>
+      </div>
+      <div class="splits">
+        <section><h2>PLAYERS BY PLATFORM</h2><ul class="bars" id="platform"></ul></section>
+        <section><h2>FINISHED SESSIONS BY MODE</h2><ul class="bars" id="mode"></ul></section>
+        <section><h2>FINISHED SESSIONS BY CIRCUIT</h2><ul class="bars" id="circuit"></ul></section>
+      </div>
+      <section>
+        <h2>CIRCUITS · TIMES PLAYED, KM AND MINUTES, BY MODE</h2>
+        <div class="board" id="circuits"><p class="empty">Waiting for the first session.</p></div>
+      </section>
+      <section>
+        <h2>WHO PLAYERS PICK · SESSIONS STARTED</h2>
+        <div class="callouts" id="callouts"></div>
+        <div class="picks">
+          <ul class="bars" id="teams"></ul>
+          <ul class="bars" id="drivers"></ul>
+        </div>
+      </section>
+      <section>
+        <h2 id="board-title">TODAY'S DAILY CHALLENGE</h2>
+        <div class="board" id="board"><p class="empty">Loading the board…</p></div>
+      </section>
+      <section>
+        <h2>REPORTS · SENT FROM THE GAME</h2>
+        <div class="board reports">
+          <form class="lock" id="reports-lock">
+            <label for="reports-code">Reports are private: enter your reports code.</label>
+            <div class="lock-row">
+              <input id="reports-code" type="password" autocomplete="current-password" placeholder="Reports code" />
+              <button type="submit">OPEN</button>
+            </div>
+            <p class="empty" id="reports-note"></p>
+          </form>
+          <div id="reports-head" class="reports-head" hidden><span id="reports-count"></span><button type="button" id="reports-lockup">LOCK</button></div>
+          <div id="reports-list" class="reports-list"></div>
+          <div class="more"><button type="button" id="reports-more" hidden>LOAD MORE</button></div>
+        </div>
+      </section>
+      <section>
+        <h2 id="errors-title">ERRORS · CAUGHT IN THE GAME</h2>
+        <div class="board errors">
+          <p class="empty" id="errors-note">Errors are private: open the reports above with your code to see them.</p>
+          <div id="errors-list" class="errors-list"></div>
+        </div>
+      </section>
+      <div class="lightbox" id="lightbox" hidden><img id="lightbox-img" alt="The report's screenshot, full size" /></div>
+      <footer id="footer">Anonymous counts from the game (a random id per device). Refreshes every minute.</footer>
+    </main>
+    <script type="module" src="./src/stats/main.ts"></script>
+  </body>
+</html>

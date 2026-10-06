@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Corner Cutters · Track Designer</title>
+    <style>
+      :root {
+        --bg: #111118;
+        --panel: #1b1a26;
+        --edge: #3a3850;
+        --text: #f4f2fa;
+        --muted: #9d9ab8;
+        --gold: #f2c14e;
+        --good: #5fe0d0;
+        --bad: #ff6b6b;
+        --accent: #ff4fd8;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.4 system-ui, sans-serif;
+        overflow: hidden;
+      }
+      #app {
+        display: flex;
+        height: 100%;
+      }
+      #panel {
+        width: 320px;
+        flex: none;
+        overflow-y: auto;
+        background: var(--panel);
+        border-right: 1px solid var(--edge);
+        padding: 12px 14px 24px;
+        box-sizing: border-box;
+      }
+      #panel h1 {
+        margin: 0 0 2px;
+        font-size: 16px;
+        color: var(--gold);
+      }
+      #panel h2 {
+        margin: 16px 0 6px;
+        font-size: 12px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      #panel label {
+        display: grid;
+        grid-template-columns: 92px 1fr;
+        align-items: center;
+        gap: 6px;
+        margin: 4px 0;
+        color: var(--muted);
+      }
+      #panel input,
+      #panel select {
+        width: 100%;
+        box-sizing: border-box;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--edge);
+        border-radius: 4px;
+        padding: 3px 6px;
+        font: inherit;
+      }
+      #panel input[type='checkbox'] {
+        width: auto;
+      }
+      #panel .row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin: 6px 0;
+      }
+      #panel button {
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--edge);
+        border-radius: 4px;
+        padding: 4px 8px;
+        font: inherit;
+        cursor: pointer;
+      }
+      #panel button:hover {
+        border-color: var(--gold);
+      }
+      #checks div {
+        display: flex;
+        gap: 6px;
+        margin: 3px 0;
+      }
+      #checks b {
+        width: 14px;
+        flex: none;
+      }
+      #checks .ok b {
+        color: var(--good);
+      }
+      #checks .bad b,
+      #checks .bad {
+        color: var(--bad);
+      }
+      #status {
+        color: var(--muted);
+        min-height: 18px;
+      }
+      #view {
+        flex: 1;
+        position: relative;
+      }
+      #view canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #help {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        background: rgba(17, 17, 24, 0.82);
+        border: 1px solid var(--edge);
+        border-radius: 6px;
+        padding: 8px 10px;
+        color: var(--muted);
+        font-size: 12px;
+        pointer-events: none;
+        white-space: pre;
+      }
+      #hud {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        background: rgba(17, 17, 24, 0.82);
+        border-radius: 6px;
+        padding: 4px 8px;
+        color: var(--gold);
+        font-size: 12px;
+        pointer-events: none;
+      }
+      #crosshair {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 12px;
+        height: 12px;
+        margin: -6px 0 0 -6px;
+        pointer-events: none;
+        display: none;
+      }
+      #crosshair::before,
+      #crosshair::after {
+        content: '';
+        position: absolute;
+        background: rgba(255, 255, 255, 0.8);
+      }
+      #crosshair::before {
+        left: 5px;
+        top: 0;
+        width: 2px;
+        height: 12px;
+      }
+      #crosshair::after {
+        top: 5px;
+        left: 0;
+        width: 12px;
+        height: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="panel"></div>
+      <div id="view">
+        <div id="hud"></div>
+        <div id="crosshair"></div>
+        <div id="help"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/designer/main.ts"></script>
+  </body>
+</html>

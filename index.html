@@ -1,0 +1,1941 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#15141f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Corner Cutters</title>
+    <style>
+      /* Pixel font, bundled (SIL Open Font License; see fonts/OFL-Silkscreen.txt). */
+      @font-face {
+        font-family: 'Silkscreen';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url(/fonts/silkscreen.woff2) format('woff2');
+      }
+    </style>
+    <style>
+      :root {
+        --deck: #15141f;
+        --key: #25233a;
+        --key-edge: #3a3858;
+        --key-held: #3a3858;
+        --muted: #9d9ab8;
+        --text: #f4f2fa;
+        --gold: #f2c14e;
+        --accent-a: #ff4fd8;
+        --accent-b: #5fe0d0;
+        --pixel: 'Silkscreen', ui-monospace, monospace;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0e0d16;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+      #app {
+        max-width: 430px;
+        height: 100dvh;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        background: var(--deck);
+        color: var(--text);
+        font-family: var(--pixel);
+      }
+      #screen {
+        flex: none;
+        margin: 0 auto;
+        background: #000;
+        position: relative;
+        /* (its panels stack inside it: the deck, floating over it on a phone, stays on top) */
+        isolation: isolate;
+      }
+      /* the circuit menu, before a race */
+      .circuit-menu {
+        position: absolute;
+        inset: 0;
+        box-sizing: border-box;
+        padding: 20px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow-y: auto;
+        background: #111118;
+        color: var(--text);
+        font-family: var(--pixel);
+      }
+      .circuit-menu h1 {
+        margin: 0;
+        font-size: calc(22px * var(--ts, 1));
+        font-weight: 400;
+        color: var(--gold);
+        text-align: center;
+      }
+      .circuit-menu p {
+        /* (a line that wraps: even lines, no word on its own) */
+        text-wrap: balance;
+        margin: 0 0 6px;
+        font-size: calc(12px * var(--ts, 1));
+        letter-spacing: 1px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .circuit-menu ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .circuit-menu button {
+        width: 100%;
+        min-height: 72px;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--key);
+        color: var(--text);
+        font-family: var(--pixel);
+        text-align: left;
+        cursor: pointer;
+      }
+      .circuit-menu button.selected {
+        border-color: var(--accent-a);
+        box-shadow: 0 0 0 1px var(--accent-a);
+      }
+      .circuit-menu button canvas {
+        flex: none;
+      }
+      /* a circuit not unlocked yet */
+      .circuit-menu button.locked {
+        opacity: 0.45;
+      }
+      .circuit-menu strong {
+        display: block;
+        font-size: calc(15px * var(--ts, 1));
+        font-weight: 400;
+      }
+      .circuit-menu button.selected strong {
+        color: var(--accent-a);
+      }
+      .circuit-menu span {
+        font-size: calc(11px * var(--ts, 1));
+        color: var(--muted);
+      }
+      .circuit-menu span.record {
+        display: block;
+        margin-top: 3px;
+        color: var(--gold);
+      }
+      /* the settings button under the rows, and the settings screen's title and DONE */
+      .circuit-menu .menu-button {
+        width: 100%;
+        min-height: 0;
+        justify-content: center;
+        text-align: center;
+        padding: 10px 12px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--key);
+        color: var(--text);
+        font: calc(13px * var(--ts, 1)) var(--pixel);
+        cursor: pointer;
+      }
+      .circuit-menu .menu-button.focused {
+        border-color: var(--accent-b);
+        color: var(--accent-b);
+      }
+      .circuit-menu h2 {
+        margin: 0 0 4px;
+        font: calc(16px * var(--ts, 1)) var(--pixel);
+        color: var(--gold);
+        text-align: center;
+      }
+      /* celebrations (src/f1/screens/celebrate.ts): a medal, a trophy, confetti */
+      .medal-badge {
+        position: relative;
+        width: var(--size);
+        height: calc(var(--size) * 1.3);
+        flex: none;
+      }
+      .medal-badge .ribbon {
+        position: absolute;
+        left: 30%;
+        width: 40%;
+        top: 0;
+        height: 45%;
+        background: linear-gradient(90deg, #d8323c 0 33%, #f4f2fa 33% 66%, #3d7fc4 66%);
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+      }
+      .medal-badge .disc {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: var(--size);
+        height: var(--size);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: radial-gradient(circle at 35% 30%, #fff8 0 12%, transparent 13%), var(--medal);
+        box-shadow: inset 0 0 0 calc(var(--size) * 0.07) #0003, 0 3px 0 #1b1b26;
+      }
+      .medal-badge .disc::after {
+        content: '';
+        position: absolute;
+        inset: -20%;
+        background: linear-gradient(110deg, transparent 40%, #fffa 50%, transparent 60%);
+        transform: translateX(-120%);
+        animation: glint 0.9s 0.55s ease-out both;
+      }
+      @keyframes glint {
+        to { transform: translateX(120%); }
+      }
+      .medal-stamp {
+        position: absolute;
+        left: 50%;
+        top: 30%;
+        z-index: 6;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+        font: 18px var(--pixel);
+        text-shadow: 0 2px 0 #1b1b26;
+        color: #f4f2fa;
+        padding: 28px 64px;
+        white-space: nowrap;
+        background: radial-gradient(closest-side, rgba(14, 13, 22, 0.88), rgba(14, 13, 22, 0.7) 65%, transparent);
+        animation: stamp-in 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both, stamp-out 0.4s 2.2s ease-in both;
+      }
+      .medal-stamp span {
+        font-size: 12px;
+      }
+      .medal-stamp.still {
+        animation: stamp-out 0.4s 2.2s ease-in both;
+        transform: translateX(-50%);
+      }
+      @keyframes stamp-in {
+        from { transform: translateX(-50%) scale(2.6) rotate(-14deg); opacity: 0; }
+        60% { opacity: 1; }
+        to { transform: translateX(-50%) scale(1) rotate(0); opacity: 1; }
+      }
+      @keyframes stamp-out {
+        from { opacity: 1; }
+        to { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+      }
+      .trophy {
+        display: block;
+        margin: 0 auto;
+        image-rendering: pixelated;
+        filter: drop-shadow(0 0 10px #f2c14e88);
+        animation: trophy-drop 0.7s cubic-bezier(0.2, 1.5, 0.4, 1) both, trophy-glow 1.6s 0.7s ease-in-out infinite alternate;
+      }
+      @keyframes trophy-drop {
+        from { transform: translateY(-60px) scale(0.4); opacity: 0; }
+        to { transform: none; opacity: 1; }
+      }
+      @keyframes trophy-glow {
+        to { filter: drop-shadow(0 0 18px #f2c14ecc); }
+      }
+      /* the Championship won (screens/titleWin.ts): over the whole screen, before the standings */
+      .title-win {
+        position: absolute;
+        inset: 0;
+        z-index: 6;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 16px;
+        overflow: hidden;
+        text-align: center;
+        color: #f4f2fa;
+        font: calc(13px * var(--ts, 1)) var(--pixel);
+        background: radial-gradient(circle at 50% 38%, #3c2e0c, #0e0d16 62%);
+        animation: title-in 0.35s ease-out both;
+        touch-action: none;
+      }
+      .title-win.going {
+        animation: title-out 0.3s ease-in both;
+      }
+      @keyframes title-in {
+        from { opacity: 0; }
+      }
+      @keyframes title-out {
+        to { opacity: 0; }
+      }
+      .title-win .rays {
+        position: absolute;
+        left: 50%;
+        top: 38%;
+        width: 260vmax;
+        height: 260vmax;
+        margin: -130vmax 0 0 -130vmax;
+        background: repeating-conic-gradient(rgba(242, 193, 78, 0.16) 0 7deg, transparent 7deg 18deg);
+        mask-image: radial-gradient(circle, #000 0, transparent 36%);
+        -webkit-mask-image: radial-gradient(circle, #000 0, transparent 36%);
+        animation: rays-turn 18s linear infinite;
+        pointer-events: none;
+      }
+      @keyframes rays-turn {
+        to { transform: rotate(360deg); }
+      }
+      .title-win .fireworks {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+      .title-win .trophy {
+        position: relative;
+        filter: drop-shadow(0 0 22px #f2c14ecc);
+        animation: trophy-drop 0.8s cubic-bezier(0.2, 1.5, 0.4, 1) both, title-cup 1.4s 0.8s ease-in-out infinite alternate;
+      }
+      @keyframes title-cup {
+        to { transform: translateY(-6px) scale(1.04); filter: drop-shadow(0 0 34px #f2c14e); }
+      }
+      .title-win h1 {
+        position: relative;
+        margin: 6px 0 0;
+        font: calc(30px * var(--ts, 1)) var(--pixel);
+        color: var(--gold);
+        text-shadow: 0 3px 0 #6b4b10, 0 0 18px rgba(242, 193, 78, 0.6);
+        white-space: nowrap;
+      }
+      .title-win h1 span {
+        display: inline-block;
+        animation: letter-stamp 0.35s cubic-bezier(0.2, 1.8, 0.4, 1) both;
+      }
+      @keyframes letter-stamp {
+        from { transform: scale(3) translateY(-12px); opacity: 0; }
+        to { transform: none; opacity: 1; }
+      }
+      .title-win .team-band {
+        position: relative;
+        padding: 8px 22px;
+        border-top: 4px solid;
+        border-bottom: 4px solid;
+        font: calc(15px * var(--ts, 1)) var(--pixel);
+        color: #f4f2fa;
+        text-shadow: 0 2px 0 #000;
+        animation: letter-stamp 0.4s 1.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+      }
+      .title-win p {
+        position: relative;
+        margin: 0;
+        animation: title-in 0.4s 1.6s both;
+      }
+      .title-win .how {
+        color: #9d9ab8;
+        font-size: calc(11px * var(--ts, 1));
+      }
+      .title-win .tap {
+        margin-top: 18px;
+        color: var(--accent-b);
+        animation: title-in 0.4s 2s both, tap-blink 1s 2.4s steps(2) infinite;
+      }
+      @keyframes tap-blink {
+        50% { opacity: 0.35; }
+      }
+      .title-win.still, .title-win.still * {
+        animation: none !important;
+      }
+      .confetti {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 7;
+        pointer-events: none;
+      }
+      /* the cabinet's achievements: won in gold, the rest dimmed */
+      .circuit-menu .cabinet .achievements-head {
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid var(--key-edge);
+        text-align: center;
+        color: var(--gold);
+        font-size: calc(13px * var(--ts, 1));
+        white-space: pre;
+      }
+      .circuit-menu .cabinet .achievement {
+        display: grid;
+        grid-template-columns: 12px 1fr;
+        column-gap: 4px;
+        align-items: baseline;
+        padding: 3px 0;
+        opacity: 0.45;
+      }
+      .circuit-menu .cabinet .achievement b {
+        grid-row: span 2;
+        color: var(--muted);
+      }
+      .circuit-menu .cabinet .achievement strong {
+        font-size: calc(10px * var(--ts, 1));
+        color: var(--muted);
+      }
+      .circuit-menu .cabinet .achievement span {
+        font-size: calc(7px * var(--ts, 1));
+        line-height: 1.3;
+      }
+      .circuit-menu .cabinet .achievement.got {
+        opacity: 1;
+        animation: medal-pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+        animation-delay: var(--delay, 0s);
+      }
+      .circuit-menu .cabinet .achievement.got b,
+      .circuit-menu .cabinet .achievement.got strong {
+        color: var(--gold);
+      }
+      /* the cabinet: the medals pop in one after another */
+      .circuit-menu .cabinet .medal.won {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        animation: medal-pop 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+        animation-delay: var(--delay, 0s);
+      }
+      @keyframes medal-pop {
+        from { transform: scale(0); opacity: 0; }
+        to { transform: none; opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .medal-stamp, .trophy, .circuit-menu .cabinet .medal.won, .circuit-menu .cabinet .achievement.got, .medal-badge .disc::after {
+          animation: none !important;
+        }
+        .medal-stamp {
+          transform: translateX(-50%);
+        }
+      }
+      /* a short line at the bottom (PRESS BACK AGAIN TO EXIT) */
+      .hint-toast {
+        position: fixed;
+        left: 50%;
+        bottom: 12%;
+        z-index: 60;
+        transform: translateX(-50%);
+        padding: 8px 14px;
+        border-radius: 10px;
+        background: rgba(21, 20, 31, 0.92);
+        border: 1px solid var(--key-edge);
+        color: var(--text);
+        font: calc(11px * var(--ts, 1)) var(--pixel);
+        white-space: nowrap;
+        pointer-events: none;
+      }
+      /* an achievement unlocked: a toast down from the top */
+      .achievement-toast {
+        position: fixed;
+        left: 50%;
+        top: 10px;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 220px;
+        max-width: calc(100% - 32px);
+        box-sizing: border-box;
+        padding: 8px 14px 8px 10px;
+        border: 1px solid var(--gold);
+        border-radius: 10px;
+        background: rgba(21, 20, 31, 0.95);
+        box-shadow: 0 4px 16px #0008;
+        color: var(--text);
+        font-family: var(--pixel);
+        pointer-events: none;
+        animation: toast-in 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both, toast-out 0.35s 2.85s ease-in both;
+      }
+      .achievement-toast.still {
+        animation: toast-out 0.35s 2.85s ease-in both;
+        transform: translateX(-50%);
+      }
+      .achievement-toast b {
+        color: var(--gold);
+        font-size: calc(22px * var(--ts, 1));
+        line-height: 1;
+        animation: star-spin 0.8s 0.3s ease-out both;
+      }
+      .achievement-toast div {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .achievement-toast small {
+        color: var(--gold);
+        font-size: calc(9px * var(--ts, 1));
+      }
+      .achievement-toast strong {
+        font-size: calc(13px * var(--ts, 1));
+      }
+      .achievement-toast span {
+        color: var(--muted);
+        font-size: calc(9px * var(--ts, 1));
+      }
+      @keyframes toast-in {
+        from { transform: translate(-50%, -120%); opacity: 0; }
+        to { transform: translate(-50%, 0); opacity: 1; }
+      }
+      @keyframes toast-out {
+        from { transform: translate(-50%, 0); opacity: 1; }
+        to { transform: translate(-50%, -40%); opacity: 0; }
+      }
+      @keyframes star-spin {
+        from { transform: rotate(-180deg) scale(0.3); }
+        to { transform: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .achievement-toast b {
+          animation: none;
+        }
+      }
+      /* the menu's live backdrop (src/f1/screens/menuBackdrop.ts): a race behind it, faded in; the menu over it see-through */
+      .live-backdrop {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        opacity: 0;
+        transition: opacity 1.2s ease;
+        pointer-events: none;
+        image-rendering: pixelated;
+      }
+      .live-backdrop.on {
+        opacity: 1;
+      }
+      /* the still the menu opens on, until the live race has faded in over it (src/f1/screens/backdropStill.ts) */
+      .menu-still {
+        object-fit: cover;
+        transition: none;
+      }
+      .live-backdrop ~ .circuit-menu {
+        background: linear-gradient(rgba(14, 13, 22, 0.05), rgba(14, 13, 22, 0.15) 18%, rgba(14, 13, 22, 0.7) 30%, rgba(14, 13, 22, 0.8));
+      }
+      /* (the settings on black, for reading: the race behind hidden) */
+      .circuit-menu.settings-view,
+      .live-backdrop ~ .circuit-menu.settings-view {
+        background: #000;
+      }
+      /* the trophy cabinet: the titles won, the medal tally, each circuit's medals */
+      .circuit-menu .cabinet {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 10px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--key);
+        font: calc(11px * var(--ts, 1)) var(--pixel);
+      }
+      .circuit-menu .cabinet .titles .trophy {
+        margin: 0;
+      }
+      .circuit-menu .cabinet .titles {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        text-align: center;
+        color: var(--gold);
+        font-size: calc(13px * var(--ts, 1));
+      }
+      .circuit-menu .cabinet .tally {
+        display: flex;
+        justify-content: center;
+        gap: 18px;
+        margin-bottom: 2px;
+      }
+      /* its tabs: the medals, the achievements */
+      .circuit-menu .cabinet-tabs {
+        display: flex;
+        gap: 6px;
+        margin: 4px 0;
+      }
+      .circuit-menu .cabinet-tabs .cabinet-tab {
+        flex: 1;
+        padding: 7px 4px;
+        font-size: calc(10px * var(--ts, 1));
+        color: var(--muted);
+      }
+      .circuit-menu .cabinet-tabs .cabinet-tab.selected {
+        border-color: var(--gold);
+        color: var(--gold);
+      }
+      .circuit-menu .cabinet-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .circuit-menu .cabinet-panel.achievements {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 8px;
+        row-gap: 2px;
+      }
+      .circuit-menu .cabinet .tally span {
+        font-size: calc(13px * var(--ts, 1));
+      }
+      .circuit-menu .cabinet-row {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr 1fr;
+        gap: 6px;
+        align-items: center;
+        padding: 3px 0;
+        border-top: 1px solid var(--key-edge);
+      }
+      .circuit-menu .cabinet-row span {
+        color: var(--text);
+      }
+      .circuit-menu .cabinet-row.head span {
+        color: var(--muted);
+        font-size: calc(9px * var(--ts, 1));
+      }
+      .circuit-menu .cabinet-row.locked span:first-child {
+        color: var(--muted);
+      }
+      .circuit-menu .cabinet p {
+        margin: 6px 0 0;
+        font-size: calc(9px * var(--ts, 1));
+        text-align: center;
+      }
+      /* the option rows under the circuits (team, controls) */
+      .circuit-menu .own-tab {
+        align-self: center;
+        margin: 0 auto;
+        display: block;
+        padding: 6px 10px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        font: calc(10px * var(--ts, 1)) var(--pixel);
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      .circuit-menu .option-row {
+        width: 100%;
+        min-height: 0;
+        padding: 6px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border: 1px dashed var(--key-edge);
+        border-radius: 10px;
+        background: transparent;
+        color: var(--text);
+        font-family: var(--pixel);
+        cursor: pointer;
+      }
+      /* the Daily Challenge's initials: three big letters typed into one field, centred, as on an arcade board */
+      .circuit-menu .initials {
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 12px;
+        border: 1px dashed var(--key-edge);
+        border-radius: 10px;
+        font: calc(10px * var(--ts, 1)) var(--pixel);
+        color: var(--muted);
+        text-align: center;
+      }
+      .circuit-menu .initials.focused,
+      .circuit-menu .initials:focus-within {
+        border-style: solid;
+        border-color: var(--accent-b);
+      }
+      .circuit-menu .initials input {
+        width: 6.2em;
+        padding: 6px 0 6px 0.5em;
+        border: 0;
+        border-bottom: 2px solid var(--gold);
+        border-radius: 0;
+        background: transparent;
+        color: var(--gold);
+        font: calc(30px * var(--ts, 1)) var(--pixel);
+        letter-spacing: 0.5em;
+        text-align: center;
+        text-transform: uppercase;
+        outline: none;
+        caret-color: var(--gold);
+      }
+      .circuit-menu .initials input::placeholder {
+        color: var(--key-edge);
+      }
+      /* a Time Trial's world board on the circuit screen (src/f1/screens/worldBoard.ts): the top three and your place */
+      .circuit-menu .world-board {
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 8px 12px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: rgba(37, 35, 58, 0.85);
+        font: calc(11px * var(--ts, 1)) var(--pixel);
+      }
+      .circuit-menu .world-board[hidden] {
+        display: none !important;
+      }
+      .circuit-menu .world-board .world-line {
+        margin: 0;
+        color: var(--muted);
+        font-size: calc(10px * var(--ts, 1));
+      }
+      .circuit-menu .world-board .world-title {
+        color: var(--accent-b);
+        letter-spacing: 1px;
+        margin-bottom: 2px;
+      }
+      /* (the place right, the initials, the time right: the same columns each row, the row centred) */
+      .circuit-menu .world-row {
+        display: grid;
+        grid-template-columns: 3em 4em 7em;
+        column-gap: 0.8em;
+        color: var(--text);
+      }
+      .circuit-menu .world-row.you {
+        color: var(--gold);
+      }
+      .circuit-menu .world-row .place,
+      .circuit-menu .world-row .time {
+        text-align: right;
+      }
+      .circuit-menu .world-row span {
+        font-size: inherit;
+        color: inherit;
+      }
+      .circuit-menu .world-board .world-gap {
+        line-height: 0.8;
+      }
+      .circuit-menu .world-name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: calc(10px * var(--ts, 1));
+      }
+      .circuit-menu .world-name input {
+        width: 4.6em;
+        padding: 2px 0 2px 0.4em;
+        border: 0;
+        border-bottom: 2px solid var(--gold);
+        background: transparent;
+        color: var(--gold);
+        font: calc(16px * var(--ts, 1)) var(--pixel);
+        letter-spacing: 0.4em;
+        text-align: center;
+        text-transform: uppercase;
+        outline: none;
+      }
+      /* the build's version, under the settings: centred and quiet */
+      .circuit-menu .version-line {
+        margin: 2px 0 0;
+        width: 100%;
+        text-align: center;
+        font: calc(9px * var(--ts, 1)) var(--pixel);
+        letter-spacing: 1px;
+        color: var(--muted);
+        opacity: 0.7;
+        user-select: text;
+      }
+      .circuit-menu .option-row.focused {
+        border-style: solid;
+        border-color: var(--accent-b);
+      }
+      /* (its label on the left; the value and a line about it on the right) */
+      .circuit-menu .option-row b {
+        font-size: calc(11px * var(--ts, 1));
+        font-weight: 400;
+        color: var(--muted);
+        letter-spacing: 1px;
+      }
+      .circuit-menu .option-row .value {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        text-align: right;
+      }
+      .circuit-menu .option-row .line {
+        max-width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+      /* (the value between its arrows: one that doesn't fit the row wraps, its lines balanced and centred between them) */
+      .circuit-menu .option-row strong {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.6em;
+        font-size: calc(13px * var(--ts, 1));
+        font-weight: 400;
+        color: var(--accent-b);
+      }
+      .circuit-menu .option-row strong em {
+        flex: none;
+        font-style: normal;
+      }
+      .circuit-menu .option-row strong em.name {
+        flex: 0 1 auto;
+        min-width: 0;
+        text-align: center;
+        text-wrap: balance;
+        line-height: 1.25;
+      }
+      .circuit-menu .option-row .chips {
+        flex: none;
+      }
+      .circuit-menu .option-row span {
+        font-size: calc(10px * var(--ts, 1));
+      }
+      .circuit-menu .option-row .chips {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+      }
+      .circuit-menu .option-row .chips svg {
+        margin-right: 2px;
+      }
+      .circuit-menu .option-row .chips i {
+        width: 12px;
+        height: 8px;
+        border-radius: 2px;
+        border: 1px solid #5a577c;
+      }
+      .circuit-menu .options {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      /* the circuit: one card at a time, ◀ ▶ at its edges, dots under it */
+      .circuit-menu .circuit-card {
+        min-height: 96px;
+        border-color: var(--accent-a);
+      }
+      .circuit-menu .circuit-card.focused {
+        box-shadow: 0 0 0 1px var(--accent-a);
+      }
+      .circuit-menu .circuit-card strong {
+        color: var(--accent-a);
+        font-size: calc(16px * var(--ts, 1));
+      }
+      .circuit-menu .circuit-card > div {
+        flex: 1;
+      }
+      .circuit-menu .circuit-card em {
+        font-style: normal;
+        font-size: calc(14px * var(--ts, 1));
+        color: var(--accent-a);
+      }
+      .circuit-menu .dots {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-top: -2px;
+      }
+      .circuit-menu .dots i {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--key-edge);
+      }
+      .circuit-menu .dots i.locked {
+        opacity: 0.45;
+      }
+      .circuit-menu .dots i.on {
+        background: var(--accent-a);
+        opacity: 1;
+      }
+      /* the big button that races */
+      .circuit-menu .menu-button.race-button {
+        padding: 14px 12px;
+        border-color: var(--gold);
+        background: var(--gold);
+        color: #1b1b26;
+        font-size: calc(17px * var(--ts, 1));
+      }
+      .circuit-menu .menu-button.race-button.focused {
+        box-shadow: 0 0 0 2px var(--accent-b);
+        color: #1b1b26;
+      }
+      /* the modes: a big button each, its name over a line about it */
+      .circuit-menu .menu-button.mode-button {
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 4px;
+        min-height: 64px;
+        padding: 10px 14px;
+        text-align: left;
+      }
+      .circuit-menu .menu-button.mode-button span {
+        line-height: 1.4;
+      }
+      .circuit-menu .menu-button.mode-button.focused {
+        border-color: var(--accent-a);
+        box-shadow: 0 0 0 1px var(--accent-a);
+        color: var(--text);
+      }
+      .circuit-menu .menu-button.mode-button.focused strong {
+        color: var(--accent-a);
+      }
+      .desktop .circuit-menu {
+        padding: 24px max(24px, calc(50% - 220px));
+      }
+      .tune-toggle {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        z-index: 5; /* over the race readouts, minimap and results */
+        padding: 4px 8px;
+        border: 1px solid var(--key-edge);
+        border-radius: 8px;
+        background: rgba(21, 20, 31, 0.85);
+        color: var(--gold);
+        font-family: var(--pixel);
+        font-size: 12px;
+      }
+      .tune-panel {
+        position: absolute;
+        top: 36px;
+        left: 6px;
+        right: 6px;
+        z-index: 5; /* over the race readouts, minimap and results */
+        max-height: calc(100% - 44px);
+        overflow-y: auto;
+        box-sizing: border-box;
+        padding: 10px;
+        border-radius: 10px;
+        background: rgba(21, 20, 31, 0.92);
+        font-family: system-ui, sans-serif;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .tune-panel.peeking {
+        opacity: 0;
+      }
+      .tune-row {
+        display: grid;
+        grid-template-columns: 1fr 44px;
+        gap: 2px 8px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .tune-row span {
+        grid-column: 1 / 3;
+        color: var(--muted);
+      }
+      .tune-row input {
+        width: 100%;
+      }
+      .tune-row output {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .tune-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      .tune-actions button {
+        padding: 6px 12px;
+        border: 1px solid var(--key-edge);
+        border-radius: 8px;
+        background: var(--key);
+        color: var(--text);
+      }
+      #screen canvas {
+        display: block;
+      }
+      /* the menu is all touch: no deck, the screen fills the column */
+      .menu #deck {
+        display: none;
+      }
+      .menu #screen {
+        flex: 1;
+      }
+      /* (the TUNE panel is for races) */
+      .menu .tune-toggle,
+      .menu .tune-panel {
+        display: none;
+      }
+      .menu .circuit-menu {
+        justify-content: center;
+      }
+      #deck {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      .strip {
+        height: 40px;
+        flex: none;
+        box-sizing: border-box;
+        padding: 0 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 2px solid var(--accent-a);
+        border-bottom: 1px solid #2b2940;
+        font-size: 13px;
+        letter-spacing: 1px;
+        color: var(--muted);
+      }
+      /* a place just gained or lost: the position lights up green or red for a moment */
+      .strip [data-hud='position'] {
+        transition: color 0.2s;
+      }
+      .strip [data-hud='position'].gain {
+        color: #5fe0d0;
+      }
+      .strip [data-hud='position'].gain::after {
+        content: ' ▲';
+      }
+      .strip [data-hud='position'].lose {
+        color: #d8323c;
+      }
+      .strip [data-hud='position'].lose::after {
+        content: ' ▼';
+      }
+      .strip .lap {
+        margin-left: 10px;
+        font-size: 17px;
+        letter-spacing: 0;
+        color: var(--gold);
+      }
+      .controls {
+        flex: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 22px;
+      }
+      /* on a phone the race picture fills the column, top to bottom, and the deck floats over it with no panel
+         behind it (src/engine/layout.ts), laid out as drawn in the HUD Lab: RESTART and PAUSE in the top corners
+         (the minimap between them), your lap under the minimap, the stick and A along the bottom; the race's own
+         readouts are placed in src/f1/race.ts (placeHud) */
+      html:not(.desktop) #app {
+        position: relative;
+      }
+      html:not(.desktop) #deck {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        justify-content: flex-end;
+        pointer-events: none;
+      }
+      html:not(.desktop) #deck .controls {
+        flex: none;
+        padding: 0 12px 16px;
+      }
+      html:not(.desktop) #deck .stick,
+      html:not(.desktop) #deck button {
+        pointer-events: auto;
+      }
+      /* your lap (current / total) in a small panel like the timing tower's, under the minimap (your position is
+         in the tower) */
+      html:not(.desktop) .strip {
+        position: absolute;
+        /* (just under the minimap: race.ts sets its height) */
+        top: calc(18px + var(--mini-h, 96px));
+        left: var(--mini-x, 50%);
+        transform: translateX(-50%);
+        height: auto;
+        padding: 3px 8px;
+        border: none;
+        border-radius: 6px;
+        background: rgba(21, 20, 31, 0.75);
+        color: var(--text);
+        white-space: nowrap;
+      }
+      html:not(.desktop) .strip [data-hud='position'] {
+        display: none;
+      }
+      html:not(.desktop) .strip .lap {
+        margin-left: 0;
+        font-size: 12px;
+        color: var(--text);
+      }
+      /* RESTART top left, PAUSE (EXIT) top right: the same width, so they mirror each other about the middle */
+      html:not(.desktop) #deck:not(.results-up) .sys button {
+        width: 116px;
+      }
+      /* (and A, when it's up, centred where the thumbstick's centre is mirrored: the face as wide as the stick) */
+      html:not(.desktop) .face {
+        width: 108px;
+        justify-content: center;
+      }
+      html:not(.desktop) .sys {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        height: auto;
+        justify-content: space-between;
+      }
+      html:not(.desktop) .sys [data-button='start'] {
+        order: 0;
+      }
+      html:not(.desktop) .sys [data-button='select'] {
+        order: 2;
+      }
+      /* the results up (or qualifying's times): EXIT and RESTART under the table, big, side by side (race.ts sets
+         --results-bottom on the screen; the screen and the deck share their top on a phone) */
+      html:not(.desktop) #deck.results-up .sys {
+        top: calc(var(--results-bottom, 60%) + 12px);
+        left: 10px;
+        right: 10px;
+        justify-content: center;
+        gap: 12px;
+      }
+      html:not(.desktop) #deck.results-up .sys button {
+        flex: 1;
+        max-width: 180px;
+        height: 52px;
+        gap: 10px;
+        border-radius: 14px;
+        font-size: 16px;
+        background: #25233a;
+        color: var(--text);
+      }
+      html:not(.desktop) #deck.results-up .sys .icon svg {
+        width: 18px;
+        height: 18px;
+      }
+      html:not(.desktop) #deck.results-up .sys .idle {
+        display: none;
+      }
+      /* (and TUNE and the thumbstick: nothing to steer or tune on the results) */
+      html.results-up:not(.desktop) .tune-toggle,
+      html.results-up:not(.desktop) #deck .stick,
+      html.ceremony:not(.desktop) #deck .stick,
+      html.paused:not(.desktop) #deck .stick,
+      html.results-up:not(.desktop) #deck .slider,
+      html.ceremony:not(.desktop) #deck .slider,
+      html.paused:not(.desktop) #deck .slider,
+      html.results-up:not(.desktop) #deck .pedals,
+      html.ceremony:not(.desktop) #deck .pedals,
+      html.paused:not(.desktop) #deck .pedals {
+        visibility: hidden;
+      }
+      /* (and the lap panel goes: the results have the screen to themselves; so do the pause screen and its settings,
+         which it would sit over) */
+      html:not(.desktop) #deck.results-up .strip,
+      html.ceremony:not(.desktop) #deck .strip,
+      html.paused:not(.desktop) #deck .strip {
+        display: none;
+      }
+      /* (EXIT on the left, RESTART on the right, under the table) */
+      html:not(.desktop) #deck.results-up .sys [data-button='select'] {
+        order: 0;
+      }
+      html:not(.desktop) #deck.results-up .sys [data-button='start'] {
+        order: 2;
+      }
+      /* (TUNE, the dev sliders, between the controls at the bottom: the top corners are the deck's) */
+      html:not(.desktop) .tune-toggle {
+        top: auto;
+        right: auto;
+        left: 50%;
+        bottom: calc(18px + env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+      }
+      html:not(.desktop) .face .label {
+        text-shadow: 0 1px 0 #000, 0 0 4px #000;
+      }
+      html:not(.desktop) .stick {
+        background: radial-gradient(circle, rgba(27, 26, 41, 0.45) 0 58%, rgba(37, 35, 58, 0.6) 60%);
+        /* (floating: the zone takes the touches, and the stick glides back to its corner when let go) */
+        pointer-events: none !important;
+        transition: transform 0.15s ease-out, opacity 0.15s;
+      }
+      /* at rest in its corner, dimmed: a hint of where it is, not in the way */
+      html:not(.desktop) #deck .stick:not(.pressed) {
+        opacity: 0.6;
+      }
+      html:not(.desktop) #deck .stick.pressed {
+        transition: opacity 0.15s;
+      }
+      /* the floating stick's zone: the stick's side of the lower half of the screen, short of the middle (TUNE's
+         there); a thumb landing anywhere on it brings the stick there (deck.ts) */
+      .stick-zone {
+        display: none;
+      }
+      html:not(.desktop) #deck:not(.steer-deck) .stick-zone {
+        display: block;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: calc(50% - 36px);
+        height: 50%;
+        pointer-events: auto;
+        touch-action: none;
+      }
+      html:not(.desktop) #deck.stick-right:not(.steer-deck) .stick-zone {
+        left: auto;
+        right: 0;
+      }
+      html.results-up:not(.desktop) #deck .stick-zone,
+      html.ceremony:not(.desktop) #deck .stick-zone,
+      html.paused:not(.desktop) #deck .stick-zone,
+      html.menu #deck .stick-zone {
+        display: none;
+      }
+      html:not(.desktop) .sys button {
+        background: rgba(37, 35, 58, 0.75);
+      }
+      /* the thumbstick on the right (a setting): the stick and the A/B buttons swap sides, and A and B
+         mirror so B stays on the inside, by the thumb */
+      html:not(.desktop) #deck.stick-right .controls,
+      html:not(.desktop) #deck.stick-right .face {
+        flex-direction: row-reverse;
+      }
+      /* STEER on a touch screen (race.ts sets #deck.steer-deck): the steering slider where the thumbstick is, and the
+         GAS and BRAKE pedals where A is; each as wide as the other, so they mirror about the middle, GAS outermost */
+      .slider,
+      .pedals {
+        display: none;
+      }
+      #deck.steer-deck .stick,
+      #deck.steer-deck .face {
+        display: none;
+      }
+      #deck.steer-deck .slider {
+        display: block;
+      }
+      #deck.steer-deck .pedals {
+        display: flex;
+      }
+      .slider {
+        position: relative;
+        width: 140px;
+        height: 60px;
+        box-sizing: border-box;
+        border-radius: 30px;
+        border: 1px solid var(--key-edge);
+        background: linear-gradient(90deg, transparent calc(50% - 1px), rgba(111, 108, 140, 0.5) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)), rgba(27, 26, 41, 0.55);
+        box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5);
+        touch-action: none;
+        pointer-events: auto;
+      }
+      .slider .tick {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 10px;
+        line-height: 1;
+        color: #6f6c8c;
+        pointer-events: none;
+      }
+      .slider .tick.left { left: 10px; }
+      .slider .tick.right { right: 10px; }
+      .slider .knob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 48px;
+        height: 48px;
+        margin: -24px 0 0 -24px;
+        border-radius: 50%;
+        border: 1px solid #5a577c;
+        background: radial-gradient(circle at 38% 32%, #56537a, #34324c 62%, #26253a);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.55);
+        pointer-events: none;
+        transition: transform 0.12s ease-out;
+      }
+      .slider.pressed .knob {
+        transition: none;
+        border-color: var(--accent-b);
+      }
+      /* (each side 140 px: TUNE fits between them in the middle) */
+      .pedals {
+        width: 140px;
+        gap: 8px;
+        justify-content: center;
+        align-items: flex-end;
+      }
+      /* (the stick on the right: the pedals mirrored, GAS still outermost) */
+      #deck.stick-right .pedals {
+        flex-direction: row-reverse;
+      }
+      .pedal {
+        box-sizing: border-box;
+        font-size: 10px;
+        border: 1px solid var(--key-edge);
+        border-radius: 14px;
+        background: rgba(37, 35, 58, 0.78);
+        color: var(--text);
+        font-family: var(--pixel);
+        letter-spacing: 1px;
+        padding: 0 0 0 1px;
+        touch-action: none;
+        pointer-events: auto;
+        cursor: pointer;
+      }
+      .pedal.brake {
+        width: 56px;
+        height: 68px;
+        color: #ff8a8a;
+      }
+      .pedal.gas {
+        width: 76px;
+        height: 100px;
+        font-size: 14px;
+        color: var(--accent-b);
+      }
+      .pedal.pressed {
+        background: var(--key-held);
+        transform: translateY(2px);
+        border-color: currentColor;
+      }
+      /* the analogue thumbstick: a round well with a knob that follows the thumb */
+      .stick {
+        position: relative;
+        width: 108px;
+        height: 108px;
+        box-sizing: border-box;
+        border-radius: 50%;
+        border: 1px solid var(--key-edge);
+        background: radial-gradient(circle, #1b1a29 0 58%, var(--key) 60%);
+        box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5);
+        touch-action: none;
+      }
+      .stick .tick {
+        position: absolute;
+        font-size: 10px;
+        line-height: 1;
+        color: #6f6c8c;
+        pointer-events: none;
+      }
+      .stick .up { top: 6px; left: 50%; transform: translateX(-50%); }
+      .stick .down { bottom: 6px; left: 50%; transform: translateX(-50%); }
+      .stick .left { left: 7px; top: 50%; transform: translateY(-50%); }
+      .stick .right { right: 7px; top: 50%; transform: translateY(-50%); }
+      .stick .knob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 46px;
+        height: 46px;
+        margin: -23px 0 0 -23px;
+        border-radius: 50%;
+        border: 1px solid #5a577c;
+        background: radial-gradient(circle at 38% 32%, #56537a, #34324c 62%, #26253a);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.55);
+        pointer-events: none;
+        /* springs back to the centre when let go; follows the thumb without lag while held */
+        transition: transform 0.12s ease-out;
+      }
+      .stick.pressed .knob {
+        transition: none;
+        border-color: var(--accent-b);
+      }
+      .face {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .face .col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      .face .col.low {
+        margin-top: 34px;
+      }
+      .face button {
+        width: 62px;
+        height: 62px;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        color: var(--deck);
+        touch-action: none;
+      }
+      /* each button shows what it does: its icon on it, its name under it (src/engine/deck.ts) */
+      .face .icon svg {
+        display: block;
+        width: 30px;
+        height: 30px;
+      }
+      /* no drift button on the touch deck: B (DRIFT) is on the keys and a gamepad only (the wide layout shows its key) */
+      html:not(.desktop) .face .col.low {
+        display: none;
+      }
+      /* on dirt (race.ts sets html.dirt), a DRIFT button on the touch deck too: drifting's the way round there. It
+         stands in A's place, centred where the thumbstick's centre is mirrored, while A has nothing to do (racing);
+         either, idle, is out of the way, so the one up is centred */
+      html.dirt:not(.desktop) .face .col.low {
+        display: flex;
+        margin-top: 0;
+      }
+      html.dirt:not(.desktop) .face .col.idle {
+        display: none;
+      }
+      /* (and A while DRIFT's up: no room for both beside the stick; SKIP's EXIT, up top) */
+      html.dirt:not(.desktop) .face .col.low:not(.idle) ~ .col {
+        display: none;
+      }
+      /* a button that does nothing just now is out of sight (still in its place, so the others don't move) */
+      #deck .idle {
+        visibility: hidden;
+      }
+      .face button.pressed {
+        transform: translateY(2px);
+        filter: brightness(0.85);
+      }
+      .face .a { background: var(--accent-a); }
+      .face .b { background: var(--accent-b); }
+      .face .label {
+        font-size: 12px;
+        color: var(--text);
+        min-height: 12px;
+      }
+      .sys {
+        flex: none;
+        height: 46px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 14px;
+      }
+      .sys button {
+        min-width: 72px;
+        height: 28px;
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border-radius: 14px;
+        border: 1px solid var(--key-edge);
+        background: var(--key);
+        color: #a9a6c0;
+        font-family: var(--pixel);
+        font-size: 12px;
+        touch-action: none;
+      }
+      .sys button.pressed {
+        background: var(--key-held);
+      }
+      .sys .icon svg {
+        display: block;
+        width: 13px;
+        height: 13px;
+      }
+
+      /* ---- desktop (a mouse and no touch screen, or ?desktop; see src/ui/layout.ts):
+         a wide screen filling the window, the deck laid over it as a HUD. Phones never get this class. */
+      .desktop #app {
+        max-width: none;
+        justify-content: center;
+        background: #0e0d16;
+      }
+      .desktop #deck {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        display: block;
+        padding: 0;
+        pointer-events: none;
+      }
+      /* top centre: the race readouts sit top left and TUNE top right */
+      .desktop .strip {
+        position: absolute;
+        left: 50%;
+        top: 12px;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        height: 36px;
+        gap: 18px;
+        border: 1px solid #2b2940;
+        border-left: 3px solid var(--accent-a);
+        border-radius: 8px;
+        background: rgba(21, 20, 31, 0.82);
+      }
+      /* (the menus keep the deck's key hints, but not the race's position and lap: an empty box at the top) */
+      html.menu.desktop .strip {
+        display: none;
+      }
+      .desktop .stick,
+      .desktop #deck.steer-deck .slider,
+      .desktop #deck.steer-deck .pedals {
+        display: none;
+      }
+      /* A and B as key prompts, bottom right: [Z] ENTER CAR  [X] RUN */
+      .desktop .controls {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        padding: 0;
+      }
+      .desktop .face {
+        flex-direction: row-reverse;
+        align-items: center;
+        gap: 10px;
+      }
+      .desktop .face .col,
+      .desktop .face .col.low {
+        flex-direction: row;
+        margin: 0;
+        gap: 8px;
+        padding: 6px 10px 6px 6px;
+        border-radius: 8px;
+        background: rgba(21, 20, 31, 0.82);
+      }
+      .desktop .face .col:has(.label:empty),
+      .desktop #deck .idle {
+        display: none;
+      }
+      .desktop #deck .icon {
+        display: none;
+      }
+      .desktop .face button {
+        width: 30px;
+        height: 30px;
+        border-radius: 6px;
+        font-size: 0;
+        pointer-events: auto;
+        cursor: pointer;
+      }
+      .desktop .face button::after {
+        font-size: 14px;
+      }
+      .desktop .face .a::after {
+        content: 'Z';
+      }
+      .desktop .face .b::after {
+        content: 'X';
+      }
+      .desktop .face .label {
+        min-height: 0;
+        font-size: 13px;
+        color: var(--text);
+      }
+      /* START / SELECT as keys, bottom left, with the move keys */
+      .desktop .sys {
+        position: absolute;
+        left: 12px;
+        bottom: 12px;
+        height: auto;
+        gap: 8px;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: rgba(21, 20, 31, 0.82);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .desktop .sys::before {
+        content: '↑ GAS  ↓ BRAKE  ←→ STEER';
+        margin-right: 4px;
+      }
+      .desktop .sys button {
+        min-width: 0;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        pointer-events: auto;
+        cursor: pointer;
+      }
+      .desktop .sys button[data-button='start']::before {
+        content: 'ENTER';
+        color: var(--muted);
+      }
+      .desktop .sys button[data-button='select']::before {
+        content: 'BKSP';
+        color: var(--muted);
+      }
+      .desktop .tune-panel {
+        right: auto;
+        width: 340px;
+      }
+      /* the curtain between screens (src/f1/screens/curtain.ts), down as the page opens */
+      #curtain {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #111118;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 180ms ease;
+      }
+      #curtain.down {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .curtain-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--pixel);
+        color: var(--text);
+        text-align: center;
+      }
+      .curtain-card strong {
+        font: calc(18px * var(--ts, 1)) var(--pixel);
+        color: var(--gold);
+      }
+      .curtain-card span {
+        font: calc(11px * var(--ts, 1)) var(--pixel);
+        color: var(--muted);
+      }
+      .curtain-dots {
+        display: flex;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      .curtain-dots i {
+        width: 8px;
+        height: 8px;
+        background: #f4f4f8;
+        animation: curtain-dot 1s steps(1) infinite;
+      }
+      .curtain-dots i:nth-child(2) { animation-delay: 0.2s; }
+      .curtain-dots i:nth-child(3) { animation-delay: 0.4s; }
+      .curtain-dots i:nth-child(4) { animation-delay: 0.6s; }
+      .curtain-dots i:nth-child(5) { animation-delay: 0.8s; }
+      @keyframes curtain-dot {
+        0% { background: #f4f4f8; }
+        50% { background: #1b1b26; }
+      }
+      /* a results or standings row sliding in (its delay set per row) */
+      @keyframes row-in {
+        from { opacity: 0; transform: translateX(-14px); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes score-in {
+        0% { opacity: 0; transform: translateY(4px); }
+        30% { opacity: 1; transform: none; }
+        100% { opacity: 1; }
+      }
+      /* REPORT (src/f1/report.ts): the screenshot to draw on, the pens, what happened, SEND; all centred */
+      .report {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 16px;
+        box-sizing: border-box;
+        overflow-y: auto;
+        background: rgba(14, 13, 22, 0.95);
+        color: var(--text);
+        font: 12px var(--pixel);
+        text-align: center;
+      }
+      .report h2 {
+        margin: 0;
+        font: 16px var(--pixel);
+        color: var(--gold);
+      }
+      .report-hint,
+      .report-status {
+        margin: 0;
+        font: 10px var(--pixel);
+        color: var(--muted);
+        min-height: 1em;
+      }
+      .report-picture {
+        max-width: min(100%, 720px);
+        max-height: 46vh;
+        border: 1px solid var(--key-edge);
+        border-radius: 6px;
+        touch-action: none;
+        cursor: crosshair;
+      }
+      .report-tools,
+      .report-actions {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        width: min(100%, 520px);
+      }
+      .report-pen {
+        width: 26px;
+        height: 26px;
+        flex: none;
+        border-radius: 50%;
+        border: 2px solid var(--key-edge);
+        cursor: pointer;
+        padding: 0;
+      }
+      .report-pen.on {
+        border-color: var(--text);
+        box-shadow: 0 0 0 2px var(--accent-b);
+      }
+      .report .menu-button {
+        flex: 1;
+        padding: 10px 12px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--key);
+        color: var(--text);
+        font: 13px var(--pixel);
+        cursor: pointer;
+      }
+      .report .menu-button.report-small {
+        flex: none;
+        padding: 6px 10px;
+        font-size: 10px;
+      }
+      .report .menu-button:disabled {
+        opacity: 0.5;
+      }
+      .report-text {
+        width: min(100%, 520px);
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border: 1px solid var(--key-edge);
+        border-radius: 10px;
+        background: var(--key);
+        color: var(--text);
+        font: 12px var(--pixel);
+        resize: none;
+      }
+      .report-text:focus {
+        outline: none;
+        border-color: var(--accent-b);
+      }
+      /* REPORT on the menus (src/app.ts): a small button in the column's top right corner, only while a menu's up */
+      .menu-report {
+        display: none;
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        z-index: 6;
+        align-items: center;
+        gap: 4px;
+        padding: 5px 9px;
+        border: 1px solid var(--key-edge);
+        border-radius: 8px;
+        background: rgba(37, 35, 58, 0.85);
+        color: var(--muted);
+        font: 9px var(--pixel);
+        letter-spacing: 1px;
+        cursor: pointer;
+      }
+      html.menu .menu-report {
+        display: inline-flex;
+      }
+      .menu-report:hover,
+      .menu-report:focus-visible {
+        color: var(--text);
+        border-color: var(--accent-b);
+      }
+      #app {
+        position: relative;
+      }
+      /* (on the wide screen the menus are a column in the middle: the button in its corner) */
+      html.desktop .menu-report {
+        right: max(12px, calc(50% - 215px + 12px));
+      }
+      /* the title splash as the game opens (src/f1/screens/splash.ts): the logo over the backdrop race, TAP TO START */
+      .splash {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+        box-sizing: border-box;
+        background: radial-gradient(ellipse 90% 45% at 50% 48%, rgba(14, 13, 22, 0.72), rgba(14, 13, 22, 0.5) 100%);
+        color: var(--text);
+        font-family: var(--pixel);
+        text-align: center;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .splash-logo {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        font-weight: 400;
+        line-height: 1;
+        animation: splash-drop 0.5s steps(5) both;
+      }
+      .splash-word {
+        display: block;
+        font-size: 46px;
+        letter-spacing: 4px;
+        /* (the letter spacing's after every letter, the last too: as much before the first, so the word's centred) */
+        padding-left: 4px;
+        color: var(--gold);
+        text-shadow: 0 3px 0 #b07a22, 0 6px 0 #5e3a10, 0 9px 0 rgba(0, 0, 0, 0.45);
+      }
+      .splash-word + .splash-kerb + .splash-word {
+        margin-top: 4px;
+      }
+      /* a kerb, red and white, sweeping across between the words */
+      .splash-kerb {
+        display: block;
+        width: 100%;
+        height: 10px;
+        margin-top: 6px;
+        /* (tiled out from the middle, a red block in the centre: both ends the same) */
+        background: linear-gradient(90deg, #f4f2fa 0 25%, #e8463c 25% 75%, #f4f2fa 75% 100%) center / 32px 100% repeat-x;
+        box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+        transform-origin: 50% 50%;
+        animation: splash-kerb 0.4s 0.4s steps(8) both;
+      }
+      .splash-tag {
+        margin: 22px 0 0;
+        padding-left: 3px;
+        font-size: 12px;
+        letter-spacing: 3px;
+        color: var(--text);
+        text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+        animation: splash-fade 0.4s 0.8s steps(4) both;
+      }
+      .splash-start {
+        margin: 64px 0 0;
+        padding-left: 2px;
+        font-size: 14px;
+        letter-spacing: 2px;
+        color: var(--text);
+        text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+        animation: splash-fade 0.4s 1s steps(4) both, splash-blink 1.1s 1.4s steps(1) infinite;
+      }
+      /* started: the prompt flashes gold */
+      .splash.go .splash-start {
+        color: var(--gold);
+        animation: splash-blink 0.12s steps(1) infinite;
+      }
+      .splash .version-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        margin: 0;
+        text-align: center;
+        font: 9px var(--pixel);
+        letter-spacing: 1px;
+        padding-left: 1px;
+        color: var(--muted);
+        opacity: 0.8;
+      }
+      @keyframes splash-drop {
+        from { opacity: 0; transform: translateY(-24px); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes splash-kerb {
+        from { transform: scaleX(0); }
+        to { transform: scaleX(1); }
+      }
+      @keyframes splash-fade {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes splash-blink {
+        50% { opacity: 0; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .splash-logo,
+        .splash-kerb,
+        .splash-tag,
+        .splash-start,
+        .splash.go .splash-start {
+          animation: none;
+        }
+      }
+      /* (nothing else on the screen while it's up: no REPORT) */
+      html.splash-up .menu-report {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="curtain" class="down"></div>
+    <div id="app">
+      <div id="screen"></div>
+      <div id="deck">
+        <div class="strip">
+          <div><span data-hud="position"></span><span class="lap" data-hud="lap"></span></div>
+        </div>
+        <div class="controls">
+          <!-- analogue thumbstick: the knob follows the thumb (data-dpad: the deck binds it) -->
+          <div class="stick" data-dpad aria-label="Thumbstick">
+            <span class="tick up">&#9650;</span>
+            <span class="tick left">&#9664;</span>
+            <span class="tick right">&#9654;</span>
+            <span class="tick down">&#9660;</span>
+            <span class="knob"></span>
+          </div>
+          <div class="face">
+            <div class="col low idle">
+              <button class="b" data-button="b" aria-label="b"><span class="icon" data-hud="icon-b"></span></button>
+              <span class="label" data-hud="label-b"></span>
+            </div>
+            <div class="col idle">
+              <button class="a" data-button="a" aria-label="a"><span class="icon" data-hud="icon-a"></span></button>
+              <span class="label" data-hud="label-a"></span>
+            </div>
+          </div>
+          <!-- STEER on a touch screen, in the stick's and A's places: the steering slider (its knob follows the thumb
+               left and right) and the pedals (data-slider, data-pedal: the deck binds them) -->
+          <div class="slider" data-slider aria-label="Steering">
+            <span class="tick left">&#9664;</span>
+            <span class="tick right">&#9654;</span>
+            <span class="knob"></span>
+          </div>
+          <div class="pedals">
+            <button class="pedal brake" data-pedal="brake" aria-label="Brake">BRAKE</button>
+            <button class="pedal gas" data-pedal="gas" aria-label="Gas">GAS</button>
+          </div>
+        </div>
+        <div class="sys">
+          <button class="idle" data-button="select" aria-label="select"><span class="icon" data-hud="icon-select"></span><span data-hud="label-select"></span></button>
+          <button class="idle" data-button="start" aria-label="start"><span class="icon" data-hud="icon-start"></span><span data-hud="label-start"></span></button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

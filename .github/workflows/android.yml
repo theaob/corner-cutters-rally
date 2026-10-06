@@ -1,0 +1,118 @@
+# Builds the Android app (the web build in a Capacitor WebView) as an APK,
+# kept as a download on the run (Artifacts), and uploads it to the itch.io
+# page's "android" channel (with the same BUTLER_API_KEY / ITCH_TARGET as the
+# web build), where phones can download it.
+#
+# Runs on every push and pull request (and by hand from the Actions tab); only
+# a push to the default branch (or a run by hand on it) uploads to itch.io.
+#
+# It also builds the Google Play version (the Championship an in-app purchase) as an AAB, kept as a download
+# on the run for uploading to the Play Console.
+#
+# Signing: with the four ANDROID_* secrets set (see the README), the APK and the
+# AAB are signed with your release key, so each build installs as an update over
+# the last. Without them, with the runner's throwaway debug key (and a warning):
+# such a build installs fresh, but not over one signed with another key.
+name: android
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+      ITCH_TARGET: ${{ vars.ITCH_TARGET || secrets.ITCH_TARGET }}
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      PUBLISH: ${{ github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch }}
+      # the Daily Challenge's online board and the play stats (Supabase, supabase/README.md): the project's URL and its
+      # public (anon) key, as repository variables or secrets; left out, the game plays offline (no board, no stats)
+      VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      - name: Build the web game and copy it into the Android project
+        run: npm run android:sync
+
+      - name: Release key (when the secrets are set)
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Build the APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          version="$(node -p "require('../package.json').version")"
+          # every run gets a higher version code, so each APK installs as an update over the last
+          ./gradlew --no-daemon assembleRelease -PversionCode="$GITHUB_RUN_NUMBER" -PversionName="$version+${GITHUB_SHA::7}"
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk "../out/corner-cutters-$version-$GITHUB_RUN_NUMBER.apk"
+          if [ -n "${ANDROID_KEYSTORE_FILE:-}" ]; then echo "signed with: release key"
+          else echo "::warning title=Android signing::No release key (the ANDROID_* secrets): signed with this runner's throwaway debug key, so it won't install as an update over an earlier build. See the README's Signing."; fi
+
+      # a download on the run; kept a week, and not fatal: the account's artifact storage can be full
+      # (it's shared by every repo), and the itch.io upload below is the real way out
+      - uses: actions/upload-artifact@v7
+        continue-on-error: true
+        with:
+          name: corner-cutters-apk
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      # the Google Play build: the same app, built with VITE_STORE=play (the Championship an in-app purchase,
+      # src/f1/purchase.ts), as an AAB, Play's upload format; a download on the run, uploaded to the Play
+      # Console by hand (after the itch.io upload below, which keeps the free APK)
+      - name: Build the Google Play AAB
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          (cd .. && VITE_STORE=play npm run build && npx cap sync android)
+          version="$(node -p "require('../package.json').version")"
+          ./gradlew --no-daemon bundleRelease -PversionCode="$GITHUB_RUN_NUMBER" -PversionName="$version+${GITHUB_SHA::7}"
+          mkdir -p ../play
+          cp app/build/outputs/bundle/release/app-release.aab "../play/corner-cutters-play-$version-$GITHUB_RUN_NUMBER.aab"
+
+      - uses: actions/upload-artifact@v7
+        continue-on-error: true
+        with:
+          name: corner-cutters-play-aab
+          path: play/*.aab
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Push to itch.io (android channel)
+        if: env.PUBLISH == 'true' && env.BUTLER_API_KEY != '' && env.ITCH_TARGET != ''
+        run: |
+          curl -sSfL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip -q butler.zip -d butler && chmod +x butler/butler
+          version="$(node -p "require('./package.json').version")+${GITHUB_SHA::7}"
+          butler/butler push out/*.apk "$ITCH_TARGET:android" --userversion "$version"

@@ -1,0 +1,35 @@
+# Builds the YouTube Playables version (npm run youtube:build: VITE_STORE=youtube, no backend, Playables'
+# SDK ahead of the game, saves and pausing through it: src/engine/host.ts), checks it against Playables'
+# rules (tools/youtube-bundle.py: size, the SDK first, no browser storage or page visibility, no outside
+# addresses) and keeps the zip to upload as this run's artifact: Actions → youtube → the run → Artifacts.
+# Uploading it to YouTube is by hand, in the Playables developer portal, once the game's been accepted.
+name: youtube
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: youtube-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run youtube:build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: corner-cutters-youtube
+          path: corner-cutters-youtube.zip
+          retention-days: 30

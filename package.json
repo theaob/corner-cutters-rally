@@ -1,0 +1,41 @@
+{
+  "name": "corner-cutters",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "youtube:build": "tsc && VITE_STORE=youtube VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= vite build --outDir dist-youtube --emptyOutDir && python3 tools/youtube-bundle.py dist-youtube",
+    "preview": "vite preview",
+    "designer": "vite --config vite.designer.config.ts --open /designer.html",
+    "designer:build": "vite build --config vite.designer.config.ts",
+    "stats": "vite --config vite.stats.config.ts --open /stats.html",
+    "stats:build": "vite build --config vite.stats.config.ts",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "android:sync": "npm run build && cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
+    "android:play": "VITE_STORE=play npm run android:sync && cd android && ./gradlew bundleRelease",
+    "android:art": "python3 tools/android-art.py"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/share": "^8.0.3",
+    "cordova-plugin-purchase": "^13.18.0",
+    "html-to-image": "^1.11.13",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "@types/node": "^22.20.4",
+    "@types/three": "^0.186.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  }
+}
