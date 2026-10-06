@@ -16,7 +16,7 @@ src/engine/host.ts):
 - no outside addresses but the SDK's (the game makes no calls out of YouTube): a URL that's only
   text in a library (a licence, a warning message) is listed as such, not failed.
 
-Writes corner-cutters-youtube.zip next to the build folder, and says what it found.
+Writes corner-cutters-rally-youtube.zip next to the build folder, and says what it found.
 """
 import os
 import re
@@ -99,7 +99,7 @@ def main(dist: str) -> int:
     if fails:
         return 1
 
-    out = os.path.join(os.path.dirname(os.path.abspath(dist)), 'corner-cutters-youtube.zip')
+    out = os.path.join(os.path.dirname(os.path.abspath(dist)), 'corner-cutters-rally-youtube.zip')
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         for path, _ in sorted(files):
             z.write(os.path.join(dist, path), path)

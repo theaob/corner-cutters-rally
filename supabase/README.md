@@ -65,7 +65,7 @@ platforms, versions and screens, and the latest stack. (`errors_list` in `schema
 - each circuit: the times it's been played (sessions started), the races finished, the km driven and the minutes on it, and each of those by mode (every circuit listed, the unplayed ones faint);
 - today's Daily Challenge board.
 
-It refreshes every minute. `.github/workflows/stats.yml` publishes it to GitHub Pages, at https://theaob.github.io/corner-cutters/. To switch it on, once: **Settings → Pages → Build and deployment → Source: GitHub Actions**, then **Actions → stats → Run workflow**. After that it redeploys itself when the dashboard changes. It reads with the same public key as the game, and shows only totals (no player's events). `npm run stats` runs it locally (with `.env.local` as above).
+It refreshes every minute. `.github/workflows/stats.yml` publishes it to GitHub Pages, at https://theaob.github.io/corner-cutters-rally/. To switch it on, once: **Settings → Pages → Build and deployment → Source: GitHub Actions**, then **Actions → stats → Run workflow**. After that it redeploys itself when the dashboard changes. It reads with the same public key as the game, and shows only totals (no player's events). `npm run stats` runs it locally (with `.env.local` as above).
 
 In the SQL Editor:
 `select public.game_stats();` gives the totals (players all time, today and over 7 days, launches,

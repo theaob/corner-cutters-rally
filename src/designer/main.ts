@@ -742,7 +742,7 @@ function drive_(mode: string) {
   }
   const failing = check(layoutFrom(draft), circuit).filter((c) => !c.ok).map((c) => c.label);
   // (the game beside it: index.html served, play.html built: vite.designer.config.ts)
-  window.open(`./${import.meta.env.VITE_GAME_PAGE ?? 'index.html'}?circuit=${DESIGNER_DRAFT_ID}&mode=${mode}`, 'corner-cutters-drive');
+  window.open(`./${import.meta.env.VITE_GAME_PAGE ?? 'index.html'}?circuit=${DESIGNER_DRAFT_ID}&mode=${mode}`, 'corner-cutters-rally-drive');
   status(failing.length ? `driving it as it is (failing: ${failing.join(', ')})` : 'driving it in the game (a tab of its own)', failing.length > 0);
 }
 

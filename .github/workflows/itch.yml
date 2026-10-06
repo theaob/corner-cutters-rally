@@ -4,7 +4,7 @@
 #
 # Setup (once):
 #   - Repo secret   BUTLER_API_KEY : itch.io → Settings → API keys
-#   - Repo variable ITCH_TARGET    : "<itch-user>/<game-slug>", e.g. "theaob/corner-cutters"
+#   - Repo variable ITCH_TARGET    : "<itch-user>/<game-slug>", e.g. "theaob/corner-cutters-rally"
 # Until both exist the publish step is skipped (with a warning saying which
 # one is missing); tests and the build still run.
 name: itch.io
@@ -48,7 +48,7 @@ jobs:
         if: env.PUBLISH == 'true'
         run: |
           [ -n "$BUTLER_API_KEY" ] && echo "BUTLER_API_KEY: set" || echo "::warning::BUTLER_API_KEY is missing: add it under Settings → Secrets and variables → Actions → Secrets"
-          [ -n "$ITCH_TARGET" ] && echo "ITCH_TARGET: set ($ITCH_TARGET)" || echo "::warning::ITCH_TARGET is missing: add it under Settings → Secrets and variables → Actions → Variables (e.g. theaob/corner-cutters)"
+          [ -n "$ITCH_TARGET" ] && echo "ITCH_TARGET: set ($ITCH_TARGET)" || echo "::warning::ITCH_TARGET is missing: add it under Settings → Secrets and variables → Actions → Variables (e.g. theaob/corner-cutters-rally)"
 
       - name: Push to itch.io
         if: env.PUBLISH == 'true' && env.BUTLER_API_KEY != '' && env.ITCH_TARGET != ''

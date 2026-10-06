@@ -71,7 +71,7 @@ jobs:
           # every run gets a higher version code, so each APK installs as an update over the last
           ./gradlew --no-daemon assembleRelease -PversionCode="$GITHUB_RUN_NUMBER" -PversionName="$version+${GITHUB_SHA::7}"
           mkdir -p ../out
-          cp app/build/outputs/apk/release/app-release.apk "../out/corner-cutters-$version-$GITHUB_RUN_NUMBER.apk"
+          cp app/build/outputs/apk/release/app-release.apk "../out/corner-cutters-rally-$version-$GITHUB_RUN_NUMBER.apk"
           if [ -n "${ANDROID_KEYSTORE_FILE:-}" ]; then echo "signed with: release key"
           else echo "::warning title=Android signing::No release key (the ANDROID_* secrets): signed with this runner's throwaway debug key, so it won't install as an update over an earlier build. See the README's Signing."; fi
 
@@ -80,7 +80,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         continue-on-error: true
         with:
-          name: corner-cutters-apk
+          name: corner-cutters-rally-apk
           path: out/*.apk
           if-no-files-found: error
           retention-days: 7
@@ -99,12 +99,12 @@ jobs:
           version="$(node -p "require('../package.json').version")"
           ./gradlew --no-daemon bundleRelease -PversionCode="$GITHUB_RUN_NUMBER" -PversionName="$version+${GITHUB_SHA::7}"
           mkdir -p ../play
-          cp app/build/outputs/bundle/release/app-release.aab "../play/corner-cutters-play-$version-$GITHUB_RUN_NUMBER.aab"
+          cp app/build/outputs/bundle/release/app-release.aab "../play/corner-cutters-rally-play-$version-$GITHUB_RUN_NUMBER.aab"
 
       - uses: actions/upload-artifact@v7
         continue-on-error: true
         with:
-          name: corner-cutters-play-aab
+          name: corner-cutters-rally-play-aab
           path: play/*.aab
           if-no-files-found: error
           retention-days: 7

@@ -30,6 +30,6 @@ jobs:
       - run: npm run youtube:build
       - uses: actions/upload-artifact@v7
         with:
-          name: corner-cutters-youtube
-          path: corner-cutters-youtube.zip
+          name: corner-cutters-rally-youtube
+          path: corner-cutters-rally-youtube.zip
           retention-days: 30
