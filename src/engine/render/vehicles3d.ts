@@ -1,5 +1,5 @@
-// The rally car in 3D: a low-poly hatchback in its team paint (the pattern over
-// the bonnet and roof, the door number on the roof), which darkens as the car burns.
+// The rally car in 3D: a low-poly hatchback in its crew's paint (the pattern over
+// the bonnet and roof), its tail lights lit as it slows, which darkens as the car burns.
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -25,8 +25,6 @@ export interface CarLook {
   tcam?: string;
   /** the roof scoop: the trim colour unless set; 'gold' is shiny metallic gold (the player's) */
   helmet?: string | 'gold';
-  /** the driver's race number, on a white plate filling the engine cover (none when unset) */
-  number?: number;
 }
 
 /**
@@ -87,55 +85,9 @@ function canvasTexture(c: HTMLCanvasElement): THREE.CanvasTexture {
   return t;
 }
 
-/**
- * The engine-cover texture (`w` x `h` world px): the pattern, 8 texels to a world px, and the race number on the part
- * of it seen from above (`seen`: left, top, width, height, as fractions; the rear wheels hide its sides, and the air
- * intake its front).
- */
-function deckTexture(look: CarLook, second: string, w: number, h: number, seen?: [number, number, number, number]): THREE.CanvasTexture {
-  const c = paintPattern(Math.round(w * 8), Math.round(h * 8), look.pattern ?? 'plain', look.body, second);
-  if (look.number !== undefined) paintNumber(c, look.number, seen);
-  return canvasTexture(c);
-}
-
-/** The digits as 3×5 pixel figures (rows top to bottom, 1 = lit): blocky, so they still read when the car is small. */
-const DIGITS: Record<string, string[]> = {
-  '0': ['111', '101', '101', '101', '111'],
-  '1': ['010', '110', '010', '010', '111'],
-  '2': ['111', '001', '111', '100', '111'],
-  '3': ['111', '001', '011', '001', '111'],
-  '4': ['101', '101', '111', '001', '001'],
-  '5': ['111', '100', '111', '001', '111'],
-  '6': ['111', '100', '111', '101', '111'],
-  '7': ['111', '001', '010', '010', '010'],
-  '8': ['111', '101', '111', '101', '111'],
-  '9': ['111', '101', '111', '001', '111'],
-};
-
-/**
- * The race number on `c`, as big as it fits in `area` (the part of the canvas seen from above, as fractions of it:
- * left, top, width, height): dark pixel figures on a white plate edged in dark, so it reads on any livery. Upright
- * with the canvas's top (the car's front) at the top.
- */
-function paintNumber(c: HTMLCanvasElement, n: number, area: [number, number, number, number] = [0, 0, 1, 1]): void {
-  const x = c.getContext('2d')!;
-  const text = String(n);
-  const [ax, ay, aw, ah] = [area[0] * c.width, area[1] * c.height, area[2] * c.width, area[3] * c.height];
-  // (figures 3 wide, a pixel apart, 5 tall; the plate a little margin round them)
-  const wide = text.length * 4 - 1;
-  const cell = Math.floor(Math.min(aw / (wide + 0.6), ah / 5.6));
-  const [pw, ph] = [(wide + 0.6) * cell, 5.6 * cell];
-  const [px, py] = [Math.round(ax + (aw - pw) / 2), Math.round(ay + (ah - ph) / 2)];
-  x.fillStyle = '#f4f4f8';
-  x.fillRect(px, py, pw, ph);
-  x.lineWidth = Math.max(2, cell * 0.25);
-  x.strokeStyle = '#1b1b26';
-  x.strokeRect(px, py, pw, ph);
-  x.fillStyle = '#1b1b26';
-  const [left, top] = [px + cell * 0.3, py + cell * 0.3];
-  [...text].forEach((d, k) =>
-    DIGITS[d]?.forEach((row, ry) => [...row].forEach((on, rx) => on === '1' && x.fillRect(left + (k * 4 + rx) * cell, top + ry * cell, cell, cell))),
-  );
+/** The roof's texture (`w` x `h` world px): the pattern, 8 texels to a world px. */
+function deckTexture(look: CarLook, second: string, w: number, h: number): THREE.CanvasTexture {
+  return canvasTexture(paintPattern(Math.round(w * 8), Math.round(h * 8), look.pattern ?? 'plain', look.body, second));
 }
 
 /** Off-road tyres: px more radius and width than the tarmac's, and their tread blocks (how many round, how proud) */
@@ -166,8 +118,8 @@ export interface CarMesh extends THREE.Group {
     paint: THREE.MeshLambertMaterial[];
     /** the coloured band round each tyre's outer edge, marking its compound: set its colour */
     tyreMark: THREE.MeshBasicMaterial;
-    /** the red rain light at the back, for wet races: off (hidden) until shown */
-    rainLight: THREE.Mesh;
+    /** the brake lights over the tail lights: off (hidden) until the car slows */
+    brakeLights: THREE.Group;
     /** the parts a big crash can tear off: the nose (with the front wing) and each wheel (front left, front right, rear left, rear right) */
     parts: { nose: THREE.Group; wheels: THREE.Group[] };
   };
@@ -220,16 +172,16 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
     paint.push(m);
     return m;
   };
-  // a rally car: a little hatchback, the shell in the team's paint, the pattern over the bonnet and the roof (with
-  // the door number on the roof, read from above), glass all round the cabin, a roof scoop, a big wing on the hatch,
+  // a rally car: a little hatchback, the shell in the crew's paint, the pattern over the bonnet and the roof, glass
+  // all round the cabin, a roof scoop, a big wing on the hatch,
   // and a bank of spotlights on the front bumper (with the bumper, the part a crash tears off)
   const glass = lambert({ color: 0x26303c });
   const bonnetTop = look.pattern && look.pattern !== 'plain' ? painted(canvasTexture(paintPattern(12, 8, look.pattern, look.body, second))) : body;
   box(W - 2, 5, L - 5, 4.6, 0.5, [pods, pods, body, dark, body, body]); // the shell, sills to the waistline (its sides in the accent)
   box(W - 2.4, 0.5, 9, 7.3, -(L / 2 - 7.5), [body, body, bonnetTop, dark, body, body]); // the bonnet
   box(W - 3, 4.4, 13, 9.3, 2.5, [glass, glass, glass, dark, glass, glass]); // the cabin's glass
-  // the roof: the pattern, and the number on a white plate across it
-  const roofTop = look.pattern || look.number !== undefined ? painted(deckTexture(look, second, W - 3.4, 11, [0.08, 0.12, 0.84, 0.76])) : body;
+  // the roof: the pattern across it
+  const roofTop = look.pattern && look.pattern !== 'plain' ? painted(deckTexture(look, second, W - 3.4, 11)) : body;
   box(W - 3.4, 0.7, 11, 11.7, 3, [body, body, roofTop, dark, body, body]);
   // pillars, so the cabin reads as a car's and not a box of glass
   for (const x of [-(W - 3.2) / 2, (W - 3.2) / 2]) for (const z of [-3.6, 8.6]) {
@@ -297,12 +249,22 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
     }
   }
 
-  // the rain light: a red lamp at the back, under the rear wing (unlit, so it glows; the bloom picks it up)
-  const rainLight = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2, 1), new THREE.MeshBasicMaterial({ color: 0xff2a2a, toneMapped: false }));
-  rainLight.position.set(0, 9, L / 2 - 0.2);
-  rainLight.visible = false;
-  car.add(rainLight);
+  // the tail lights: a lamp at each corner of the tailgate, dark red glass; over each, its brake light, bright red
+  // (unlit, so it glows; the bloom picks it up), shown as the car slows
+  const back = L / 2 - 2 + 0.5;
+  const tailGlass = lambert({ color: 0x5a1416 });
+  const lit = new THREE.MeshBasicMaterial({ color: 0xff2a2a, toneMapped: false });
+  const brakeLights = new THREE.Group();
+  for (const x of [-(W / 2 - 2.6), W / 2 - 2.6]) {
+    const lamp = box(3.4, 1.8, 0.6, 6, back, [tailGlass, tailGlass, tailGlass, tailGlass, tailGlass, tailGlass]);
+    lamp.position.x = x;
+    const glow = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2, 0.4), lit);
+    glow.position.set(x, 6, back + 0.25);
+    brakeLights.add(glow);
+  }
+  brakeLights.visible = false;
+  car.add(brakeLights);
 
-  car.userData = { paint, tyreMark, rainLight, parts: { nose, wheels } };
+  car.userData = { paint, tyreMark, brakeLights, parts: { nose, wheels } };
   return car;
 }

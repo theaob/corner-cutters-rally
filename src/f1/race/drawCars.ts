@@ -1,7 +1,7 @@
 // Every car on the screen each frame: where it is (between its last two steps),
 // tilted on the ground, its skid marks, smoke
 // and fire as it's damaged, dust off the grass (mud off a dirt track), its tyres' compound colour,
-// its rear light (lit while it slows, blinking in the wet), sparks off a hit or
+// its brake lights (lit while it slows), sparks off a hit or
 // a hard landing, and spray off a wet track.
 
 import { bodyTilt, condition, speedOf, type StepEvents } from '../../engine/driving';
@@ -12,14 +12,14 @@ import { running, type Race } from '../raceControl';
 import type { Track } from '../racing';
 import { COMPOUNDS } from '../tyres';
 
-/** The rear light: lit while a car slows by more than this (px/s²: braking, or lifting at speed, as the hybrid harvests), held this long (s) so it doesn't flicker. */
-const REAR_LIGHT = { decel: 140, hold: 0.18 };
+/** The brake lights: lit while a car slows by more than this (px/s²: braking hard, or lifting at speed), held this long (s) so they don't flicker. */
+const BRAKE_LIGHTS = { decel: 140, hold: 0.18 };
 
 /** A car's model and effects, and what's remembered of it from frame to frame. */
 export interface CarLook {
   mesh: CarMesh;
   fx: CarFx;
-  /** last frame's speed and health (for its rear light and its sparks), and s its rear light stays lit */
+  /** last frame's speed and health (for its brake lights and its sparks), and s its brake lights stay lit */
   was?: { speed: number; health: number };
   lit?: number;
 }
@@ -36,8 +36,6 @@ export interface CarsFrame {
   /** car `i` drawn between its last two steps */
   pose: (i: number) => { x: number; y: number; z: number; heading: number };
   dt: number;
-  /** s, page time (for the rear lights' blinking) */
-  now: number;
 }
 
 /** Mud off a dirt track: clods a second behind a car at full speed, and more while it slides */
@@ -68,11 +66,11 @@ export function drawCars(f: CarsFrame): void {
     l.fx.update(dt, condition(e.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
     // the tyres' compound colour, and spray off a wet road from behind the car at speed
     l.mesh.userData.tyreMark.color.set(COMPOUNDS[e.tyres.compound].color);
-    // the rear light: lit while the car slows, and on a damp or wet road blinking besides
+    // the brake lights: lit while the car slows
     const was = l.was ?? { speed, health: e.car.health };
-    if (dt > 0 && speed > 30 && (was.speed - speed) / dt > REAR_LIGHT.decel) l.lit = REAR_LIGHT.hold;
+    if (dt > 0 && speed > 30 && (was.speed - speed) / dt > BRAKE_LIGHTS.decel) l.lit = BRAKE_LIGHTS.hold;
     else l.lit = Math.max(0, (l.lit ?? 0) - dt);
-    l.mesh.userData.rainLight.visible = l.lit > 0 || (spray && (f.now * 4 + i * 0.37) % 1 < 0.5);
+    l.mesh.userData.brakeLights.visible = l.lit > 0;
     // sparks: off a hit, thrown back the way it was going, and off a hard landing, from under it
     const lost = was.health - e.car.health;
     const back = speed > 1 ? { x: -e.car.vx / speed, z: -e.car.vy / speed } : { x: 0, z: 0 };

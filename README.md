@@ -6,7 +6,7 @@ An arcade rally in the HD-2D look, grown out of [Corner Cutters](https://github.
 
 **Home is the rally's screen** (`src/f1/screens/rally.ts`). Rally cars drive the Shakedown behind it. With no rally under way, it shows:
 
-- **CAR**, your paint scheme. Swipe or tap to change it; your number, #1, is on the roof.
+- **CAR**, your paint scheme. Swipe or tap to change it.
 - The four rallies, each with your best finish there.
 - **SETTINGS**.
 
@@ -58,17 +58,18 @@ On gravel, snow and sand the car runs off-road tyres and slides; on tarmac it gr
 
 Each call comes far enough ahead to be ready for it (further ahead the faster you're going). It's shown on a card at the top of the screen (a big arrow and grade, the call in full under it) and read out where the device has a voice (the Web Speech API, at the sound's volume).
 
-**The rivals** (`src/f1/crews.ts`, `src/f1/rally.ts`): nine crews from a field of twelve invented drivers, each with a car number and a paint scheme of their own, run every stage too. Their times come from a reference run (one car flat out on the racing line, alone, from the same standing start to the same finish), scaled by each crew's pace for the difficulty and spread a little either way. Now and then a crew goes OFF, SPINs or gets a PUNCTURE and loses a few seconds, or ROLLS and loses a lot. A rally's crews and every stage's times come from its seed.
+**The rivals** (`src/f1/crews.ts`, `src/f1/rally.ts`): nine crews from a field of twelve invented drivers, each with a paint scheme of their own, run every stage too. Their times come from a reference run (one car flat out on the racing line, alone, from the same standing start to the same finish), scaled by each crew's pace for the difficulty and spread a little either way. Now and then a crew goes OFF, SPINs or gets a PUNCTURE and loses a few seconds, or ROLLS and loses a lot. A rally's crews and every stage's times come from its seed.
 
 **The car** (`src/engine/render/vehicles3d.ts`): a hatchback rally car in your paint scheme, with:
 
-- the scheme's pattern over the bonnet and roof, and the number on a plate on the roof, read from above;
+- the scheme's pattern over the bonnet and roof (no race numbers: the standings show each crew's paint);
 - glass all round the cabin, flared arches, a roof scoop (yours gold) and a wing on the hatch;
-- mud flaps, and a bank of spotlights on the front bumper.
+- mud flaps, and a bank of spotlights on the front bumper;
+- a tail light at each corner of the tailgate, the brake lights in them lit as the car slows.
 
 A big crash tears off the bumper and its lamps, and a wreck loses a wheel or two.
 
-**The controls lap:** a new player's first launch opens the Shakedown (a short gravel stage), with a prompt at a time for the controls on the device they're using: go, full speed, slowing for a bend, drifting, keeping on the road, and on to the finish. The co-driver calls the bends here too. A skips it; once it's done, MENU goes home.
+**The controls lap:** a new player's first launch opens the Shakedown (a short gravel stage), with a prompt at a time for the controls on the device they're using: go, full speed, slowing for a bend, drifting, the co-driver's calls, and on to the finish. The co-driver calls the bends here too. A skips it; once it's done, MENU goes home.
 
 ### Controls
 

@@ -8,8 +8,8 @@ import type { Scheme } from '../crews';
 import { style } from './dom';
 import { READOUT_GRID, readoutRun } from './readoutView';
 
-/** The HUD for your car in `scheme`, number `number`, at `difficulty`, its minimap fitted to a road `width` × `height` (in tiles). */
-export function createHud(scheme: Scheme, number: number, difficulty: Difficulty, circuit: { width: number; height: number }) {
+/** The HUD for your car in `scheme`, at `difficulty`, its minimap fitted to a road `width` × `height` (in tiles). */
+export function createHud(scheme: Scheme, difficulty: Difficulty, circuit: { width: number; height: number }) {
   const readout = document.createElement('div');
   style(readout, {
     // (under the minimap's row, along the top on a phone)
@@ -39,7 +39,7 @@ export function createHud(scheme: Scheme, number: number, difficulty: Difficulty
   // the minimap fits the road in a 136 × 140 box, whatever its shape
   const miniScale = Math.min(136 / circuit.width, 140 / circuit.height);
   const MINI_W = Math.round(circuit.width * miniScale);
-  // your crew's card on the line: your car's number on a plate in your colours, gone at GO
+  // your crew's card on the line: a swatch of your car's paint, gone at GO
   const crewCard = document.createElement('div');
   style(crewCard, {
     position: 'absolute', left: '50%', top: 'calc(30% + 34px)', zIndex: '3', transform: 'translateX(-50%)',
@@ -48,10 +48,9 @@ export function createHud(scheme: Scheme, number: number, difficulty: Difficulty
     pointerEvents: 'none', transition: 'opacity .4s',
   });
   const plate = document.createElement('span');
-  plate.textContent = `#${number}`;
   style(plate, {
-    display: 'inline-block', padding: '6px 8px', borderRadius: '6px', background: scheme.body, color: scheme.trim,
-    border: `2px solid ${scheme.trim}`, font: '14px Silkscreen, monospace', textShadow: 'none',
+    display: 'inline-block', width: '22px', height: '22px', boxSizing: 'border-box', borderRadius: '6px', background: scheme.body,
+    border: `4px solid ${scheme.trim}`,
   });
   const weatherTag = document.createElement('span');
   crewCard.append(plate, `YOU · ${difficulty.name} · `, weatherTag);

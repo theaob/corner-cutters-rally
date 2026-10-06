@@ -7,10 +7,10 @@ const [EASY, , HARD] = DIFFICULTIES;
 import { layoutById } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import {
-  RALLIES, RALLY, aiStage, crewName, crewNumber, crewScheme, gapText, loadBests, loadRally, loadStageBests, newRally, nextStage, parseRally,
+  RALLIES, RALLY, aiStage, crewName, crewScheme, gapText, loadBests, loadRally, loadStageBests, newRally, nextStage, parseRally,
   rallyOver, recordBest, recordStage, recordStageBest, referenceStage, saveRally, serviceAfter, stageOrder, standings, yourPlace,
 } from '../src/f1/rally';
-import { CREWS, SCHEMES, YOUR_NUMBER, crewById } from '../src/f1/crews';
+import { CREWS, SCHEMES, crewById } from '../src/f1/crews';
 import { useSave } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
 
@@ -35,7 +35,6 @@ describe('a rally', () => {
     expect(r.crews).toHaveLength(RALLY.crews);
     expect(r.crews[r.you]).toEqual({ scheme: SCHEMES[1].id });
     expect(crewName(r.crews[r.you])).toBe('YOU');
-    expect(crewNumber(r.crews[r.you])).toBe(YOUR_NUMBER);
     expect(crewScheme(r.crews[r.you])).toBe(SCHEMES[1]);
     const rivals = r.crews.filter((_, i) => i !== r.you);
     for (const c of rivals) {

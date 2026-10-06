@@ -142,8 +142,6 @@ export const serviceAfter = (r: Rally, k: number) => rallyEvent(r).service.inclu
 export const crewScheme = (c: RallyCrew): Scheme => schemeById(c.scheme ?? crewById(c.crew)?.scheme) ?? SCHEMES[0];
 /** A crew's name, as the timing screens show it (yours: YOU). */
 export const crewName = (c: RallyCrew): string => crewById(c.crew)?.name ?? 'YOU';
-/** A crew's car number (yours: 1). */
-export const crewNumber = (c: RallyCrew): number => crewById(c.crew)?.number ?? 1;
 
 /**
  * A stage's reference run: one car flat out on the racing line, alone, from a standing start at `start`; its time from

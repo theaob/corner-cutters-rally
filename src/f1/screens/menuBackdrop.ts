@@ -80,7 +80,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
   const race = newRace(track, circuit.grid, handling, 1, field, 0, 'dry');
   const meshes = field.map((_, k) => {
     const crew = crewById(CREWS[k % CREWS.length].id)!;
-    const mesh = createCarMesh('f1', liveryOf(schemeById(crew.scheme)!, crew.number), !!circuit.layout.dirt);
+    const mesh = createCarMesh('f1', liveryOf(schemeById(crew.scheme)!), !!circuit.layout.dirt);
     world.scene.add(mesh);
     return mesh;
   });

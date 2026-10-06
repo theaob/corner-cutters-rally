@@ -59,7 +59,7 @@ import { aiStage, loadStageBests, rallyEvent, recordBest, recordStage, recordSta
 import { newCaller, paceNotes, stepCaller, type Caller } from './paceNotes';
 import { createPaceCard, renderStageResults } from './race/rallyView';
 import { formatTime as fmt } from './time';
-import { SCHEMES, YOUR_NUMBER, liveryOf, type Scheme } from './crews';
+import { SCHEMES, liveryOf, type Scheme } from './crews';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
@@ -153,7 +153,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   // ---------------------------------------------------------------- overlays
   const {
     readout, mainLines, tyreLine, banner, results, crewCard, weatherTag, mini, miniCtx, pauseScreen, pauseTitle, pauseButton, MINI_W, MINI_H, place: layHud,
-  } = createHud(scheme, YOUR_NUMBER, difficulty, circuit);
+  } = createHud(scheme, difficulty, circuit);
   weatherTag.textContent = weather.name;
   const map = world.minimap(MINI_W * 2, MINI_H * 2);
   // the rush of speed, the rain, and your chequered flag, drawn over the picture (race/screenFx.ts)
@@ -278,7 +278,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
 
   /** Your car on the road in your paint, your number on the roof. */
   const addLook = (): CarLook => {
-    const mesh: CarMesh = createCarMesh('f1', { ...liveryOf(scheme, YOUR_NUMBER), helmet: 'gold' }, !!layout.dirt);
+    const mesh: CarMesh = createCarMesh('f1', { ...liveryOf(scheme), helmet: 'gold' }, !!layout.dirt);
     world.scene.add(mesh);
     return { mesh, fx: new CarFx(mesh) };
   };
@@ -831,7 +831,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       else if (e.kind === 'track' && race.clock >= notice.until) announce(`ROAD ${e.condition.toUpperCase()} · ${COMPOUNDS[tyreFor(e.condition, race.track.dirt)].name.toUpperCase()}`, '#8fb8e8', 2);
     }
     // your car (race/drawCars.ts)
-    drawCars({ race, looks, events: cars, track, grid, skids, particles, pose: (i) => pose(race.entrants[i].car, i, alpha), dt, now: performance.now() / 1000 });
+    drawCars({ race, looks, events: cars, track, grid, skids, particles, pose: (i) => pose(race.entrants[i].car, i, alpha), dt });
     // your marker, on the line during the countdown
     {
       youMarker.visible = race.phase === 'lights' && running(me);

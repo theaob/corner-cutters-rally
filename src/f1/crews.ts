@@ -1,6 +1,6 @@
 // The crews: the paint schemes a rally car can wear (yours picked on the rally's
 // screen), and the nine rival crews of a rally, each a made-up driver with a
-// car number and a scheme of their own. Engine-free.
+// paint scheme of their own. Engine-free.
 
 import type { LiveryPattern } from '../engine/render/vehicles3d';
 
@@ -31,34 +31,31 @@ export const SCHEMES: Scheme[] = [
 
 export const schemeById = (id: string | null | undefined): Scheme | undefined => SCHEMES.find((s) => s.id === id);
 
-/** A rival crew: its driver's name (as the timing screens show it), the car's number, and its paint. */
+/** A rival crew: its driver's name (as the timing screens show it), and its car's paint. */
 export interface Crew {
   id: string;
   name: string;
-  number: number;
   scheme: string;
 }
 
 /** The rival crews a rally draws its nine from. */
 export const CREWS: Crew[] = [
-  { id: 'lindqvist', name: 'LINDQVIST', number: 2, scheme: 'arctic' },
-  { id: 'moreau', name: 'MOREAU', number: 3, scheme: 'royal' },
-  { id: 'okafor', name: 'OKAFOR', number: 4, scheme: 'forest' },
-  { id: 'varga', name: 'VARGA', number: 5, scheme: 'works-red' },
-  { id: 'tanaka', name: 'TANAKA', number: 6, scheme: 'midnight' },
-  { id: 'castillo', name: 'CASTILLO', number: 7, scheme: 'sunburst' },
-  { id: 'brennan', name: 'BRENNAN', number: 8, scheme: 'lime' },
-  { id: 'novak', name: 'NOVAK', number: 9, scheme: 'copper' },
-  { id: 'haugen', name: 'HAUGEN', number: 10, scheme: 'powder' },
-  { id: 'rossi', name: 'ROSSI', number: 11, scheme: 'stripes' },
-  { id: 'kowalski', name: 'KOWALSKI', number: 12, scheme: 'royal' },
-  { id: 'mbeki', name: 'MBEKI', number: 14, scheme: 'forest' },
+  { id: 'lindqvist', name: 'LINDQVIST', scheme: 'arctic' },
+  { id: 'moreau', name: 'MOREAU', scheme: 'royal' },
+  { id: 'okafor', name: 'OKAFOR', scheme: 'forest' },
+  { id: 'varga', name: 'VARGA', scheme: 'works-red' },
+  { id: 'tanaka', name: 'TANAKA', scheme: 'midnight' },
+  { id: 'castillo', name: 'CASTILLO', scheme: 'sunburst' },
+  { id: 'brennan', name: 'BRENNAN', scheme: 'lime' },
+  { id: 'novak', name: 'NOVAK', scheme: 'copper' },
+  { id: 'haugen', name: 'HAUGEN', scheme: 'powder' },
+  { id: 'rossi', name: 'ROSSI', scheme: 'stripes' },
+  { id: 'kowalski', name: 'KOWALSKI', scheme: 'royal' },
+  { id: 'mbeki', name: 'MBEKI', scheme: 'forest' },
 ];
 
 export const crewById = (id: string | null | undefined): Crew | undefined => CREWS.find((c) => c.id === id);
 
-/** Your car's number. */
-export const YOUR_NUMBER = 1;
 
-/** A scheme as a car's livery (vehicles3d.ts), with its number on the roof. */
-export const liveryOf = (s: Scheme, number?: number) => ({ body: s.body, stripe: s.trim, accent: s.accent, pattern: s.pattern, number });
+/** A scheme as a car's livery (vehicles3d.ts). */
+export const liveryOf = (s: Scheme) => ({ body: s.body, stripe: s.trim, accent: s.accent, pattern: s.pattern });

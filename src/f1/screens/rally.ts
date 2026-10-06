@@ -16,7 +16,7 @@ import { layoutById } from '../layouts';
 import { weatherById } from '../weather';
 import { SCHEMES, type Scheme } from '../crews';
 import {
-  RALLIES, crewName, crewNumber, crewScheme, gapText, loadBests, nextStage, rallyEvent, rallyOver, serviceAfter, standings, yourPlace, type Rally, type RallyEvent,
+  RALLIES, crewName, crewScheme, gapText, loadBests, nextStage, rallyEvent, rallyOver, serviceAfter, standings, yourPlace, type Rally, type RallyEvent,
 } from '../rally';
 import { reportOpen } from '../report';
 import { confetti, trophy } from './celebrate';
@@ -25,7 +25,7 @@ export type RallyAction = 'stage' | 'abandon' | 'settings' | { start: RallyEvent
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'ST' : n % 10 === 2 && n % 100 !== 12 ? 'ND' : n % 10 === 3 && n % 100 !== 13 ? 'RD' : 'TH'}`;
 
-/** The standings as a table: place, car number, crew, total or gap; you in gold. */
+/** The standings as a table: place, the crew's paint, crew, total or gap; you in gold. */
 function standingsTable(r: Rally): HTMLTableElement {
   const cell = (text: string, right = false, color?: string) => {
     const c = document.createElement('td');
@@ -42,8 +42,8 @@ function standingsTable(r: Rally): HTMLTableElement {
     const crew = r.crews[s.crew];
     const scheme = crewScheme(crew);
     const chip = document.createElement('td');
-    chip.textContent = `#${crewNumber(crew)}`;
-    Object.assign(chip.style, { padding: '2px 4px', color: scheme.trim, background: scheme.body, textAlign: 'center' });
+    // (a swatch of the crew's paint: the body, edged in the second colour)
+    Object.assign(chip.style, { width: '14px', padding: '0', background: scheme.body, boxShadow: `inset 0 0 0 3px ${scheme.trim}` });
     row.append(cell(`${k + 1}`, true), chip, cell(crewName(crew)), cell(k === 0 ? fmt(s.total) : gapText(s.gap), true));
     table.append(row);
   });
