@@ -1,35 +1,27 @@
-// Tyre wear. Every car's tyres wear as it drives: with speed, faster while
-// sliding (a drift eats them) and on rough ground. Worn tyres grip and turn
-// less and can't put the power down, a little at first, then sharply once
-// they're nearly gone (the cliff). A pit stop fits a fresh set. Tuned so a
-// set lasts about two laps before the cliff: a 3-lap race is best run without
-// stopping, a 5-lap race with one stop, and a slide-happy driver stops sooner.
+// Tyres. A car's tyres wear as it drives: with speed, faster while sliding (a
+// drift eats them) and on rough ground. Worn tyres grip and turn less and
+// can't put the power down, a little at first, then sharply once they're nearly
+// gone (the cliff). A rally's stage starts on a fresh set (and keeps it fresh).
 //
-// Four compounds, each at its best in its own weather: on a dry track two
-// slicks, the SOFT ('slick': the quicker) and the HARD (4% slower, but
-// lasting twice as long: the choice between them is a race's strategy,
-// strategy.ts); intermediates on a damp track, full wets in the rain. The wrong tyre for the
-// track grips less, is slower, and (a wet tyre on a dry track) wears out fast;
-// a wet track is slower than a dry one even on the right tyres. In between
-// (the track wetting in the rain or drying after it: forecast.ts) each does as
-// it would between the two. The crew fits the right compound for the weather
-// at the start and, at every stop, for the weather a lap on.
+// On tarmac, the compound for the weather: SOFT slicks in the dry (the HARD
+// is kept for completeness: 4% slower, lasting twice as long),
+// intermediates on a damp road, full wets in the rain. The wrong tyre for the
+// road grips less, is slower, and (a wet tyre on a dry road) wears out fast; a
+// wet road is slower than a dry one even on the right tyres. In between (the
+// road wetting in the rain or drying after it: forecast.ts) each does as it
+// would between the two.
 //
-// On dirt (a circuit's `dirt`: Dust Bowl) every car runs off-road tyres, the
-// only compound there: knobbly, they bite into the loose earth, but it gives
-// less grip than tarmac (the cars slide through the bends); in the rain it
-// turns to mud, slower and slipperier still. Sliding's the way round on dirt,
-// and it hardly wears them. No choice of tyres there, so no strategy: a car
-// stops only for worn tyres or repairs, and gets a fresh set of the same.
-// Engine-free and unit-tested.
+// On dirt (a stage's `dirt`: gravel, snow and sand) every car runs off-road
+// tyres, the only compound there: knobbly, they bite into the loose surface,
+// but it gives less grip than tarmac (the cars slide through the bends); in the
+// rain it turns to mud, slower and slipperier still. Engine-free and unit-tested.
 
 import { speedOf, type Car, type StepEvents } from '../engine/driving';
 import type { WeatherId } from './weather';
 
 export type Compound = 'slick' | 'hard' | 'inter' | 'wet' | 'dirt';
-/** The dry compounds: a race's strategy is which of them, and when (strategy.ts). */
+/** The dry compounds. */
 export type DryCompound = 'slick' | 'hard';
-export const DRY_COMPOUNDS: DryCompound[] = ['slick', 'hard'];
 export const isDry = (c: Compound): c is DryCompound => c === 'slick' || c === 'hard';
 
 /** How a compound does on a track: its share of grip and of top speed, and how fast it wears (× a slick's in the dry). */
@@ -109,10 +101,6 @@ export const TYRES = {
   /** top speed lost: linearly with wear, and more over the cliff */
   speedLoss: 0.06,
   cliffSpeedLoss: 0.14,
-  /** wear per lap assumed before a set has done half a lap (for planning a stop) */
-  lapWear: 0.3,
-  /** seconds the pit lane itself costs, over the stop (driving it on the limiter, in and out) */
-  laneCost: 4,
 };
 
 /** A car's set of tyres. */
@@ -153,56 +141,4 @@ export function fitTyres(set: TyreSet, car: Car, weather: WeatherId | number = '
   const fit = fitAt(set.compound, weather);
   car.tyreGrip = tyreGrip(set.wear) * fit.grip;
   car.speedScale = tyreSpeed(set.wear) * fit.speed;
-}
-
-/** Seconds a lap costs over one on new tyres, at `wear` through it (from the lost speed). */
-const lapLoss = (lapTime: number, wear: number) => lapTime * (1 / tyreSpeed(wear) - 1);
-
-/** Seconds lost over `laps` laps (the last may be a part), starting at `wear` and wearing `perLap` a lap. */
-function stintLoss(laps: number, wear: number, perLap: number, lapTime: number): number {
-  let loss = 0;
-  for (let i = 0; i < laps; i++) {
-    const part = Math.min(1, laps - i);
-    loss += lapLoss(lapTime, Math.min(1, wear + perLap * (i + part / 2))) * part;
-  }
-  return loss;
-}
-
-/** The wear a set does per lap: measured once it has done half a lap, assumed before (for its compound, on a dry track). */
-export function wearPerLap(set: TyreSet, trackLength: number): number {
-  const laps = set.driven / trackLength;
-  return laps >= 0.5 ? set.wear / laps : TYRES.lapWear * COMPOUNDS[set.compound].on.dry.wear;
-}
-
-export interface StopPlan {
-  /** laps left to race, from the pit entry */
-  lapsLeft: number;
-  /** a lap's time on new tyres (s) */
-  lapTime: number;
-  /** tyre wear now, and per lap */
-  wear: number;
-  perLap: number;
-  /** the car's damage now (0 = none … 1 = wrecked) and the share of top speed full damage costs */
-  damage: number;
-  damageSlow: number;
-  /** seconds the stop itself takes (tyres and repairs) */
-  stopTime: number;
-}
-
-/**
- * Whether to stop now: the time lost to worn tyres and damage over the laps
- * left, stopping now, a lap or more later, or not at all (a stop fits new
- * tyres and repairs the car, and costs the pit lane and the stop). Stop now
- * if now is the best of those.
- */
-export function stopNow(p: StopPlan): boolean {
-  if (p.lapsLeft < 1) return false;
-  const damageLoss = (laps: number) => p.lapTime * p.damage * p.damageSlow * laps;
-  const noStop = stintLoss(p.lapsLeft, p.wear, p.perLap, p.lapTime) + damageLoss(p.lapsLeft);
-  const stopAfter = (k: number) =>
-    stintLoss(k, p.wear, p.perLap, p.lapTime) + damageLoss(k) + p.stopTime + TYRES.laneCost + stintLoss(p.lapsLeft - k, 0, p.perLap, p.lapTime);
-  const now = stopAfter(0);
-  if (now >= noStop) return false;
-  for (let k = 1; k <= Math.floor(p.lapsLeft) - 1; k++) if (stopAfter(k) < now) return false;
-  return true;
 }

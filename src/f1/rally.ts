@@ -39,7 +39,7 @@ export const RALLY = {
 export type Surface = 'GRAVEL' | 'SNOW' | 'SAND' | 'TARMAC';
 
 export interface RallyStage {
-  /** the stage's layout (layouts.ts's STAGE_LAYOUTS) */
+  /** the stage's layout (an id from stages.ts's STAGE_SPECS) */
   layout: string;
   weather: WeatherId;
 }

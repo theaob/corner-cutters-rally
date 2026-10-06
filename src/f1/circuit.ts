@@ -33,6 +33,12 @@ export function kerbed(track: Track): boolean[] {
   const sp = track.spacing;
   const on = track.samples.map((p) => Math.abs(p.curve) >= TIGHT);
   if (on.every(Boolean) || !on.some(Boolean)) return on;
+  // (an open road: worked out as if a straight ran on past each end, so nothing wraps from one end to the other)
+  if (track.open) {
+    const pad = Math.ceil((KERB.gap + KERB.lead + KERB.shortest) / sp) + 2;
+    const looped = kerbed({ ...track, open: false, samples: [...track.samples, ...Array.from({ length: pad }, () => ({ ...track.samples[n - 1], curve: 0 }))] });
+    return looped.slice(0, n);
+  }
   // the runs of kerbed samples, round the lap (starting just after an unkerbed sample, so none wraps)
   const runsOf = (flags: boolean[]) => {
     const start = flags.findIndex((f, i) => !f && flags[(i + 1) % n]);

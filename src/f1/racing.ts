@@ -198,7 +198,7 @@ export interface RaceProgress {
   finished?: number;
   /** seconds spent facing the wrong way (for the warning) */
   wrongWay: number;
-  /** seconds added to the finish time (overtaking under the safety car) */
+  /** seconds added to the finish time (a jump start, cutting the road) */
   penalty: number;
   /** out of the race (wrecked, and cleared off the track): classified last, as DNF */
   retired?: boolean;
@@ -213,8 +213,8 @@ export const newProgress = (idx: number): RaceProgress => ({ lap: 0, idx, sector
  */
 export function stepProgress(p: RaceProgress, track: Track, car: Car, raceTime: number, laps: number, dt: number): RaceProgress {
   const n = track.samples.length;
-  // (only ever near where it was: a car that cuts across the infield to another stretch, as Suzuka's figure of eight
-  // allows, gains nothing; it's still where it left the track till it comes back round to it. Moved anywhere else, a
+  // (only ever near where it was: a car that cuts across to another stretch of the road, where it doubles back near
+  // itself, gains nothing; it's still where it left the road till it comes back to it. Moved anywhere else, a
   // car's progress is set there with it.)
   const idx = nearestSample(track, car.x, car.y, p.idx, true);
   // after the flag only the position keeps updating (for the cool-down lap)
@@ -352,7 +352,7 @@ export function wheelInput(w: WheelPad, car: Car): DriveInput {
 
 /** Race control's orders for a driver: a speed limit, and whether it may overtake. */
 export interface Orders {
-  /** px/s: never faster than this (the safety car's limiter) */
+  /** px/s: never faster than this (a limiter, e.g. after the finish) */
   limit?: number;
   /** stay in line behind the car ahead instead of moving over to pass */
   noOvertaking?: boolean;
@@ -538,7 +538,7 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
   ai.move = move;
 
   // mistakes: going into a bend (where the braking for it starts), now and then a driver gets it wrong, and pays
-  // for it through the bend (never while the pack is still bunched, or under the safety car)
+  // for it through the bend (never while the pack is still bunched, or under a speed limit)
   // (a real braking bend: the line slows well below flat out within the next few car lengths)
   const braking = () => {
     let slowest = top;
@@ -613,7 +613,7 @@ export function aiInput(car: Car, track: Track, idx: number, ai: AiDriver, other
     if (!c.o.wrecked && c.along > 0 && c.along < 44 + Math.max(0, closing) * 0.7 && Math.abs(c.across) < band) follow = Math.min(follow, c.speed);
   }
   // side by side into a bend, a nose behind: give way, dropping in behind rather than both fighting for it
-  // (not under the safety car, where the order holds; but while the pack settles from the start, yes: the first
+  // (not under a speed limit, where the order holds; but while the pack settles from the start, yes: the first
   // corner is where cars are most often side by side)
   if (!straight && orders.limit === undefined && !ai.lunge) for (const c of alongside) if (c.along > 4) follow = Math.min(follow, c.speed - YIELD);
   const tx = t.x + Math.cos(t.dir) * lane;

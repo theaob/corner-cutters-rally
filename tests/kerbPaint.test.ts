@@ -17,7 +17,7 @@ describe('the lines and kerbs painted along the road', () => {
   // (the kerbs once folded back on themselves where the centreline turned sharply from one sample to the next)
   it.each(TARMAC)('never fold back on themselves on %s', (id) => {
     const s = build(id).track.samples;
-    const normal = paintNormals(s);
+    const normal = paintNormals(s, true);
     for (const side of [-1, 1]) {
       for (const off of [KERB.inner, KERB.outer, HALF_WIDTH - 2, HALF_WIDTH + 6]) {
         const line = offsetLine(s, normal, side * off);
@@ -32,7 +32,7 @@ describe('the lines and kerbs painted along the road', () => {
 
   it('follow the road: its normals smoothed only a little', () => {
     const { samples } = build('ss-castle-hill').track;
-    const normal = paintNormals(samples);
+    const normal = paintNormals(samples, true);
     for (const [i, p] of samples.entries()) {
       expect(Math.hypot(normal[i].x, normal[i].y)).toBeCloseTo(1, 9);
       // (along the road; its very ends left out)

@@ -5,10 +5,9 @@
 // through, however far it cuts. Engine-free (race control runs it for every
 // car, the AI's too).
 //
-// Against the clock (a qualifying lap, a Time Trial lap) the rule is the
-// strict one: a lap with all four wheels past the white line anywhere, on
-// either side (a cut, or running wide), is deleted (offTrack). In a race,
-// running wide is its own penalty: the time it costs.
+// All four wheels past the white line anywhere, on either side (a cut, or
+// running wide), is going off the road (offTrack): running wide is its own
+// penalty, the time it costs.
 
 import { HALF_WIDTH, TIGHT } from './circuit';
 import { lateralOffset, type Track } from './racing';
@@ -22,7 +21,7 @@ export const LIMITS = {
   penalty: 5,
 };
 
-/** A marked corner: samples `from` to `to` (round the loop), and its inside (+1 = the right, a right-hander). */
+/** A marked corner: samples `from` to `to` (round the loop, on a circuit), and its inside (+1 = the right, a right-hander). */
 export interface Corner {
   from: number;
   to: number;
@@ -51,6 +50,8 @@ export function markCorners(track: Track): Corner[] {
   const { samples, spacing } = track;
   const n = samples.length;
   const side = (i: number): -1 | 0 | 1 => {
+    // (an open road: nothing past its ends)
+    if (track.open && (i < 0 || i >= n)) return 0;
     const c = samples[((i % n) + n) % n].curve;
     return Math.abs(c) < TIGHT ? 0 : c > 0 ? 1 : -1;
   };
@@ -78,7 +79,8 @@ export function markCorners(track: Track): Corner[] {
     } else runs.push({ from, to, apex, side: s });
     k = end;
   }
-  const wrap = (i: number) => ((i % n) + n) % n;
+  // (round the loop; on an open road, held at its ends)
+  const wrap = (i: number) => (track.open ? Math.max(0, Math.min(n - 1, i)) : ((i % n) + n) % n);
   return runs.map((r) => ({ from: wrap(r.from), to: wrap(r.to), apex: wrap(r.apex), side: r.side }));
 }
 
@@ -120,12 +122,10 @@ export function wholeCarOff(track: Track, idx: number, x: number, y: number, wid
 
 /**
  * Whether a car has just gone off the track this step, all four wheels past the white line either side (true once
- * per excursion: it's back on, a wheel inside the line, before it can count again). `excused`: off where it may be
- * (onto the pit entry road), which neither counts nor ends an excursion.
+ * per excursion: it's back on, a wheel inside the line, before it can count again).
  */
-export function offTrack(limits: Limits, track: Track, idx: number, x: number, y: number, width: number, excused = false): boolean {
+export function offTrack(limits: Limits, track: Track, idx: number, x: number, y: number, width: number): boolean {
   const off = wholeCarOff(track, idx, x, y, width);
-  if (excused) return false;
   const went = off && !limits.off;
   limits.off = off;
   return went;

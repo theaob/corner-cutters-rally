@@ -84,14 +84,16 @@ const NORMAL_SPAN = 4;
  * averaged with its neighbours', nearer ones counting more, so a sharp step from one sample to the next is spread
  * over a few and the edges and kerbs follow on round the bend unbroken.
  */
-export function paintNormals(samples: { dir: number }[]): Pt[] {
+export function paintNormals(samples: { dir: number }[], open = false): Pt[] {
   const n = samples.length;
+  // (round the loop; on an open road, held at its ends)
+  const at = (i: number) => (open ? Math.max(0, Math.min(n - 1, i)) : (i + n) % n);
   return samples.map((_, i) => {
     let x = 0;
     let y = 0;
     for (let k = -NORMAL_SPAN; k <= NORMAL_SPAN; k++) {
       const w = NORMAL_SPAN + 1 - Math.abs(k);
-      const d = samples[(i + k + n) % n].dir;
+      const d = samples[at(i + k)].dir;
       x += Math.cos(d) * w;
       y += Math.sin(d) * w;
     }
@@ -217,7 +219,7 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const pts = track.samples;
   // (out from the track along its normals smoothed a little: a sharp step in the centreline would fold the lines and
   // kerbs painted just inside the edge back on themselves)
-  const normal = paintNormals(pts);
+  const normal = paintNormals(pts, !!track.open);
   const offset = (off: number) => offsetLine(pts, normal, off);
   // (a rally's stage: a road with two ends, never joined up)
   const path = (list: Pt[], closed = !track.open) => {
