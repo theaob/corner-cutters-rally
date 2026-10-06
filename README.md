@@ -43,10 +43,10 @@ On gravel, snow and sand the car runs off-road tyres and slides; on tarmac it gr
 
 ### Driving a stage
 
-- **The start:** you stand on the line for a countdown (5, 4, 3, 2, 1), then GO. The clock runs from GO to the flying finish, and the panel under the minimap counts down the km to go. Going before GO is a jump start (+5 s); a quick reaction after it gets a GOOD or GREAT LAUNCH.
+- **The start:** you stand on the line under the START gantry for a countdown (5, 4, 3, 2, 1), then GO. The start clock beside the line counts it down too, its five red lights going out one a second and the last turning green at GO. The clock runs from GO to the flying finish, and the panel under the minimap counts down the km to go. Going before GO is a jump start (+5 s); a quick reaction after it gets a GOOD or GREAT LAUNCH.
 - **No track limits:** the road's edges are what stands beside it. Past a narrow verge kept clear, the treeline (in the desert, a line of rocks) comes in and out along the road: closer on the inside of tight bends, so they can't be cut far, and further out on their outsides, where cars run wide. Here and there a tree or rock stands alone in front of it, most often at a tight bend's apex. All of them are solid (`ROADSIDE` in `src/f1/circuit.ts`, drawn by `roadsideOf` in `src/f1/forest3d.ts`).
 - **Splits:** at each third of the stage you get your time against the stage's quickest crew, and where that puts you (SPLIT 1 · 0:27.62 · −0.31 · P1).
-- **The finish:** past the flying finish the car brakes to the stop by itself. A few seconds later the stage's times come up (every crew, the gap to the quickest, and what went wrong for any), then the rally's standings after it. NEXT goes home.
+- **The finish:** a yellow board with a chequered flag on it warns of the flying finish ahead, and red boards mark it. Past it, the car drives itself on to the STOP board at the stop control and halts there (`src/f1/stageDressing.ts`). A few seconds later the stage's times come up (every crew, the gap to the quickest, and what went wrong for any), then the rally's standings after it. NEXT goes home.
 - **Damage carries over:** your car starts each stage as the last one left it, until the service park after the stage the rally names puts it right. Wreck it and you're out of the stage: you get the slowest time on it plus 60 s, and the crew patch the car up to half health so you can go on.
 - **Kept on the device:** the rally under way, your best finish in each rally, and your best time on each stage (BEST in the readout; beat it and the banner says STAGE BEST). Leave mid-stage and that stage is run again; a stage once finished counts.
 
@@ -93,6 +93,8 @@ Each device drives the way it suits, and the game follows whichever you used las
 All are remembered.
 
 **The pause screen** has RESUME, RESTART, SETTINGS, REPORT and EXIT. EXIT asks first (THE STAGE WON'T COUNT). Leaving the app or tab pauses too. In the Android app the phone's back button pauses a stage, resumes from the pause screen, and on home says PRESS BACK AGAIN TO EXIT.
+
+**Spectators** (`src/f1/spectators.ts`): crowds stand on the open ground beside the road: at the start and the finish, round the jumps, on the outsides of the slowest bends, and here and there along the way. They face the road and cheer as a car comes by, jumping and waving. If one comes straight at them they run back out of its way, then wander back once it has gone. They are only for show: no car can hit them.
 
 **Crashes** (`src/engine/driving.ts`): a car is a rigid body, with a mass and a turning inertia from its size. It bounces off a tree or rock in the direction it hit: a hit head-on takes the full force, and a glancing one scrapes along with friction. Damage depends on how hard the car hits straight into something, so a scrape costs speed but not health. A hit off the car's middle, from a tree or another car, spins it, and the tyres soon catch the spin. A hard side-on hit, or sliding sideways into soft ground fast enough to dig in, rolls the car over once or twice, and the roof takes a knock each time. A wreck coasts to a stop rather than halting dead. The numbers are in `IMPACT`.
 

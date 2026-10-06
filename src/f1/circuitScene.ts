@@ -1,24 +1,29 @@
 // A stage in 3D: the road painted over the ground (gravel and earth, packed
 // snow, sand, or tarmac with white edge lines and red-and-white kerbs), the
-// start and finish lines and the split lines, all draped over the road's heights; the trees and rocks along it
-// (forest3d.ts), and the scenery beyond: a forest, the mountains, the snow or the desert.
+// start, finish and stop lines, all draped over the road's heights; the start gantry and clock and the finish
+// boards (stageDressing.ts); the spectators (spectators.ts); the trees and rocks along it (forest3d.ts), and the
+// scenery beyond: a forest, the mountains, the snow or the desert.
 
 import * as THREE from 'three';
 import { canvas } from '../engine/render/sprites';
 import { pixelTexture } from '../engine/render/textures';
 import { addDaylight, type Daylight } from '../engine/render/daylight';
-import { sectorStarts, type Pt } from './racing';
+import type { Pt } from './racing';
 import { HALF_WIDTH, KERB, TILE as T, kerbed, type Circuit } from './circuit';
 import { DRY, type Weather } from './weather';
 import { buildForest } from './forest3d';
 import { buildCamels } from './camels';
+import { buildDressing, stopAt } from './stageDressing';
+import { buildSpectators } from './spectators';
 
 export interface CircuitScene extends Daylight {
   scene: THREE.Scene;
   /** the road scaled into a small canvas, for the minimap */
   minimap(width: number, height: number): { canvas: HTMLCanvasElement; toMap: (x: number, y: number) => Pt };
-  /** Move the scenery's animals (the desert's camels), `t` seconds on. */
-  animate(t: number): void;
+  /** Move the scenery on to page time `t` (s): the desert's camels, and the spectators (cheering, or running from the `cars` near them). */
+  animate(t: number, cars?: { x: number; y: number; vx: number; vy: number }[]): void;
+  /** Show the start clock for `left` seconds to GO (undefined: GO; null: not started). */
+  setStartClock(left: number | null | undefined): void;
   /** Darken the ground (and the ground beyond) by `tint`, as the road wets or dries (weather.ts's look). */
   setGroundTint(tint: number): void;
 }
@@ -30,12 +35,9 @@ function rng(seed: number): () => number {
   };
 }
 
-/** The split lines' colour, and px wide (along the road) */
-const SECTOR_LINE = '#f4f4f8';
-const SECTOR_WIDTH = 3;
-
-/** px across each square of the chequered start and finish lines (as near as fits the road's width evenly) */
-const START_SQUARE = 6;
+/** The start, finish and stop lines' colour, and px wide (along the road) */
+const START_LINE = '#f4f4f8';
+const START_WIDTH = 4;
 
 /** A forest's floor, past the treeline */
 const FOREST_FLOOR = '#2f5a2c';
@@ -299,60 +301,25 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       }
     }
   }
-  // grid boxes: a white bracket in front of each slot
-  x.strokeStyle = '#f4f4f8';
-  x.lineWidth = 2;
-  // (a rally's stage: one car on the line at a time, so one box)
-  for (const g of circuit.layout.stage ? circuit.slots.slice(0, 1) : circuit.slots) {
-    const gfx = Math.sin(g.heading);
-    const gfy = -Math.cos(g.heading);
-    const grx = Math.cos(g.heading);
-    const gry = Math.sin(g.heading);
-    const front = { x: g.x + gfx * 16, y: g.y + gfy * 16 };
-    x.beginPath();
-    x.moveTo(front.x - grx * 9 - gfx * 6, front.y - gry * 9 - gfy * 6);
-    x.lineTo(front.x - grx * 9, front.y - gry * 9);
-    x.lineTo(front.x + grx * 9, front.y + gry * 9);
-    x.lineTo(front.x + grx * 9 - gfx * 6, front.y + gry * 9 - gfy * 6);
-    x.stroke();
-  }
-  // a white line across the track where each sector after the first starts (the start/finish line is the first's:
-  // chequered, below), edge to edge, square to the track
-  for (const k of sectorStarts(track)) {
-    const p = pts[k];
-    x.save();
-    x.translate(p.x, p.y);
-    x.rotate(p.dir);
-    x.fillStyle = SECTOR_LINE;
-    x.fillRect(-HALF_WIDTH, -SECTOR_WIDTH / 2, HALF_WIDTH * 2, SECTOR_WIDTH);
-    x.restore();
-  }
-  // the chequered start/finish line across the track at sample 0: squares in the track's own frame (turned with
-  // it, so as even on a straight at an angle as on one up the map), edge to edge, two rows centred on the line (over the pole's grid box, should they touch)
-  // (a rally's stage: its start line, and its flying finish far along the road)
+  // a white line across the road at the start, at the flying finish and at the stop control past it, edge to edge,
+  // square to the road (the splits are timed, but not painted: a stage's aren't)
   const stage = track.stage;
-  const lines = stage ? [stage.start, stage.finish].map((d) => Math.round(d / track.spacing)) : [0];
-  const across = Math.round((HALF_WIDTH * 2) / START_SQUARE);
-  const sq = (HALF_WIDTH * 2) / across;
-  for (const at of lines) {
-    const s0 = pts[at];
-    x.save();
-    x.translate(s0.x, s0.y);
-    // (local x: across the track, to the right of the way of the race; local y: back down the track)
-    x.rotate(s0.dir);
-    for (let k = 0; k < across; k++) {
-      for (let row = 0; row < 2; row++) {
-        x.fillStyle = (k + row) % 2 === 0 ? '#f4f4f8' : '#1b1b26';
-        x.fillRect(-HALF_WIDTH + k * sq, (row - 1) * sq, sq + 0.5, sq + 0.5);
-      }
+  if (stage) {
+    for (const d of [stage.start, stage.finish, stopAt(stage.finish, track.length)]) {
+      const p = pts[Math.round(d / track.spacing)];
+      x.save();
+      x.translate(p.x, p.y);
+      x.rotate(p.dir);
+      x.fillStyle = START_LINE;
+      x.fillRect(-HALF_WIDTH, -START_WIDTH / 2, HALF_WIDTH * 2, START_WIDTH);
+      x.restore();
     }
-    x.restore();
   }
   return c;
 }
 
 /** The stage in `weather`: its sky and light, and the ground darker when it's wet. */
-export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): CircuitScene {
+export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, stageName = ''): CircuitScene {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#8fb8e8');
   const light = addDaylight(scene);
@@ -401,12 +368,22 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY): Ci
 
   // (in the desert: its camels)
   const camels = circuit.layout.desert ? buildCamels(scene, circuit) : undefined;
+  // the start and finish, and the crowds along the road
+  const dressing = buildDressing(circuit, stageName);
+  const crowd = buildSpectators(circuit);
+  scene.add(dressing.group, crowd.group);
+  let lastT: number | undefined;
 
   return {
     scene,
     ...light,
     minimap,
-    animate: (t) => camels?.animate(t),
+    animate: (t, cars = []) => {
+      camels?.animate(t);
+      crowd.animate(t, lastT === undefined ? 0 : t - lastT, cars);
+      lastT = t;
+    },
+    setStartClock: dressing.setClock,
     setGroundTint: (t) => {
       (ground.material as THREE.MeshLambertMaterial).color.setHex(t);
       (outer.material as THREE.MeshLambertMaterial).color.copy(outerColor).multiply(new THREE.Color(t));

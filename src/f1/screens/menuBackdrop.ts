@@ -172,7 +172,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
     camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
     camera.lookAt(focus);
     world.followSun(focus);
-    world.animate(now / 1000);
+    world.animate(now / 1000, race.entrants.map((e) => e.car));
     post.render(dt, { bloom: HD2D_VIEW.bloom, blur: HD2D_VIEW.blur, bloomOn: true, blurOn: true });
     // (faded in once a few frames are drawn: the first can take a while, compiling the shaders)
     if (++drawn === 3) {

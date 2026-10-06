@@ -11,14 +11,15 @@ import type { Button } from '../engine/controls';
 import { applyDamage, carClass, condition, newCar, speedOf, type Car, type StepEvents } from '../engine/driving';
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { groundAt } from '../engine/sim';
-import { keysWheel, lineCornerSpeed, lineDecel, playerInput, stageSplits, stickWheel, wheelInput } from './racing';
+import { aiInput, keysWheel, newProgress, lineCornerSpeed, lineDecel, playerInput, stageSplits, stickWheel, wheelInput } from './racing';
+import { stopAt } from './stageDressing';
 import { NORMAL, handlingFor, type Difficulty } from './difficulty';
 import { DRY, lookAt as weatherLook, type Weather } from './weather';
 import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { driveStyle, pointsOn } from './driveStyle';
-import { LIGHTS, newRace, running, stepRace, type Race, type RaceEvent } from './raceControl';
+import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
 import { Hd2dPipeline } from '../engine/render/hd2d';
@@ -96,7 +97,10 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   document.documentElement.classList.toggle('dirt', !!layout.dirt);
   const { track, grid } = circuit;
   const finishAt = track.stage?.finish ?? track.length;
-  const world = createCircuitScene(circuit, weather);
+  /** the stop control past the finish (stageDressing.ts), and px/s² the car eases down to it at */
+  const stopLine = stopAt(finishAt, track.length);
+  const STOP_DECEL = 220;
+  const world = createCircuitScene(circuit, weather, layout.name);
   /** the stage's weather: the same all the way */
   const forecast = fixedForecast(weather.id === 'changeable' ? 'dry' : weather.id);
   const sessionWeather = () => conditionOf(forecast.start);
@@ -202,18 +206,6 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   /** your stage is over (finished, or out) and the results are coming */
   let done = false;
   const you = 0;
-  // your car's marker on the line, so you can find it before GO: a gold arrow bobbing above it and a gold ring on the
-  // ground round it (unlit, so they stay bright in shade and in the rain); gone at GO
-  const youMarker = new THREE.Group();
-  const markerGold = new THREE.MeshBasicMaterial({ color: 0xf2c14e, toneMapped: false });
-  const youArrow = new THREE.Mesh(new THREE.ConeGeometry(7, 12, 4).rotateX(Math.PI), markerGold);
-  const youRing = new THREE.Mesh(
-    new THREE.RingGeometry(19, 22, 32).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: 0xf2c14e, toneMapped: false, transparent: true, opacity: 0.6, depthWrite: false }),
-  );
-  youRing.position.y = 0.8;
-  youMarker.add(youArrow, youRing);
-  world.scene.add(youMarker);
   /** a message over the stage for a few seconds (a split, a penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
@@ -466,6 +458,14 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
         /** the music track playing (or loading) */
         music: () => musicPlaying(),
         skip: (seconds: number) => (race.clock += seconds),
+        /** put your car `along` px down the road (less than 0: that far short of the flying finish), going along it at `speed` px/s */
+        place: (along: number, speed = 150) => {
+          const e = race.entrants[you];
+          const idx = Math.max(0, Math.min(track.samples.length - 1, Math.round((along < 0 ? finishAt + along : along) / track.spacing)));
+          const q = track.samples[idx];
+          Object.assign(e.car, { x: q.x, y: q.y, heading: q.dir, vx: Math.sin(q.dir) * speed, vy: -Math.cos(q.dir) * speed, spin: 0 });
+          e.progress = { ...newProgress(idx), lap: e.progress.lap };
+        },
       },
     });
   }
@@ -751,9 +751,16 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const raceEvents: RaceEvent[] = [];
     const cars: StepEvents[] = race.entrants.map(() => ({ damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0, impact: 0, scrape: 0, rolledNow: false, rolling: false }));
     const brakes = (car: Car) => wheelInput({ turn: 0, gas: 0, brake: 1, drift: false }, car);
+    /** past the flying finish: on down the road, easing down to a stop at the stop control (out of the stage: just the brakes) */
+    const toTheStop = (e: Entrant) => {
+      const left = stopLine - e.progress.idx * track.spacing;
+      if (done && !stage?.result) return brakes(e.car);
+      if (left <= 4) return brakes(e.car);
+      return aiInput(e.car, track, e.progress.idx, { lane: 0, pace: 0.7 }, [], { limit: Math.sqrt(2 * STOP_DECEL * left) });
+    };
     for (let k = 0; k < steps; k++) {
       before = race.entrants.map((e) => ({ x: e.car.x, y: e.car.y, z: e.car.z, heading: e.car.heading }));
-      const s = stepRace(race, SIM_DT, (e) => (pastFinish() ? brakes(e.car) : driveInput(e.car)));
+      const s = stepRace(race, SIM_DT, (e) => (pastFinish() ? toTheStop(e) : driveInput(e.car)));
       raceEvents.push(...s.race);
       s.cars.forEach((ev, i) => {
         const m = cars[i];
@@ -832,14 +839,6 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     }
     // your car (race/drawCars.ts)
     drawCars({ race, looks, events: cars, track, grid, skids, particles, pose: (i) => pose(race.entrants[i].car, i, alpha), dt });
-    // your marker, on the line during the countdown
-    {
-      youMarker.visible = race.phase === 'lights' && running(me);
-      youMarker.position.set(me.car.x, me.car.z, me.car.y);
-      const tt = performance.now() / 1000;
-      youArrow.position.y = 34 + Math.sin(tt * 4) * 3;
-      youArrow.rotation.y = tt * 1.5;
-    }
     const clock = race.clock;
     // (the km you drive: your car's way, live, between frames; not a jump of a restart)
     {
@@ -884,6 +883,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
         soundState.lights = left;
       }
       banner.textContent = left <= COUNTDOWN ? String(left) : '';
+      // (and the start clock beside the line, its lights going out with it)
+      world.setStartClock(left <= COUNTDOWN ? left : null);
       banner.style.color = left <= 1 ? '#f2c14e' : '#f4f4f8';
       // (big: the one thing to watch on the line)
       banner.style.fontSize = 'calc(64px * var(--ts, 1))';
@@ -980,7 +981,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       camera.translateY(o.y);
     }
     world.followSun(focus);
-    world.animate(performance.now() / 1000);
+    if (race.phase === 'racing') world.setStartClock(undefined);
+    world.animate(performance.now() / 1000, race.entrants.filter(running).map((e) => e.car));
     // the weather's look, eased as the road wets and dries and the rain comes and goes (redone only as it changes)
     if (Math.abs(race.wetness - shownLook.wetness) > 0.02 || Math.abs(race.rain - shownLook.rain) > 0.02) {
       shownLook = { wetness: race.wetness, rain: race.rain };
