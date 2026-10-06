@@ -1,11 +1,8 @@
-# GitHub Pages: the play-stats dashboard (stats.html, src/stats/) at the site's root, and the track designer
-# (designer.html, src/designer/, with the game beside it to drive a draft in) under designer/. Built on a push to the
-# default branch that changes either (the designer has the game in it, so most of the source), or by hand (Actions →
-# pages → Run workflow).
+# GitHub Pages: the play-stats dashboard (stats.html, src/stats/) at the site's root. Built on a push to the default
+# branch that changes it, or by hand (Actions → pages → Run workflow).
 #
 # The dashboard's built with the Supabase project's URL and public key (the repository variables SUPABASE_URL and
-# SUPABASE_ANON_KEY, as the game's builds use) and reads the totals live in the browser. The designer's game is built
-# without them: drives of a draft aren't anyone's play, so they send nothing.
+# SUPABASE_ANON_KEY, as the game's builds use) and reads the totals live in the browser.
 #
 # Once, first: Settings → Pages → Build and deployment → Source: GitHub Actions.
 name: pages
@@ -15,12 +12,9 @@ on:
     branches: [main]
     paths:
       - stats.html
-      - designer.html
-      - index.html
-      - src/**
-      - public/**
+      - src/stats/**
+      - src/f1/stages.ts
       - vite.stats.config.ts
-      - vite.designer.config.ts
       - package-lock.json
       - .github/workflows/pages.yml
   workflow_dispatch:
@@ -56,12 +50,6 @@ jobs:
       - run: npm run stats:build
       # (the dashboard at the site's root)
       - run: mv dist-stats/stats.html dist-stats/index.html
-      # the track designer under designer/ (its index; the game beside it, play.html), its game sending nothing
-      - run: npm run designer:build
-        env:
-          VITE_SUPABASE_URL: ''
-          VITE_SUPABASE_ANON_KEY: ''
-      - run: mv dist-designer dist-stats/designer
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

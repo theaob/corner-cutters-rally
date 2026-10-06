@@ -4,8 +4,8 @@
 // the rally's standings after it).
 
 import { soundVolume } from '../../engine/audio';
-import { formatTime as fmt } from '../records';
-import { crewName, crewTeam, gapText, rallyEvent, stageOrder, standings, type Rally } from '../rally';
+import { formatTime as fmt } from '../time';
+import { crewName, crewNumber, gapText, rallyEvent, stageOrder, standings, type Rally } from '../rally';
 import { shown, spoken, type PaceNote } from '../paceNotes';
 import { style } from './dom';
 
@@ -100,14 +100,14 @@ export function renderStageResults(el: HTMLElement, r: Rally, k: number, stageNa
   const stage = stageOrder(r, k).map((o, i) => ({
     you: o.crew === r.you,
     cells: [
-      [`${i + 1}`, dim], [name(o.crew)], [crewTeam(r.crews[o.crew]).code, dim],
+      [`${i + 1}`, dim], [name(o.crew)], [`#${crewNumber(r.crews[o.crew])}`, dim],
       [i === 0 ? fmt(o.time) : gapText(o.gap), right], [o.note ?? '', { color: '#d8323c', fontSize: '10px' }],
     ] as [string, Partial<CSSStyleDeclaration>?][],
   }));
   const after = standings(r).map((s, i) => ({
     you: s.crew === r.you,
     cells: [
-      [`${i + 1}`, dim], [name(s.crew)], [crewTeam(r.crews[s.crew]).code, dim], [i === 0 ? fmt(s.total) : gapText(s.gap), right],
+      [`${i + 1}`, dim], [name(s.crew)], [`#${crewNumber(r.crews[s.crew])}`, dim], [i === 0 ? fmt(s.total) : gapText(s.gap), right],
     ] as [string, Partial<CSSStyleDeclaration>?][],
   }));
   const last = k === event.stages.length - 1;

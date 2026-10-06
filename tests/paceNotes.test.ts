@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { carClass } from '../src/engine/driving';
 import { buildCircuit } from '../src/f1/circuit';
-import { LAYOUTS, layoutById } from '../src/f1/layouts';
-import { STAGE_SPECS } from '../src/f1/stages';
-import { buildTrack, lineCornerSpeed, lineDecel, type Pt } from '../src/f1/racing';
+import { STAGE_SPECS, stageById } from '../src/f1/stages';
+import { buildTrack, lineCornerSpeed, lineDecel, type Pt, type Track } from '../src/f1/racing';
 import { NOTES, newCaller, noteText, paceNotes, shown, spoken, stepCaller, type PaceNote } from '../src/f1/paceNotes';
 
 const f1 = carClass('f1');
-const trackOf = (id: string) => buildCircuit(layoutById(id)!, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) }).track;
+// (each stage's road built once)
+const tracks = new Map<string, Track>();
+const trackOf = (id: string) => {
+  let t = tracks.get(id);
+  if (!t) tracks.set(id, (t = buildCircuit(stageById(id)!, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) }).track));
+  return t;
+};
 
 /** A loop: a long straight, then a half circle of radius `r` round to the straight back, and another. */
 function stadium(r: number, straight = 1600): Pt[] {
@@ -43,25 +48,21 @@ describe('pace notes', () => {
     expect(jump.gap).toBeGreaterThanOrEqual(NOTES.distance);
     expect(jump.gap! % 50).toBe(0);
   });
-  it.each(LAYOUTS)('give $name a note for its bends, in order along the lap', (layout) => {
-    const notes = paceNotes(trackOf(layout.id));
-    expect(notes.length).toBeGreaterThanOrEqual(5);
-    notes.forEach((n, i) => i && expect(n.at).toBeGreaterThanOrEqual(notes[i - 1].at));
-  });
   it.each(STAGE_SPECS)('give the $name stage its bends from the start line on, ending with the flying finish', (spec) => {
     const track = trackOf(spec.id);
     const notes = paceNotes(track);
-    expect(notes.length).toBeGreaterThanOrEqual(20);
+    // (a note every 800 px of road at least: twenty on a full stage, fewer on the short shakedown)
+    expect(notes.length).toBeGreaterThanOrEqual(Math.floor(spec.length / 800));
     notes.forEach((n, i) => i && expect(n.at).toBeGreaterThanOrEqual(notes[i - 1].at));
     expect(notes[0].end).toBeGreaterThanOrEqual(track.stage!.start);
     const last = notes[notes.length - 1];
     expect(noteText(last)).toBe('FLYING FINISH');
     expect(last.at).toBe(track.stage!.finish);
     expect(last.gap).toBeUndefined();
-  });
-  it('find the Harbour hairpin', () => {
-    expect(paceNotes(trackOf('harbour')).some((n) => n.grade === 'hairpin')).toBe(true);
-  });
+  }, 30_000);
+  it('find a hairpin on some stage', () => {
+    expect(STAGE_SPECS.some((spec) => paceNotes(trackOf(spec.id)).some((n) => n.grade === 'hairpin'))).toBe(true);
+  }, 60_000);
 });
 
 describe('the co-driver', () => {

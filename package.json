@@ -8,8 +8,6 @@
     "build": "tsc && vite build",
     "youtube:build": "tsc && VITE_STORE=youtube VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= vite build --outDir dist-youtube --emptyOutDir && python3 tools/youtube-bundle.py dist-youtube",
     "preview": "vite preview",
-    "designer": "vite --config vite.designer.config.ts --open /designer.html",
-    "designer:build": "vite build --config vite.designer.config.ts",
     "stats": "vite --config vite.stats.config.ts --open /stats.html",
     "stats:build": "vite build --config vite.stats.config.ts",
     "typecheck": "tsc",
@@ -26,7 +24,6 @@
     "@capacitor/filesystem": "^8.1.4",
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/share": "^8.0.3",
-    "cordova-plugin-purchase": "^13.18.0",
     "html-to-image": "^1.11.13",
     "three": "^0.186.1"
   },

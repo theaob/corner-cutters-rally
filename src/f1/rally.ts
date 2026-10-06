@@ -18,7 +18,7 @@ import { seededRandom } from '../engine/rng';
 import { aiPaceFor, paceRanks, type Difficulty } from './difficulty';
 import { newRace, stepRace } from './raceControl';
 import { stageSplits, type Track } from './racing';
-import { TEAMS, type Seat, type Team } from './teams';
+import { CREWS, SCHEMES, crewById, schemeById, type Scheme } from './crews';
 import type { WeatherId } from './weather';
 
 export const RALLY = {
@@ -86,18 +86,19 @@ export const RALLIES: RallyEvent[] = [
 
 export const rallyById = (id: string | null | undefined) => RALLIES.find((r) => r.id === id);
 
-/** A crew: its team and which of its drivers, and its pace rank (0 the quickest; yours undefined). */
+/** A crew in a rally: a rival (crews.ts) with its pace rank (0 the quickest), or you (no crew, your car's paint). */
 export interface RallyCrew {
-  team: string;
-  seat: Seat;
+  crew?: string;
   rank?: number;
+  /** yours: the paint scheme you picked */
+  scheme?: string;
 }
 
 /** What happened to a crew on a stage, said in the stage's results. */
 export type StageNote = 'OFF' | 'SPIN' | 'PUNCTURE' | 'ROLLED' | 'DNF' | 'PENALTY';
 
 export interface Rally {
-  v: 1;
+  v: 2;
   event: string;
   seed: number;
   difficulty: string;
@@ -110,11 +111,10 @@ export interface Rally {
   health: number;
 }
 
-/** A new rally: you for `team` (its `seat`) against nine crews drawn from the other teams' drivers, by `seed`. */
-export function newRally(o: { event: RallyEvent; seed: number; team: Team; seat: Seat; difficulty: string }): Rally {
+/** A new rally: you in your car's `scheme` against nine of the rival crews, drawn by `seed`. */
+export function newRally(o: { event: RallyEvent; seed: number; scheme: Scheme; difficulty: string }): Rally {
   const rng = seededRandom(o.seed);
-  const others: RallyCrew[] = [];
-  for (const t of TEAMS) for (const seat of [0, 1] as Seat[]) if (!(t.id === o.team.id && seat === o.seat)) others.push({ team: t.id, seat });
+  const others: RallyCrew[] = CREWS.map((c) => ({ crew: c.id }));
   // nine of them, at random
   for (let i = others.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -125,8 +125,8 @@ export function newRally(o: { event: RallyEvent; seed: number; team: Team; seat:
   rivals.forEach((c, i) => (c.rank = ranks[i]));
   // (you start in the middle of the running order)
   const you = Math.floor(RALLY.crews / 2);
-  const crews = [...rivals.slice(0, you), { team: o.team.id, seat: o.seat }, ...rivals.slice(you)];
-  return { v: 1, event: o.event.id, seed: o.seed, difficulty: o.difficulty, crews, you, stages: [], health: 1 };
+  const crews = [...rivals.slice(0, you), { scheme: o.scheme.id }, ...rivals.slice(you)];
+  return { v: 2, event: o.event.id, seed: o.seed, difficulty: o.difficulty, crews, you, stages: [], health: 1 };
 }
 
 export const rallyEvent = (r: Rally): RallyEvent => rallyById(r.event) ?? RALLIES[0];
@@ -138,17 +138,19 @@ export const stageSeed = (r: Rally, k: number) => ((r.seed * 31 + (k + 1) * 7919
 /** The service park comes after stage `k`. */
 export const serviceAfter = (r: Rally, k: number) => rallyEvent(r).service.includes(k);
 
-/** A crew's team (yours too). */
-export const crewTeam = (c: RallyCrew): Team => TEAMS.find((t) => t.id === c.team) ?? TEAMS[0];
-/** A crew's name: its driver's code. */
-export const crewName = (c: RallyCrew): string => crewTeam(c).drivers[c.seat];
+/** A crew's paint (yours too). */
+export const crewScheme = (c: RallyCrew): Scheme => schemeById(c.scheme ?? crewById(c.crew)?.scheme) ?? SCHEMES[0];
+/** A crew's name, as the timing screens show it (yours: YOU). */
+export const crewName = (c: RallyCrew): string => crewById(c.crew)?.name ?? 'YOU';
+/** A crew's car number (yours: 1). */
+export const crewNumber = (c: RallyCrew): number => crewById(c.crew)?.number ?? 1;
 
 /**
  * A stage's reference run: one car flat out on the racing line, alone, from a standing start at `start`; its time from
  * GO to the flying finish, and its time at each split (stageSplits).
  */
 export function referenceStage(track: Track, grid: Grid, handling: HandlingParams, weather: WeatherId, start: { x: number; y: number; heading: number }): { time: number; splits: number[] } {
-  const race = newRace(track, grid, handling, 1, [{ car: newCar(carClass('f1'), start.x, start.y, start.heading), ai: { lane: 0, pace: 1 } }], 0, undefined, weather);
+  const race = newRace(track, grid, handling, 1, [{ car: newCar(carClass('f1'), start.x, start.y, start.heading), ai: { lane: 0, pace: 1 } }], 0, weather);
   const marks = stageSplits(track);
   const finish = track.stage?.finish ?? track.length;
   const splits: number[] = [];
@@ -248,9 +250,9 @@ export function gapText(s: number): string {
 export function parseRally(v: unknown): Rally | undefined {
   if (!v || typeof v !== 'object') return undefined;
   const r = v as Rally;
-  const ok = r.v === 1 && !!rallyById(r.event) && Number.isInteger(r.seed) && Array.isArray(r.crews) && r.crews.length >= 2 && Number.isInteger(r.you)
+  const ok = r.v === 2 && !!rallyById(r.event) && Number.isInteger(r.seed) && Array.isArray(r.crews) && r.crews.length >= 2 && Number.isInteger(r.you)
     && r.you >= 0 && r.you < r.crews.length && Array.isArray(r.stages) && r.stages.every((s) => Array.isArray(s?.times) && s.times.length === r.crews.length && s.times.every(Number.isFinite))
-    && typeof r.health === 'number' && r.crews.every((c) => typeof c?.team === 'string');
+    && typeof r.health === 'number' && r.crews.every((c, i) => (i === r.you ? !!schemeById(c?.scheme) : !!crewById(c?.crew)));
   return ok ? { ...r, stages: r.stages.map((s) => ({ times: s.times, notes: Array.isArray(s.notes) ? s.notes : s.times.map(() => undefined) })) } : undefined;
 }
 
@@ -274,4 +276,19 @@ export function recordBest(r: Rally): boolean {
   if (had && (had.place < place || (had.place === place && had.total <= total))) return false;
   save('rally', 'best', { ...bests, [r.event]: { place, total } });
   return true;
+}
+
+/** Your best time on each stage (s, penalties in), by its id. */
+export function loadStageBests(): Record<string, number> {
+  const v = saved('rally', 'stages');
+  if (!v || typeof v !== 'object') return {};
+  return Object.fromEntries(Object.entries(v as Record<string, unknown>).filter((e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1]) && e[1] > 0));
+}
+/** A stage run in `time` s: kept if it's your best there. Whether it was (and there was one before it to beat). */
+export function recordStageBest(id: string, time: number): { best: boolean; had?: number } {
+  const bests = loadStageBests();
+  const had = bests[id];
+  if (had !== undefined && had <= time) return { best: false, had };
+  save('rally', 'stages', { ...bests, [id]: time });
+  return { best: true, had };
 }

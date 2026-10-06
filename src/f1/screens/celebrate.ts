@@ -1,47 +1,10 @@
-// Celebrations: a medal stamped onto the screen when you win one (it drops in
-// big, lands with a bounce and a glint runs across it), a trophy for a
-// Championship won, and confetti. Drawn with the DOM and a canvas over
-// whatever's showing; each goes away by itself. With reduced motion asked for,
-// the medal and trophy just appear and there's no confetti.
-
-import { MEDAL_COLOR, MEDAL_NAME, type Medal } from '../medals';
-
-/** ms the medal stays up (dropping in, held, fading). */
-export const STAMP_MS = 2600;
+// Celebrations: a trophy for a rally won, confetti, and toasts. Drawn with the
+// DOM and a canvas over whatever's showing; each goes away by itself. With
+// reduced motion asked for, the trophy just appears and there's no confetti.
 
 const reduced = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
-/** A medal: a disc in its colour on a ribbon, with a star; `size` px across. */
-export function medalBadge(medal: Medal, size: number): HTMLDivElement {
-  const el = document.createElement('div');
-  el.className = 'medal-badge';
-  el.style.setProperty('--medal', MEDAL_COLOR[medal]);
-  el.style.setProperty('--size', `${size}px`);
-  const ribbon = document.createElement('i');
-  ribbon.className = 'ribbon';
-  const disc = document.createElement('b');
-  disc.className = 'disc';
-  // (an embossed star: a darker shade of the medal's own colour)
-  disc.innerHTML = '<svg viewBox="0 0 24 24" width="55%" height="55%"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 20.9l1.6-7L2 9.2l7.1-.6z" fill="rgba(0,0,0,.2)"/></svg>';
-  el.append(ribbon, disc);
-  return el;
-}
-
-/** Stamp `medal` onto `host` (a race's screen), with `line` under it (the lap, the distance); gone after STAMP_MS. */
-export function stampMedal(host: HTMLElement, medal: Medal, line: string): void {
-  const wrap = document.createElement('div');
-  wrap.className = `medal-stamp${reduced() ? ' still' : ''}`;
-  const name = document.createElement('strong');
-  name.textContent = `${MEDAL_NAME[medal]} MEDAL`;
-  name.style.color = MEDAL_COLOR[medal];
-  const sub = document.createElement('span');
-  sub.textContent = line;
-  wrap.append(medalBadge(medal, 84), name, sub);
-  host.append(wrap);
-  setTimeout(() => wrap.remove(), STAMP_MS);
-}
-
-/** A trophy (the Championship's), `size` px tall. */
+/** A trophy (a rally won), `size` px tall. */
 export function trophy(size: number): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 32 36');

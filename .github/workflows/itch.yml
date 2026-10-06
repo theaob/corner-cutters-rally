@@ -30,8 +30,8 @@ jobs:
       ITCH_TARGET: ${{ vars.ITCH_TARGET || secrets.ITCH_TARGET }}
       # publish from the default branch (push or manual run), never from pull requests
       PUBLISH: ${{ github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch }}
-      # the Daily Challenge's online board and the play stats (Supabase, supabase/README.md): the project's URL and its
-      # public (anon) key, as repository variables or secrets; left out, the game plays offline (no board, no stats)
+      # the play stats (Supabase, supabase/README.md): the project's URL and its
+      # public (anon) key, as repository variables or secrets; left out, the game plays offline (no stats)
       VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
     steps:

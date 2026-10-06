@@ -10,8 +10,6 @@ import * as THREE from 'three';
 import { groundAt } from '../engine/sim';
 import { HALF_WIDTH, RUNOFF, TILE as T, type Circuit } from './circuit';
 import { treesOf } from './forest3d';
-import { GARAGE_ACROSS } from './pits';
-import { STAND, standsOf } from './stands';
 
 export const CAMELS = {
   /** caravans round the lap, and camels in one (at least, and up to this many more) */
@@ -122,10 +120,9 @@ export function camelsAt(c: Caravan, t: number): CamelAt[] {
 /** The caravans at a desert circuit (none elsewhere): spread round the lap, each beside a stretch of track. */
 export function caravansOf(circuit: Circuit): Caravan[] {
   if (!circuit.layout.desert) return [];
-  const { track, pit } = circuit;
+  const { track } = circuit;
   const n = track.samples.length;
   const reach = HALF_WIDTH + RUNOFF;
-  const stands = standsOf(circuit);
   const palms = treesOf(circuit);
   const W = circuit.width * T;
   const H = circuit.height * T;
@@ -136,8 +133,6 @@ export function caravansOf(circuit: Circuit): Caravan[] {
       const p = track.samples[i];
       if (Math.hypot(p.x - x, p.y - y) < reach + CAMELS.clearTrack) return false;
     }
-    if (pit.points.some((q) => Math.hypot(q.x - x, q.y - y) < GARAGE_ACROSS + 40)) return false;
-    if (stands.some((s) => Math.hypot(s.x - x, s.y - y) < s.len / 2 + STAND.depth + 12)) return false;
     if (palms.some((p) => Math.hypot(p.x - x, p.y - y) < CAMELS.clearPalm)) return false;
     return true;
   };

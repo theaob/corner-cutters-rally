@@ -4,9 +4,8 @@
 // or right. A piece is kept only if the road stays inside the map and keeps
 // well clear of every stretch of itself further back (it never crosses or runs
 // alongside itself); when the road has boxed itself in, the last pieces are
-// taken back and tried again. A stage opens on a straight (the service park
-// beside it, the start line at its end); past the flying finish the road runs
-// on to the stop at its end. Over it, hills from its
+// taken back and tried again. A stage opens on a straight (the start line near
+// its end); past the flying finish the road runs on to the stop at its end. Over it, hills from its
 // seed, and on a long straight here and there, a jump. Engine-free; the same
 // stage from the same seed, every time.
 
@@ -43,7 +42,7 @@ export const ROAD = {
   apart: 400,
   /** px along the road past which two stretches must be `apart`; nearer along it, a share of the way along (a hairpin's legs) */
   near: 1000,
-  /** px of straight it opens with: the service park beside it, the start line near its end */
+  /** px of straight it opens with, the start line near its end */
   opening: 1700,
   /** px along the road of the start line */
   start: 1500,
@@ -210,7 +209,7 @@ function hills(rng: () => number, length: number, high: number): [number, number
   return out;
 }
 
-/** The stage layout for `spec`: its road grown, its hills, jumps, service park, start and finish. */
+/** The stage layout for `spec`: its road grown, its hills, jumps, start and finish. */
 export function buildStage(spec: StageSpec): CircuitLayout {
   const { points, straights } = growRoad(spec);
   const rng = seededRandom((spec.seed * 7919) >>> 0 || 1);
@@ -233,11 +232,8 @@ export function buildStage(spec: StageSpec): CircuitLayout {
     points,
     scale: 1,
     elevation: hills(rng, length, spec.hills ?? 60),
-    // the service park: beside the opening straight, before the start line
-    pit: { from: 240, to: 1240, side: 1 },
     stage: { start: ROAD.start, finish },
     ...(jumps.length ? { jumps } : {}),
-    free: true,
     ...(surface !== 'tarmac' ? { dirt: true } : {}),
     ...(surface === 'snow' ? { snow: true, mountain: true } : {}),
     ...(surface === 'sand' ? { desert: true } : {}),
@@ -245,8 +241,12 @@ export function buildStage(spec: StageSpec): CircuitLayout {
   };
 }
 
-/** The rallies' stages. */
+/** The shakedown: a short gravel road to try the car on (the controls lap for a new player, and behind the menu). */
+export const SHAKEDOWN = 'ss-shakedown';
+
+/** The rallies' stages, and the shakedown. */
 export const STAGE_SPECS: StageSpec[] = [
+  { id: SHAKEDOWN, name: 'Shakedown', about: 'gravel · a short road to try the car on', seed: 7, surface: 'gravel', length: 6000, jumps: 1, hills: 50 },
   // gravel, through the forests
   { id: 'ss-pine-ridge', name: 'Pine Ridge', about: 'gravel · fast through the pines', seed: 11, surface: 'gravel', length: 17000, jumps: 2, hills: 70 },
   { id: 'ss-old-mill', name: 'Old Mill', about: 'gravel · twisty, down to the river', seed: 23, surface: 'gravel', length: 19000, jumps: 1, hills: 90 },

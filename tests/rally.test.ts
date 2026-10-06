@@ -7,13 +7,15 @@ const [EASY, , HARD] = DIFFICULTIES;
 import { layoutById } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import {
-  RALLIES, RALLY, aiStage, crewName, gapText, loadBests, loadRally, newRally, nextStage, parseRally, rallyOver, recordBest, recordStage,
-  referenceStage, saveRally, serviceAfter, stageOrder, standings, yourPlace,
+  RALLIES, RALLY, aiStage, crewName, crewNumber, crewScheme, gapText, loadBests, loadRally, loadStageBests, newRally, nextStage, parseRally,
+  rallyOver, recordBest, recordStage, recordStageBest, referenceStage, saveRally, serviceAfter, stageOrder, standings, yourPlace,
 } from '../src/f1/rally';
-import { TEAMS } from '../src/f1/teams';
+import { CREWS, SCHEMES, YOUR_NUMBER, crewById } from '../src/f1/crews';
+import { useSave } from '../src/engine/save';
+import { CC_SAVE } from '../src/f1/save';
 
 const forests = RALLIES[0];
-const fresh = (seed = 7) => newRally({ event: forests, seed, team: TEAMS[1], seat: 0, difficulty: 'normal' });
+const fresh = (seed = 7) => newRally({ event: forests, seed, scheme: SCHEMES[1], difficulty: 'normal' });
 /** Run stage `k` with your time `time` (undefined: didn't finish). */
 const run = (r: ReturnType<typeof fresh>, time: number | undefined, health = 0.8) => recordStage(r, nextStage(r), { time, health }, aiStage(r, nextStage(r), 30, NORMAL));
 
@@ -28,13 +30,24 @@ describe('the rallies', () => {
 });
 
 describe('a rally', () => {
-  it('has ten crews, you among them once, the rest other drivers with a pace rank each', () => {
+  it('has ten crews, you among them once in your paint, the rest nine different rival crews with a pace rank each', () => {
     const r = fresh();
     expect(r.crews).toHaveLength(RALLY.crews);
-    expect(r.crews[r.you]).toEqual({ team: TEAMS[1].id, seat: 0 });
+    expect(r.crews[r.you]).toEqual({ scheme: SCHEMES[1].id });
+    expect(crewName(r.crews[r.you])).toBe('YOU');
+    expect(crewNumber(r.crews[r.you])).toBe(YOUR_NUMBER);
+    expect(crewScheme(r.crews[r.you])).toBe(SCHEMES[1]);
+    const rivals = r.crews.filter((_, i) => i !== r.you);
+    for (const c of rivals) {
+      expect(Object.keys(c).sort()).toEqual(['crew', 'rank']);
+      expect(CREWS.map((x) => x.id)).toContain(c.crew);
+      expect(crewName(c)).toBe(crewById(c.crew)!.name);
+      expect(crewScheme(c).id).toBe(crewById(c.crew)!.scheme);
+    }
+    expect(new Set(rivals.map((c) => c.crew)).size).toBe(9);
     const names = r.crews.map(crewName);
     expect(new Set(names).size).toBe(names.length);
-    expect(r.crews.filter((_, i) => i !== r.you).map((c) => c.rank).sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(rivals.map((c) => c.rank).sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
   it('is the same rally from the same seed', () => {
     expect(fresh(3)).toEqual(fresh(3));
@@ -100,6 +113,8 @@ describe('a rally', () => {
     expect(parseRally({ ...r, event: 'nowhere' })).toBeUndefined();
     expect(parseRally({ ...r, stages: [{ times: [1] }] })).toBeUndefined();
     expect(parseRally('rally')).toBeUndefined();
+    expect(parseRally({ ...r, v: 1 })).toBeUndefined();
+    expect(parseRally({ ...r, crews: r.crews.map((c, i) => (i === r.you ? { scheme: 'no-such-paint' } : c)) })).toBeUndefined();
   });
   it('keeps your best finish in each rally', () => {
     const r = fresh();
@@ -110,6 +125,19 @@ describe('a rally', () => {
     for (let k = 0; k < forests.stages.length; k++) run(again, 20);
     expect(recordBest(again)).toBe(place > 1);
     expect(loadBests()[forests.id].place).toBe(1);
+  });
+});
+
+describe('your best time on each stage', () => {
+  it('is kept when it beats the one before (or there was none), and says what it beat', () => {
+    useSave(CC_SAVE, undefined);
+    expect(loadStageBests()).toEqual({});
+    expect(recordStageBest('ss-pine-ridge', 300)).toEqual({ best: true, had: undefined });
+    expect(recordStageBest('ss-pine-ridge', 310)).toEqual({ best: false, had: 300 });
+    expect(recordStageBest('ss-pine-ridge', 300)).toEqual({ best: false, had: 300 });
+    expect(recordStageBest('ss-pine-ridge', 295.5)).toEqual({ best: true, had: 300 });
+    recordStageBest('ss-old-mill', 280);
+    expect(loadStageBests()).toEqual({ 'ss-pine-ridge': 295.5, 'ss-old-mill': 280 });
   });
 });
 

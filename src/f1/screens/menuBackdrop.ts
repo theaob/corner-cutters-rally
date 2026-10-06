@@ -1,7 +1,7 @@
-// The menu's live backdrop: a race going on behind the menus. A handful of AI
-// cars lap a circuit (the one last picked) in
-// the race's own simulation, already spread out round the lap when it fades
-// in; the camera follows one car, and every few seconds pans over to another,
+// The menu's live backdrop: rally cars on the shakedown behind the menus. A
+// few AI cars drive the road one after another, spread out along it, in the
+// stage's own simulation, each starting again from the line once it's over the
+// finish; the camera follows one car, and every few seconds pans over to another,
 // a little wider than in a race. Drawn small and at most 30 times a second, and
 // not while the page is hidden; none at all for a device asking for reduced
 // motion (or without WebGL). Loaded only once the menu is up, so the menu
@@ -13,23 +13,24 @@ import { SIM_DT, lerp, lerpAngle } from '../../engine/fixedStep';
 import { HD2D_VIEW } from '../../engine/look';
 import { Hd2dPipeline } from '../../engine/render/hd2d';
 import { createCarMesh } from '../../engine/render/vehicles3d';
-import { gridFor } from '../bridge';
 import { buildCircuit } from '../circuit';
 import { createCircuitScene } from '../circuitScene';
 import { NORMAL, handlingFor } from '../difficulty';
 import type { CircuitLayout } from '../layouts';
 import { newRace, stepRace } from '../raceControl';
-import { lineCornerSpeed, lineDecel } from '../racing';
-import { TEAMS } from '../teams';
+import { lineCornerSpeed, lineDecel, newProgress } from '../racing';
+import { CREWS, crewById, liveryOf, schemeById } from '../crews';
 import { DRY } from '../weather';
 import { keepStill } from './backdropStill';
 import { gameHidden } from '../../engine/host';
 
 export const BACKDROP = {
-  /** cars lapping */
-  cars: 6,
-  /** s of racing run before it's shown (the field spread out round the lap) */
-  preRoll: 14,
+  /** cars on the road */
+  cars: 3,
+  /** px apart along the road they start */
+  apart: 1600,
+  /** s of driving run before it's shown */
+  preRoll: 4,
   /** s the camera stays with a car before panning to the next */
   dwell: 7,
   /** the camera's zoom (a race's is 0.8) */
@@ -46,7 +47,7 @@ export const BACKDROP = {
 const deg = THREE.MathUtils.degToRad;
 
 /**
- * Start the backdrop behind `host`'s contents, racing on `layout`, fading in
+ * Start the backdrop behind `host`'s contents, driving `layout`, fading in
  * over `still` (the still it's in place of, taken away once it's covered).
  * Gives back a function that stops it.
  */
@@ -62,19 +63,35 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
   const handling = handlingFor(NORMAL);
   const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, handling), decel: lineDecel(f1) });
   const world = createCircuitScene(circuit, DRY);
-  // the field: a car from each of the first teams, a touch apart in pace so they race
-  const field = circuit.slots.slice(0, BACKDROP.cars).map((s, k) => ({
-    car: newCar(f1, s.x, s.y, s.heading),
-    ai: { lane: ((k * 7) % 11) - 5, pace: 0.93 - k * 0.012, craft: 0.6 },
-  }));
-  const race = newRace(circuit.track, circuit.grid, handling, 9999, field, 0, undefined, 'dry');
+  const { track } = circuit;
+  const start = circuit.layout.stage?.start ?? 0;
+  const finish = circuit.layout.stage?.finish ?? track.length;
+  /** a car's place on the road `along` px from its start, standing */
+  const place = (car: Car, along: number) => {
+    const s = track.samples[Math.min(track.samples.length - 1, Math.round(along / track.spacing))];
+    Object.assign(car, { x: s.x, y: s.y, heading: s.dir, vx: 0, vy: 0 });
+  };
+  // the cars: spread out along the road, the first furthest on, a touch apart in pace
+  const field = Array.from({ length: BACKDROP.cars }, (_, k) => {
+    const car = newCar(f1, 0, 0, 0);
+    place(car, start + (BACKDROP.cars - 1 - k) * BACKDROP.apart);
+    return { car, ai: { lane: 0, pace: 0.92 - k * 0.015 } };
+  });
+  const race = newRace(track, circuit.grid, handling, 1, field, 0, 'dry');
   const meshes = field.map((_, k) => {
-    const t = TEAMS[k % TEAMS.length];
-    const mesh = createCarMesh('f1', { body: t.body, stripe: t.trim, accent: t.accent, pattern: t.pattern }, !!circuit.layout.dirt);
+    const crew = crewById(CREWS[k % CREWS.length].id)!;
+    const mesh = createCarMesh('f1', liveryOf(schemeById(crew.scheme)!, crew.number), !!circuit.layout.dirt);
     world.scene.add(mesh);
     return mesh;
   });
+  /** Each car over the finish: back to the start line, to go again. */
+  const again = () => race.entrants.forEach((e) => {
+    if (e.progress.idx * track.spacing < finish) return;
+    place(e.car, start);
+    e.progress = newProgress(Math.round(start / track.spacing));
+  });
   for (let t = 0; t < BACKDROP.preRoll + 4; t += SIM_DT) stepRace(race, SIM_DT);
+  again();
 
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -125,13 +142,14 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
     while (carry >= SIM_DT) {
       before = race.entrants.map((e) => ({ x: e.car.x, y: e.car.y, z: e.car.z, heading: e.car.heading }));
       stepRace(race, SIM_DT);
+      again();
       carry -= SIM_DT;
     }
     const alpha = carry / SIM_DT;
     const at = (car: Car, k: number) => ({ x: lerp(before[k].x, car.x, alpha), y: lerp(before[k].y, car.y, alpha), z: lerp(before[k].z, car.z, alpha), heading: lerpAngle(before[k].heading, car.heading, alpha) });
     race.entrants.forEach((e, k) => {
       const p = at(e.car, k);
-      const tilt = bodyTilt(e.car, gridFor(circuit.track, circuit.grid, e.progress.idx));
+      const tilt = bodyTilt(e.car, circuit.grid);
       meshes[k].position.set(p.x, p.z, p.y);
       meshes[k].rotation.set(tilt.pitch, -p.heading, tilt.roll, 'YXZ');
     });
@@ -155,8 +173,6 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
     camera.lookAt(focus);
     world.followSun(focus);
     world.animate(now / 1000);
-    // (the cherry blossom's petals, where there's blossom: kicked up by the cars as they race)
-    world.stepScenery(frameDt, race.entrants.map((e) => e.car), c);
     post.render(dt, { bloom: HD2D_VIEW.bloom, blur: HD2D_VIEW.blur, bloomOn: true, blurOn: true });
     // (faded in once a few frames are drawn: the first can take a while, compiling the shaders)
     if (++drawn === 3) {

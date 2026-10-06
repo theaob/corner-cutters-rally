@@ -165,22 +165,12 @@ describe('guardInput', () => {
 
 describe('menu row gestures', () => {
   it('swipe left for the next value, right for the previous; tap the sides to step; ignore a wobble', async () => {
-    const { rowGesture } = await import('../src/f1/circuitSelect');
+    const { rowGesture } = await import('../src/f1/menu');
     expect(rowGesture(-60, 0.5)).toBe(1);
     expect(rowGesture(45, 0.5)).toBe(-1);
     expect(rowGesture(3, 0.8)).toBe(1); // a tap on the right
     expect(rowGesture(-2, 0.1)).toBe(-1); // a tap on the ◀ side
     expect(rowGesture(18, 0.5)).toBe(0); // neither a tap nor a swipe
-  });
-
-  it('turns a gesture on the circuit card into a step through the circuits, or a race', async () => {
-    const { cardGesture } = await import('../src/f1/circuitSelect');
-    expect(cardGesture(-60, 0.5)).toBe(1); // a swipe left: the next circuit
-    expect(cardGesture(45, 0.5)).toBe(-1);
-    expect(cardGesture(2, 0.1)).toBe(-1); // a tap on its ◀
-    expect(cardGesture(-3, 0.9)).toBe(1); // a tap on its ▶
-    expect(cardGesture(4, 0.5)).toBe('race'); // a tap in the middle races it
-    expect(cardGesture(18, 0.5)).toBe(0); // neither a tap nor a swipe
   });
 });
 

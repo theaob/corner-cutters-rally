@@ -3,10 +3,9 @@ import { carClass, newCar } from '../src/engine/driving';
 import { SIM_DT, advance, fixedClock, lerpAngle, resetClock } from '../src/engine/fixedStep';
 import { seededRandom } from '../src/engine/rng';
 import { buildCircuit } from '../src/f1/circuit';
-import { SILVER_HEATH } from '../src/f1/layouts';
 import { RACE_HANDLING, lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { newRace, stepRace, type Race } from '../src/f1/raceControl';
-import { TEAMS, teamGrid } from '../src/f1/teams';
+import { SHAKEDOWN, stageById } from '../src/f1/stages';
 
 describe('the fixed-step clock', () => {
   it('runs whole steps for each frame, carrying the rest over', () => {
@@ -63,20 +62,15 @@ describe('seeded random numbers', () => {
     for (let i = 0; i < 10000; i++) bins[Math.floor(r() * 10)]++;
     for (const n of bins) expect(Math.abs(n - 1000)).toBeLessThan(120);
   });
-
-  it('draw the same grid for the same race seed', () => {
-    const grid = (seed: number) => teamGrid(TEAMS[0], 10, 5, seededRandom(seed)).map((t) => t.id);
-    expect(grid(99)).toEqual(grid(99));
-  });
 });
 
 const f1 = carClass('f1');
-const c = buildCircuit(SILVER_HEATH, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+const c = buildCircuit(stageById(SHAKEDOWN)!, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
 
-/** A race of 10 AI cars, the lights out after `wait` s. */
+/** The shakedown with 10 AI cars on it at once, GO after `wait` s. */
 function race(wait = 0.6): Race {
-  const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: 0.94 * (1 - (i / 10) * 0.05) }, box: i >> 1 }));
-  return newRace(c.track, c.grid, RACE_HANDLING, 2, field, wait, c.pit);
+  const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: 0.94 * (1 - (i / 10) * 0.05) } }));
+  return newRace(c.track, c.grid, RACE_HANDLING, 1, field, wait);
 }
 
 /** Run `r` for `total` fixed steps, driven by frames at `hz` (± `jitter` of a frame, from a fixed sequence); the cars' state after. */
@@ -88,12 +82,12 @@ function runFrames(r: Race, total: number, hz: number, jitter = 0) {
     const n = advance(clock, (1 / hz) * (1 + (wobble() * 2 - 1) * jitter)).steps;
     for (let k = 0; k < n && steps < total; k++, steps++) stepRace(r, SIM_DT);
   }
-  return r.entrants.map((e) => [e.car.x, e.car.y, e.car.heading, e.progress.lap, e.progress.idx]);
+  return r.entrants.map((e) => [e.car.x, e.car.y, e.car.heading, e.car.health, e.progress.idx]);
 }
 
-describe('a race in fixed steps', () => {
+describe('a stage in fixed steps', () => {
   it('comes out exactly the same at any frame rate, steady or uneven', () => {
-    // 30 s of racing (1800 steps): the start, the first lap, the pack sorting itself out
+    // 30 s of driving (1800 steps): the start, the cars bunched up behind the line, the pack sorting itself out along the road
     const at60 = runFrames(race(), 1800, 60);
     for (const [hz, jitter] of [[30, 0], [144, 0], [60, 0.4], [90, 0.3], [24, 0.5]]) expect(runFrames(race(), 1800, hz, jitter)).toEqual(at60);
   }, 60_000);
@@ -102,7 +96,7 @@ describe('a race in fixed steps', () => {
     expect(runFrames(race(0.9), 1200, 60)).toEqual(runFrames(race(0.9), 1200, 60));
   }, 60_000);
 
-  it('where a step for each frame would not: the frame rate changed the race', () => {
+  it('where a step for each frame would not: the frame rate changed the stage', () => {
     const byFrame = (hz: number) => {
       const r = race();
       for (let t = 0; t < 30; t += 1 / hz) stepRace(r, 1 / hz);

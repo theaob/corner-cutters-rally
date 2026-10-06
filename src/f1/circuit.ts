@@ -1,10 +1,8 @@
-// A circuit from its layout (layouts.ts). Pure layout (no rendering): the
-// track's tiles, run-off, heights and starting grid.
+// A road from its layout (layouts.ts). Pure layout (no rendering): the road's
+// tiles, run-off, heights and starting place.
 
-import { buildLevels } from './bridge';
 import type { Grid } from '../engine/sim';
 import type { CircuitLayout } from './layouts';
-import { PIT, between, buildPitLane, type PitLane } from './pits';
 import { buildTrack, type Track } from './racing';
 
 export const TILE = 16;
@@ -77,9 +75,6 @@ export function kerbed(track: Track): boolean[] {
   return out;
 }
 
-/** px over which a banked bend's tilt eases in and out */
-export const BANK_EASE = 240;
-
 /**
  * A jump (layout.jumps): px of run-up to its lip (the ground rising steadily to it), and px beyond over which it falls
  * back (a gentler slope than the run-up, to land on); and px past the run-off's edge over which it eases out into the
@@ -106,14 +101,7 @@ export function elevationAt(profile: [number, number][], share: number): number 
   return profile[0][1];
 }
 
-/** ('apron': a banked bend's concrete run-off, smooth like the track) */
-export type CircuitCell = 'track' | 'kerb' | 'grass' | 'gravel' | 'apron' | 'wall' | 'pit' | 'pitwall';
-
-/** px from the lane's centre that its tiles reach: on the track's side (up to the pit wall), and away from it */
-export const LANE_IN = 42;
-export const LANE_OUT = 56;
-/** px from the centreline where the pit wall starts, beyond the track edge */
-const PIT_WALL = PIT.offset - LANE_IN - 18;
+export type CircuitCell = 'track' | 'kerb' | 'grass' | 'gravel' | 'wall';
 
 export interface Circuit {
   layout: CircuitLayout;
@@ -122,11 +110,8 @@ export interface Circuit {
   cells: CircuitCell[];
   grid: Grid;
   track: Track;
-  pit: PitLane;
-  /** starting grid slots (px), pole first, all behind the line facing the way of the race */
+  /** starting places (px), the first on the line, the rest behind it, facing along the road */
   slots: { x: number; y: number; heading: number }[];
-  /** how steeply the ground tilts across the track at each sample (rise per px to the right, from the inside edge up; 0 off a banked bend) */
-  bank: Float32Array;
   /** px the layout was moved by to put the map at (0, 0): a point of the layout (scaled) is here at its own minus this */
   offset: { x: number; y: number };
 }
@@ -142,11 +127,10 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   const control = layout.points.map((p) => ({ x: p.x * layout.scale, y: p.y * layout.scale }));
   // (a rally's stage: a road with two ends)
   const track = buildTrack(control, 8, opts.cornerSpeed, opts.decel, !!layout.stage);
-  track.tyreWear = layout.tyreWear;
   if (layout.stage) track.stage = { ...layout.stage };
   if (layout.dirt) track.dirt = true;
-  // (room round the track for its run-off, or for the pit lane and its garages)
-  const margin = Math.max(HALF_WIDTH + RUNOFF + 64, PIT.offset + LANE_OUT + 80);
+  // (room round the road for its run-off and the scenery)
+  const margin = HALF_WIDTH + RUNOFF + 64;
   const minX = Math.min(...track.samples.map((p) => p.x)) - margin;
   const minY = Math.min(...track.samples.map((p) => p.y)) - margin;
   // shift everything so the map starts at (0, 0), on whole tiles
@@ -174,8 +158,8 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     for (let j = by - rb; j <= by + rb; j++) for (let i = bx - rb; i <= bx + rb; i++) out.push(...(buckets.get(`${i},${j}`) ?? []));
     return out;
   };
-  /** px from the centreline the nearest-sample lookup reaches: past the run-off, and past the pit lane */
-  const REACH = Math.max(HALF_WIDTH + RUNOFF, PIT.offset + LANE_OUT) + 16;
+  /** px from the centreline the nearest-sample lookup reaches: past the run-off */
+  const REACH = HALF_WIDTH + RUNOFF + 16;
   const nearest = (x: number, y: number) => {
     let best = -1;
     let bestD = Infinity;
@@ -188,20 +172,8 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   };
 
   const n = track.samples.length;
-  // (from the samples, already shifted onto the map)
-  const pit = buildPitLane(track, layout.pit);
-  /** px across the pit lane (+ = away from the track) of (x, y), if it's beside the lane */
-  const acrossLane = (x: number, y: number): number | undefined => {
-    let best: (typeof pit.points)[0] | undefined;
-    let bestD = (LANE_OUT + 24) ** 2;
-    for (const q of pit.points) {
-      const d = (q.x - x) ** 2 + (q.y - y) ** 2;
-      if (d < bestD) [best, bestD] = [q, d];
-    }
-    return best && ((x - best.x) * Math.cos(best.dir) + (y - best.y) * Math.sin(best.dir)) * pit.side;
-  };
-  /** px from the track's edge to the walls: the run-off, or a street circuit's pavement */
-  const runoff = layout.street?.runoff ?? RUNOFF;
+  /** px from the track's edge to the walls */
+  const runoff = RUNOFF;
   /** samples along the lap within which a sample is the same stretch (past them, another stretch, if it's near) */
   const sameStretch = Math.ceil((3 * (HALF_WIDTH + runoff)) / track.spacing);
   /** the nearest sample to (x, y) on another stretch of the lap than sample `i`'s, within the run-off, if any */
@@ -217,24 +189,6 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     }
     return best < 0 ? undefined : { i: best, d: Math.sqrt(bestD) };
   };
-  // a banked bend: how steeply the ground tilts across the track at each sample (easing in and out over
-  // BANK_EASE px at its ends), up toward the outside of the bend
-  const bank = new Float32Array(n);
-  if (layout.banking) {
-    const { from, to, grade } = layout.banking;
-    const span = (((to - from) % track.length) + track.length) % track.length;
-    let turn = 0;
-    track.samples.forEach((p, i) => {
-      const along = (((p.s - from) % track.length) + track.length) % track.length;
-      if (along > span) return;
-      const ease = Math.min(1, along / BANK_EASE, (span - along) / BANK_EASE);
-      bank[i] = grade * ease * ease * (3 - 2 * ease);
-      turn += p.curve;
-    });
-    // (a right-hander's outside is on the left)
-    const outside = turn > 0 ? -1 : 1;
-    for (let i = 0; i < n; i++) bank[i] *= outside;
-  }
   const kerbs = kerbed(track);
   const cells: CircuitCell[] = [];
   for (let ty = 0; ty < H; ty++) {
@@ -243,24 +197,6 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
       const y = (ty + 0.5) * TILE;
       const { i, d } = nearest(x, y);
       const p = track.samples[i];
-      // the pit lane and its wall, beside the main straight on the pit side
-      if (i >= 0 && d > HALF_WIDTH + 4) {
-        const side = ((x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir)) * pit.side > 0;
-        const across = side ? acrossLane(x, y) : undefined;
-        if (side && between(i, pit.wallFrom, pit.wallTo, n) && d > PIT_WALL && d <= PIT.offset - LANE_IN) {
-          cells.push('pitwall');
-          continue;
-        }
-        if (across !== undefined && across >= -LANE_IN && across <= LANE_OUT) {
-          cells.push('pit');
-          continue;
-        }
-        // (on a street circuit, nothing walls the track off from its pit lane: pavement between, as on any circuit's run-off)
-        if (layout.street && side && between(i, pit.entry, pit.exit, n) && d <= PIT.offset) {
-          cells.push('grass');
-          continue;
-        }
-      }
       if (i < 0 || d > HALF_WIDTH + runoff) {
         cells.push('wall');
         continue;
@@ -277,16 +213,6 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
       }
       const tight = Math.abs(p.curve) > TIGHT;
       const kerb = kerbs[i];
-      // (a banked bend: concrete from the track's edge to the walls)
-      if (Math.abs(bank[i]) > 0.02 && d > HALF_WIDTH + 4) {
-        cells.push('apron');
-        continue;
-      }
-      // (a street circuit: pavement up to the walls, no gravel)
-      if (layout.street && d > HALF_WIDTH + 4) {
-        cells.push('grass');
-        continue;
-      }
       if (d <= HALF_WIDTH - 6) cells.push('track');
       else if (d <= HALF_WIDTH + 4) cells.push(kerb ? 'kerb' : 'track');
       else {
@@ -298,16 +224,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     }
   }
 
-  /** px the ground at (x, y) is raised by sample i's banking: flat up to the inside edge of the track, rising from there in proportion to how far across it is, out to the walls */
-  const banked = (i: number, x: number, y: number) => {
-    if (!bank[i]) return 0;
-    const p = track.samples[i];
-    const across = (x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir);
-    const out = across * Math.sign(bank[i]);
-    return Math.abs(bank[i]) * Math.max(0, Math.min(HALF_WIDTH + runoff, out) + HALF_WIDTH);
-  };
-
-  // heights at tile corners: blended from the centreline's elevation (and banking) nearby
+  // heights at tile corners: blended from the centreline's elevation nearby
   const heights: number[] = [];
   for (let cy = 0; cy <= H; cy++) {
     for (let cx = 0; cx <= W; cx++) {
@@ -320,7 +237,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         const d2 = (p.x - x) ** 2 + (p.y - y) ** 2;
         if (d2 > 200 * 200) continue;
         const w = 1 / (d2 + 400);
-        sum += w * (elevationAt(layout.elevation, i / n) + banked(i, x, y));
+        sum += w * elevationAt(layout.elevation, i / n);
         wsum += w;
       }
       heights.push(wsum ? sum / wsum : 0);
@@ -351,7 +268,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     width: W,
     height: H,
     tile: TILE,
-    solid: cells.map((c) => c === 'wall' || c === 'pitwall'),
+    solid: cells.map((c) => c === 'wall'),
     rough: cells.map((c) => c === 'grass' || c === 'gravel'),
     heights,
   };
@@ -365,8 +282,5 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     return { x: p.x + Math.cos(p.dir) * lane, y: p.y + Math.sin(p.dir) * lane, heading: p.dir };
   });
 
-  // a bridge, where the track crosses itself: the deck's own grid
-  if (layout.bridge) track.levels = buildLevels(track, grid, layout.bridge);
-
-  return { layout, width: W, height: H, cells, grid, track, pit, slots, bank, offset: { x: ox, y: oy } };
+  return { layout, width: W, height: H, cells, grid, track, slots, offset: { x: ox, y: oy } };
 }

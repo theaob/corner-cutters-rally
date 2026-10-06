@@ -8,9 +8,8 @@ import { setStickSide, stickSide, type StickSide } from '../engine/deck';
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
 import { musicVolume, setMusicVolume } from '../engine/music';
-import { optionRow } from './circuitSelect';
+import { optionRow } from './menu';
 import { setShake, shakeOn } from './shake';
-import { gridWalkOn, setGridWalk } from './gridPan';
 import { DRIVE_STYLES, driveStyle, setDriveStyle } from './driveStyle';
 import { setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
@@ -53,7 +52,6 @@ export function settingsRows(): SettingsRow[] {
   const soundRow = optionRow('SOUND', [...VOLUMES], nearest(soundVolume()), (v) => ({ name: volumeName(v), about: v ? 'engines, tyres, crashes, lights' : 'silence' }), setSoundVolume);
   const musicRow = optionRow('MUSIC', [...VOLUMES], nearest(musicVolume()), (v) => ({ name: volumeName(v), about: v ? 'menu and race tracks' : 'silence' }), setMusicVolume);
   const shakeRow = optionRow('SCREEN SHAKE', [true, false], shakeOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, kerbs and grass shake the camera' : 'the camera stays still' }), setShake);
-  const gridWalkRow = optionRow('GRID WALK', [true, false], gridWalkOn(), (on) => ({ name: on ? 'ON' : 'SKIP', about: on ? 'the camera down the grid before the lights' : 'straight to the start lights' }), setGridWalk);
   const statsRow = optionRow('STATS', [true, false], statsOn(), (on) => ({ name: on ? 'SHARE' : 'OFF', about: on ? 'anonymous play counts, to improve the game' : 'nothing sent' }), setStats);
   // SCREEN: the handheld (a phone's shape, the deck under it) or the wide screen (the whole window, the deck over it as
   // a HUD); only on a device with a mouse or trackpad (or already wide), where it was the deck's WIDE button
@@ -64,7 +62,7 @@ export function settingsRows(): SettingsRow[] {
   const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
   const coloursRow = optionRow('COLOURS', [false, true], colourSafe(), (on) => ({ name: on ? 'COLOUR-SAFE' : 'STANDARD', about: on ? 'splits in blue, white, orange, and in words' : 'splits in purple, green, amber' }), setColourSafe);
   // (STATS only where the build has a backend to send them to)
-  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, stickRow, drivingRow, vibrationRow, shakeRow, gridWalkRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
+  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, stickRow, drivingRow, vibrationRow, shakeRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
 }
 
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */

@@ -1,25 +1,16 @@
-// Corner Cutters' save format (engine/save.ts keeps it): its version, and how
-// an older save is brought up to date. Sections:
+// Corner Cutters Rally's save format (engine/save.ts keeps it): its version, and
+// how an older save is brought up to date. Sections:
 //   settings  sound (0…1), vibration (on/off), stickSide ('left'/'right': right unless set), layout ('handheld'/'desktop'),
 //             largeText and colourSafe (on/off: off unless set; access.ts)
-//   choices   the menu's last mode ('race'/'timetrial'), circuit, team, difficulty and weather (by id), qualifying ('on'/'off'), and a Quick Race's laps ('5')
-//   ghosts    your best Time Trial lap on each circuit (and weather), to race as a ghost (timeTrial.ts)
-//   championship  season: the Championship season in progress (or just over) (championship.ts)
-//   progress  unlocked: the circuits a Championship has unlocked (unlocks.ts); onboarded: the controls lap done or skipped;
-//             championship: true once the Championship is bought (the Google Play build: purchase.ts)
-//   records   circuits: best race lap, best qualifying lap and best race times per circuit (records.ts)
-//   trophies  medals: your best Time Trial and Time Attack medal on each circuit; titles: Championships won (medals.ts)
-//             achievements: those unlocked, and raced: the circuits you've raced on (achievements.ts)
-//   boards    pending: your Time Trial lap records not yet on the online boards (boards.ts)
-//   race      kept: the race in progress (a Quick Race or a Championship round), to come back to (raceSave.ts)
-//   circuits  each circuit's hash when last played: records and ghosts on one changed since are forgotten (circuitHash.ts)
+//   choices   the difficulty (by id), and your car's paint scheme (crews.ts)
+//   progress  onboarded: the controls lap done or skipped
+//   rally     current: the rally under way (or just over); best: your best finish in each rally; stages: your best time on each stage (rally.ts)
 // Each value is checked where it's read, so a missing or odd one falls back to its default.
 //
 // To change the format: bump `version`, and add a migration from the old
 // version to the new one to `migrations` (tested in tests/save.test.ts).
 
 import type { SaveFormat } from '../engine/save';
-import { parseRecords } from './records';
 
 /** The separate keys of before the save format (version 0); 'controls' was an old one no longer read. */
 const LEGACY = ['layout', 'circuit', 'team', 'difficulty', 'weather', 'records', 'vibration', 'stick-side', 'sound', 'controls'];
@@ -43,7 +34,6 @@ export const CC_SAVE: SaveFormat = {
           layout: legacy('layout'),
         }),
         choices: some({ circuit: legacy('circuit'), team: legacy('team'), difficulty: legacy('difficulty'), weather: legacy('weather') }),
-        records: { circuits: parseRecords(legacy('records')).circuits },
       };
     },
     // 1 → 2: the thumbstick's default moved to the right (the HUD Lab layout); the old default, 'left', was saved

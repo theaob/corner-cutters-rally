@@ -1,11 +1,8 @@
-// The play-stats dashboard (stats.html): the totals from the game's Supabase project (game_stats(), supabase/schema.sql)
-// and today's Daily Challenge board, read with the public key the game uses, every minute.
+// The play-stats dashboard (stats.html): the totals from the game's Supabase project (game_stats(), supabase/schema.sql),
+// read with the public key the game uses, every minute.
 
 import { online, rpc } from '../engine/backend';
-import { challengeOn, dayOf, type Board } from '../f1/daily';
-import { LAYOUTS } from '../f1/layouts';
-import { TEAMS } from '../f1/teams';
-import { distance } from '../f1/timeAttack';
+import { STAGE_SPECS } from '../f1/stages';
 
 /** What game_stats() gives. */
 interface Stats {
@@ -54,14 +51,16 @@ interface CircuitStats extends Played {
 }
 
 const $ = (id: string) => document.getElementById(id)!;
+/** A day (UTC) as YYYY-MM-DD. */
+const dayOf = (at: Date = new Date()): string => at.toISOString().slice(0, 10);
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const MODE_NAMES: Record<string, string> = {
-  race: 'Quick Race', championship: 'Championship', timeattack: 'Time Attack', timetrial: 'Time Trial', daily: 'Daily Challenge', qualifying: 'Qualifying', tutorial: 'Controls lap',
+  rally: 'Rally', tutorial: 'Controls lap',
 };
 /** the menu screens a report can come from */
-const MENU_NAMES: Record<string, string> = { menu: 'the menu', championship: 'the Championship screen', daily: 'the Daily Challenge screen', shop: 'the Championship shop' };
+const MENU_NAMES: Record<string, string> = { menu: 'the rally screen', rally: 'the rally screen', settings: 'the settings' };
 const PLATFORM_NAMES: Record<string, string> = { web: 'Web (itch.io)', android: 'Android app' };
-const circuitName = (id: string) => LAYOUTS.find((l) => l.id === id)?.name ?? id;
+const circuitName = (id: string) => STAGE_SPECS.find((l) => l.id === id)?.name ?? id;
 
 function status(text: string, state: 'on' | 'off' | '') {
   $('status').textContent = text;
@@ -90,7 +89,6 @@ function tiles(s: Stats) {
     tile('HOURS PLAYED', (s.hours_played ?? 0).toLocaleString('en-US'), 'in the game, all players'),
     tile('RETURNING', `${s.players ? Math.round(((s.returning_players ?? 0) / s.players) * 100) : 0}%`, `${fmt(s.returning_players ?? 0)} came back another day`),
     tile('SHARED', fmt(s.shares), `result cards shared · ${fmt(s.reports ?? 0)} report${s.reports === 1 ? '' : 's'} sent (${fmt(s.reports_today ?? 0)} today)`),
-    tile('DAILY TODAY', fmt(s.daily_players_today), 'on the challenge board'),
   );
 }
 
@@ -231,43 +229,10 @@ function chart(id: string, days: { day: string; n: number }[], m: Measure) {
   box.replaceChildren(svg, tip);
 }
 
-/** The teams and drivers picked: the most and least of each (ties named together), then every one of them. */
-const teamName = (id: string) => TEAMS.find((t) => t.id === id)?.name ?? id;
-const teamColor = (id: string) => TEAMS.find((t) => t.id === id)?.body;
-const driverTeam = (code: string) => TEAMS.find((t) => t.drivers.includes(code));
-function picks(s: Stats) {
-  const teams = { ...Object.fromEntries(TEAMS.map((t) => [t.id, 0])), ...(s.by_team ?? {}) };
-  const drivers = { ...Object.fromEntries(TEAMS.flatMap((t) => t.drivers.map((d) => [d, 0]))), ...(s.by_driver ?? {}) };
-  const total = Object.values(teams).reduce((a, b) => a + b, 0);
-  const ends = (counts: Record<string, number>, name: (k: string) => string) => {
-    const vals = Object.values(counts);
-    const at = (n: number) => Object.keys(counts).filter((k) => counts[k] === n).map(name);
-    const most = Math.max(...vals);
-    const least = Math.min(...vals);
-    const list = (names: string[]) => (names.length > 3 ? `${names.slice(0, 3).join(', ')} +${names.length - 3}` : names.join(', '));
-    const share = (n: number) => (total ? `${fmt(n)} · ${Math.round((n / total) * 100)}% of sessions` : 'no picks yet');
-    return { most: [list(at(most)), share(most)], least: [list(at(least)), share(least)] };
-  };
-  const t = ends(teams, teamName);
-  const d = ends(drivers, (k) => `${k} (${driverTeam(k)?.code ?? '?'})`);
-  const callout = (k: string, [v, sub]: string[]) => {
-    const el = document.createElement('div');
-    el.className = 'callout';
-    el.innerHTML = '<span class="k"></span><span class="v"></span><span class="s"></span>';
-    (el.children[0] as HTMLElement).textContent = k;
-    (el.children[1] as HTMLElement).textContent = total ? v : '–';
-    (el.children[2] as HTMLElement).textContent = sub;
-    return el;
-  };
-  $('callouts').replaceChildren(callout('MOST PICKED TEAM', t.most), callout('LEAST PICKED TEAM', t.least), callout('MOST PICKED DRIVER', d.most), callout('LEAST PICKED DRIVER', d.least));
-  bars('teams', s.by_team ?? {}, teamName, TEAMS.map((x) => x.id), teamColor);
-  bars('drivers', s.by_driver ?? {}, (k) => `${k} · ${driverTeam(k)?.code ?? ''}`, TEAMS.flatMap((x) => x.drivers), (k) => driverTeam(k)?.body);
-}
-
 /** Each circuit: times played (sessions started), races finished, km and minutes on it; under it, the same by mode. Every circuit listed, the unplayed faint. */
 function circuitsTable(list: CircuitStats[]) {
   const known = new Map(list.map((c) => [c.circuit, c]));
-  const rows: CircuitStats[] = [...list, ...LAYOUTS.filter((l) => !known.has(l.id)).map((l) => ({ circuit: l.id, plays: 0, finishes: 0, km: 0, minutes: 0, modes: {} }))];
+  const rows: CircuitStats[] = [...list, ...STAGE_SPECS.filter((l) => !known.has(l.id)).map((l) => ({ circuit: l.id, plays: 0, finishes: 0, km: 0, minutes: 0, modes: {} }))];
   const table = document.createElement('table');
   table.innerHTML = '<thead><tr><th>CIRCUIT · MODE</th><th class="r">PLAYED</th><th class="r">FINISHED</th><th class="r">KM</th><th class="r">MIN</th></tr></thead>';
   const body = document.createElement('tbody');
@@ -292,38 +257,6 @@ function circuitsTable(list: CircuitStats[]) {
   $('circuits').replaceChildren(table);
 }
 
-function board(b: Board | undefined) {
-  const c = challengeOn(dayOf());
-  $('board-title').textContent = `TODAY'S DAILY CHALLENGE · ${c.layout.name.toUpperCase()} · ${c.weather.name}`;
-  const el = $('board');
-  if (!b) {
-    el.innerHTML = '<p class="empty">The board could not be read.</p>';
-    return;
-  }
-  if (!b.entries) {
-    el.innerHTML = '<p class="empty">No one has run today\'s challenge yet.</p>';
-    return;
-  }
-  const table = document.createElement('table');
-  table.innerHTML = '<thead><tr><th class="r">#</th><th>NAME</th><th>REACHED</th><th class="r">TIME</th></tr></thead>';
-  const body = document.createElement('tbody');
-  for (const e of b.top) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td class="r"></td><td class="name"></td><td></td><td class="r"></td>';
-    const cells = tr.children as HTMLCollectionOf<HTMLElement>;
-    cells[0].textContent = String(e.place);
-    cells[1].textContent = e.name;
-    cells[2].textContent = distance(e.score);
-    cells[3].textContent = `${e.time.toFixed(1)} s`;
-    body.append(tr);
-  }
-  table.append(body);
-  const count = document.createElement('p');
-  count.className = 'empty';
-  count.textContent = `${fmt(b.entries)} driver${b.entries === 1 ? '' : 's'} on the board today. The top ten shown.`;
-  el.replaceChildren(table, count);
-}
-
 async function load() {
   if (!online()) {
     status('NOT SET UP', 'off');
@@ -333,7 +266,7 @@ async function load() {
     return;
   }
   status('READING…', '');
-  const [s, b] = await Promise.all([rpc<Stats>('game_stats', {}), rpc<Board>('daily_board', { p_day: dayOf(), p_player: '00000000-0000-4000-8000-000000000000', p_top: 10 })]);
+  const s = await rpc<Stats>('game_stats', {});
   const n = $('notice');
   if (!s) {
     status('NO CONNECTION', 'off');
@@ -357,8 +290,6 @@ async function load() {
   bars('mode', s.by_mode ?? {}, (k) => MODE_NAMES[k] ?? k);
   bars('circuit', s.by_circuit ?? {}, circuitName);
   circuitsTable(s.circuits ?? []);
-  picks(s);
-  board(b);
   $('errors-title').textContent = `ERRORS · CAUGHT IN THE GAME · ${fmt(s.errors ?? 0)} (${fmt(s.errors_today ?? 0)} TODAY)`;
   const at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   status(`LIVE · ${at}`, 'on');

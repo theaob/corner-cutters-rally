@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { carClass, newCar, type StepEvents } from '../src/engine/driving';
 import { buildCircuit } from '../src/f1/circuit';
 import { NORMAL, aiPaceFor, handlingFor } from '../src/f1/difficulty';
-import { DUST_BOWL, LAYOUTS } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
-import { newRace, stepRace, type RaceEvent } from '../src/f1/raceControl';
-import { TYRES, fitAt, freshTyres, isDry, stopNow, tyreFor, tyreGrip, tyreSpeed, wearPerLap, wearTyres, wrongTyreLoss } from '../src/f1/tyres';
-import { choices, planText } from '../src/f1/strategy';
-import { PIT } from '../src/f1/pits';
+import { DIRT_KNOCKS, newRace, stepRace, type RaceEvent } from '../src/f1/raceControl';
+import { SHAKEDOWN, stageById } from '../src/f1/stages';
+import { TYRES, fitAt, freshTyres, isDry, tyreFor, tyreGrip, tyreSpeed, wearTyres, wrongTyreLoss } from '../src/f1/tyres';
+import type { WeatherId } from '../src/f1/weather';
 
 const f1 = carClass('f1');
 const quiet: StepEvents = { damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0 };
@@ -34,8 +33,7 @@ describe('tyres', () => {
     expect(tyreGrip(1)).toBeLessThan(tyreGrip(0.7));
   });
 
-  it('last about two laps at their best, driven cleanly flat out', () => {
-    // a lap is about 25 s
+  it('last about 50 s at their best, driven cleanly flat out', () => {
     const { set, car } = drive(50, f1.topSpeed);
     expect(set.wear).toBeGreaterThan(0.4);
     expect(set.wear).toBeLessThan(TYRES.cliff);
@@ -48,64 +46,57 @@ describe('tyres', () => {
     expect(drive(10, 200, 150).set.wear).toBeGreaterThan(clean * 3);
     expect(drive(10, 200, 0, true).set.wear).toBeGreaterThan(clean);
   });
-
-  it('measure their wear per lap once a set has done half a lap', () => {
-    expect(wearPerLap({ compound: 'slick', wear: 0.1, driven: 1000 }, 8000)).toBe(TYRES.lapWear);
-    expect(wearPerLap({ compound: 'slick', wear: 0.6, driven: 16000 }, 8000)).toBeCloseTo(0.3);
-  });
 });
 
-describe('when to stop for tyres', () => {
-  const plan = { lapTime: 25, perLap: 0.35, damage: 0, damageSlow: 0.3, stopTime: 1.2 };
-  it('never in a 3-lap race on a clean car', () => {
-    expect(stopNow({ ...plan, lapsLeft: 2, wear: 0.35 })).toBe(false);
-    expect(stopNow({ ...plan, lapsLeft: 1, wear: 0.7 })).toBe(false);
-  });
-
-  it('once in a 5-lap race: not early, but once the tyres are near the cliff with laps to go', () => {
-    expect(stopNow({ ...plan, lapsLeft: 4, wear: 0.35 })).toBe(false);
-    expect(stopNow({ ...plan, lapsLeft: 3, wear: 0.8 })).toBe(true);
-    // fresh tyres after the stop: no second stop
-    expect(stopNow({ ...plan, lapsLeft: 2, wear: 0.35 })).toBe(false);
-  });
-
-  it('sooner for a driver who burns through them', () => {
-    expect(stopNow({ ...plan, lapsLeft: 4, wear: 0.8, perLap: 0.8 })).toBe(true);
-  });
-});
-
-describe('a 5-lap race on tyres', () => {
-  // (each car on its strategy: strategy.ts; the field split between plans close to the quickest)
-  it.each(LAYOUTS.filter((l) => !l.dirt))('at $name: each car makes the stops its strategy planned, the field split where more than one strategy is close, teammates queuing at their box, and everyone finishes', (layout) => {
-    const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
-    const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(NORMAL, i, 10) }, box: i >> 1 }));
-    const race = newRace(c.track, c.grid, handlingFor(NORMAL), 5, field, 0.5, c.pit);
-    const planned = race.entrants.map((e) => e.plan!.plan.stints.length - 1);
-    const strategies = new Set(race.entrants.map((e) => planText(e.plan!.plan)));
+describe('a stage on tyres', () => {
+  const run = (id: string, weather: WeatherId) => {
+    const c = buildCircuit(stageById(id)!, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+    const s = c.slots[0];
+    const race = newRace(c.track, c.grid, handlingFor(NORMAL), 1, [{ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: 0, pace: aiPaceFor(NORMAL, 0, 1) } }], 0.5, weather);
+    const start = race.entrants[0].tyres.compound;
     const events: RaceEvent[] = [];
-    for (let t = 0; t < 400 && !race.entrants.every((e) => e.progress.finished !== undefined || e.progress.retired); t += 1 / 60) events.push(...stepRace(race, 1 / 60).race);
-    expect(events.filter((e) => e.kind === 'wreck' || e.kind === 'safety-car')).toEqual([]);
-    expect(race.entrants.map((e) => e.stops)).toEqual(planned);
-    // (split wherever more than one plan is close to the quickest: on an easy circuit for tyres, like the streets, it may be one)
-    const close = choices({ laps: 5, lapTime: race.practice!.lapTime, perLap: race.practice!.perLap, stopCost: PIT.stop + TYRES.laneCost }).length;
-    expect(strategies.size).toBeLessThanOrEqual(close);
-    if (close > 1) expect(strategies.size).toBeGreaterThan(1);
-    expect(race.entrants.every((e) => e.progress.finished !== undefined && e.progress.lapTimes.length === 5)).toBe(true);
+    let wearAtHalf = 0;
+    const { start: line, finish } = race.track.stage!;
+    const at = () => race.entrants[0].progress.idx * race.track.spacing;
+    for (let t = 0; t < 200 && at() < finish; t += 1 / 60) {
+      events.push(...stepRace(race, 1 / 60).race);
+      if (!wearAtHalf && at() > (line + finish) / 2) wearAtHalf = race.entrants[0].tyres.wear;
+    }
+    return { race, start, events, wearAtHalf, finished: at() >= finish };
+  };
+
+  it('on tarmac (Vineyards): the car starts on slicks, they wear down the stage and grip less as they do, and it reaches the finish clean', () => {
+    const { race, start, events, wearAtHalf, finished } = run('ss-vineyards', 'dry');
+    expect(start).toBe('slick');
+    expect(finished).toBe(true);
+    expect(events.filter((e) => e.kind === 'wreck' || e.kind === 'crash')).toEqual([]);
+    const { tyres, car } = race.entrants[0];
+    expect(tyres.compound).toBe('slick');
+    expect(wearAtHalf).toBeGreaterThan(0.1);
+    expect(tyres.wear).toBeGreaterThan(wearAtHalf);
+    expect(car.tyreGrip).toBeCloseTo(tyreGrip(tyres.wear));
+    expect(car.speedScale).toBeCloseTo(tyreSpeed(tyres.wear));
   }, 60_000);
-  it('on dirt (Dust Bowl): every car on off-road tyres, whatever the weather, no strategy to it, and everyone finishes', () => {
-    const c = buildCircuit(DUST_BOWL, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+
+  it('on dirt (the shakedown): the car on off-road tyres whatever the weather, knocks taking twice the impact to hurt, and it reaches the finish clean', () => {
     for (const weather of ['dry', 'wet'] as const) {
-      const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(NORMAL, i, 10) }, box: i >> 1, start: 'hard' as const }));
-      const race = newRace(c.track, c.grid, handlingFor(NORMAL), 5, field, 0.5, c.pit, weather);
-      expect(race.entrants.every((e) => e.tyres.compound === 'dirt' && !e.plan)).toBe(true);
-      const events: RaceEvent[] = [];
-      for (let t = 0; t < 400 && !race.entrants.every((e) => e.progress.finished !== undefined || e.progress.retired); t += 1 / 60) events.push(...stepRace(race, 1 / 60).race);
-      expect(events.filter((e) => e.kind === 'wreck' || e.kind === 'safety-car')).toEqual([]);
-      // (a stop, if any, for a fresh set of the same)
-      expect(race.entrants.every((e) => e.tyres.compound === 'dirt')).toBe(true);
-      expect(race.entrants.every((e) => e.progress.finished !== undefined && e.progress.lapTimes.length === 5)).toBe(true);
+      const { race, start, events, finished } = run(SHAKEDOWN, weather);
+      expect(start).toBe('dirt');
+      expect(race.handling.crashThreshold).toBe(handlingFor(NORMAL).crashThreshold * DIRT_KNOCKS);
+      expect(finished).toBe(true);
+      expect(events.filter((e) => e.kind === 'wreck' || e.kind === 'crash')).toEqual([]);
+      const { tyres, car } = race.entrants[0];
+      expect(tyres.compound).toBe('dirt');
+      expect(car.tyreGrip).toBeCloseTo(tyreGrip(tyres.wear) * fitAt('dirt', weather).grip);
     }
   }, 60_000);
+
+  it('on tarmac, knocks hurt as they always do', () => {
+    const c = buildCircuit(stageById('ss-vineyards')!, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+    const s = c.slots[0];
+    const race = newRace(c.track, c.grid, handlingFor(NORMAL), 1, [{ car: newCar(f1, s.x, s.y, s.heading) }]);
+    expect(race.handling.crashThreshold).toBe(handlingFor(NORMAL).crashThreshold);
+  }, 30_000);
 });
 
 describe('off-road tyres', () => {

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { carClass, newCar } from '../src/engine/driving';
 import { buildCircuit } from '../src/f1/circuit';
 import { NORMAL, aiPaceFor, handlingFor } from '../src/f1/difficulty';
-import { ARDENNES, SILVER_HEATH } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import { newRace, stepRace, type RaceEvent } from '../src/f1/raceControl';
-import { COMPOUNDS, isDry, tyreFor, type Compound } from '../src/f1/tyres';
+import { stageById } from '../src/f1/stages';
+import { COMPOUNDS, fitAt, tyreFor, tyreGrip, type Compound } from '../src/f1/tyres';
 import { WEATHERS, type WeatherId } from '../src/f1/weather';
 import type { Forecast } from '../src/f1/forecast';
 
@@ -31,56 +31,56 @@ describe('weather and tyres', () => {
     expect(COMPOUNDS.wet.on.dry.wear).toBeGreaterThan(3);
   });
 
-  // (one race in each: the dry races in tyres.test.ts stop on every circuit)
-  it.each([
-    { layout: SILVER_HEATH, weather: 'damp' as const, name: 'Silver Heath, damp' },
-    { layout: ARDENNES, weather: 'wet' as const, name: 'Ardennes, wet' },
-  ])(
-    'runs a clean 5-lap race at $name: everyone on the right tyres, one stop each (at most one, on a circuit easy on tyres), all finish',
-    ({ layout, weather }) => {
-      const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
-      const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(NORMAL, i, 10) }, box: i >> 1 }));
-      const race = newRace(c.track, c.grid, handlingFor(NORMAL), 5, field, 0.5, c.pit, weather);
-      expect(race.entrants.every((e) => e.tyres.compound === tyreFor(weather))).toBe(true);
-      const events: RaceEvent[] = [];
-      for (let t = 0; t < 500 && !race.entrants.every((e) => e.progress.finished !== undefined || e.progress.retired); t += 1 / 60) events.push(...stepRace(race, 1 / 60).race);
-      expect(events.filter((e) => e.kind === 'wreck' || e.kind === 'safety-car')).toEqual([]);
-      const stops = (layout.tyreWear ?? 1) < 1 ? (n: number) => n <= 1 : (n: number) => n === 1;
-      expect(race.entrants.every((e) => e.progress.finished !== undefined && stops(e.stops) && e.tyres.compound === tyreFor(weather))).toBe(true);
-    },
-    60_000,
-  );
+  /** One AI car down a tarmac stage in `weather`, to the flying finish: the events, and the car's grip against what its tyres should give each step. */
+  const runStage = (id: string, weather: WeatherId | Forecast) => {
+    const c = buildCircuit(stageById(id)!, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
+    const s = c.slots[0];
+    const race = newRace(c.track, c.grid, handlingFor(NORMAL), 1, [{ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: 0, pace: aiPaceFor(NORMAL, 0, 1) } }], 0.5, weather);
+    const start = race.entrants[0].tyres.compound;
+    const at = () => race.entrants[0].progress.idx * race.track.spacing;
+    const events: RaceEvent[] = [];
+    let gripOff = 0;
+    for (let t = 0; t < 200 && at() < race.track.stage!.finish; t += 1 / 60) {
+      events.push(...stepRace(race, 1 / 60).race);
+      const { car, tyres } = race.entrants[0];
+      gripOff = Math.max(gripOff, Math.abs((car.tyreGrip ?? 1) - tyreGrip(tyres.wear) * fitAt(tyres.compound, race.wetness).grip));
+    }
+    return { race, start, events, gripOff, finished: at() >= race.track.stage!.finish };
+  };
 
-  // the weather changing through a race: the crews box for the right tyres as it does
+  // (one stage in each)
   it.each([
-    { name: 'rain setting in: slicks (either), then full wets', forecast: { name: 'RAIN', start: 0, showers: [{ from: 25, to: Infinity, rain: 1 }] }, from: 'slick', to: 'wet', rain: true },
-    { name: 'a wet start drying out: full wets, then slicks (either)', forecast: { name: 'DRYING', start: 2, showers: [{ from: -Infinity, to: 10, rain: 1 }] }, from: 'wet', to: 'slick', rain: false },
-  ] as { name: string; forecast: Forecast; from: Compound; to: Compound; rain: boolean }[])(
-    'runs a 6-lap race at Silver Heath with $name: everyone changes tyres in the pits, all finish',
-    ({ forecast, from, to, rain }) => {
-      const c = buildCircuit(SILVER_HEATH, { cornerSpeed: lineCornerSpeed(f1), decel: lineDecel(f1) });
-      const field = c.slots.slice(0, 10).map((s, i) => ({ car: newCar(f1, s.x, s.y, s.heading), ai: { lane: ((i * 7) % 11) - 5, pace: aiPaceFor(NORMAL, i, 10) }, box: i >> 1 }));
-      const race = newRace(c.track, c.grid, handlingFor(NORMAL), 6, field, 0.5, c.pit, forecast);
-      // (in the dry, either slick: each car on its strategy's, strategy.ts)
-      const on = (c: Compound, want: Compound) => (want === 'slick' ? isDry(c) : c === want);
-      expect(race.entrants.every((e) => on(e.tyres.compound, from))).toBe(true);
-      const events: RaceEvent[] = [];
-      /** the race time each car first stopped */
-      const firstStop = new Map<number, number>();
-      for (let t = 0; t < 700 && !race.entrants.every((e) => e.progress.finished !== undefined || e.progress.retired); t += 1 / 60) {
-        const now = stepRace(race, 1 / 60).race;
-        for (const e of now) if (e.kind === 'pit-stop' && !firstStop.has(e.who)) firstStop.set(e.who, race.clock);
-        events.push(...now);
-      }
-      // (the rain came, or stopped, and the track turned)
-      expect(events.some((e) => e.kind === 'rain' && e.on === rain)).toBe(true);
-      expect(events.some((e) => e.kind === 'track' && e.condition === (rain ? 'wet' : 'dry'))).toBe(true);
-      expect(race.weather).toBe(rain ? 'wet' : 'dry');
+    { id: 'ss-castle-hill', weather: 'damp' as const, name: 'Castle Hill, damp' },
+    { id: 'ss-coast-road', weather: 'wet' as const, name: 'Coast Road, wet' },
+  ])('runs a clean stage at $name: the car on the right tyres for it all the way, to the finish', ({ id, weather }) => {
+    const { race, start, events, finished } = runStage(id, weather);
+    expect(start).toBe(tyreFor(weather));
+    expect(race.weather).toBe(weather);
+    expect(events.filter((e) => e.kind === 'wreck' || e.kind === 'crash' || e.kind === 'rain' || e.kind === 'track')).toEqual([]);
+    expect(finished).toBe(true);
+    expect(race.entrants[0].tyres.compound).toBe(tyreFor(weather));
+  }, 60_000);
+
+  // the weather changing through a stage: the road wetting or drying as forecast, the car's grip with it
+  it.each([
+    { name: 'rain setting in: on slicks, the road turning wet', forecast: { name: 'RAIN', start: 0, showers: [{ from: 10, to: Infinity, rain: 1 }] }, from: 'slick', rain: true, turns: 'wet' },
+    { name: 'a wet start drying out: on full wets, the road drying to damp', forecast: { name: 'DRYING', start: 2, showers: [{ from: -Infinity, to: 10, rain: 1 }] }, from: 'wet', rain: false, turns: 'damp' },
+  ] as { name: string; forecast: Forecast; from: Compound; rain: boolean; turns: WeatherId }[])(
+    'runs a stage at Vineyards with $name, the car gripping as its tyres do on the road as it is',
+    ({ forecast, from, rain, turns }) => {
+      const { race, start, events, gripOff, finished } = runStage('ss-vineyards', forecast);
+      expect(start).toBe(from);
+      // (the rain came, or stopped, and the road turned)
+      expect(events.filter((e) => e.kind === 'rain')).toEqual([{ kind: 'rain', on: rain }]);
+      expect(events.some((e) => e.kind === 'track' && e.condition === turns)).toBe(true);
+      expect(race.weather).toBe(turns);
+      if (rain) expect(race.wetness).toBeCloseTo(2, 5);
+      else expect(race.wetness).toBeLessThan(1.5);
       expect(events.filter((e) => e.kind === 'wreck')).toEqual([]);
-      expect(race.entrants.every((e) => e.progress.finished !== undefined && e.stops >= 1 && on(e.tyres.compound, to))).toBe(true);
-      // (each crew calls it a little differently: not the whole field in on the same lap)
-      const times = [...firstStop.values()];
-      expect(Math.max(...times) - Math.min(...times)).toBeGreaterThan(5);
+      expect(finished).toBe(true);
+      // (no stops on a stage: on the tyres it started on, gripping as they do on the road as it is now)
+      expect(race.entrants[0].tyres.compound).toBe(from);
+      expect(gripOff).toBeLessThan(1e-9);
     },
     60_000,
   );

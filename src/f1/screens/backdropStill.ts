@@ -9,8 +9,8 @@
 import { YOUTUBE, hostStore } from '../../engine/host';
 
 /** where the device's own still is kept */
-export const STILL_KEY = 'cc:menu-still';
-/** the still shipped with the game (Crescent Park), for a device that hasn't had a live backdrop yet */
+export const STILL_KEY = 'ccr:menu-still';
+/** the still shipped with the game (the shakedown), for a device that hasn't had a live backdrop yet */
 export const SHIPPED_STILL = 'menu-still.jpg';
 /** the still's JPEG quality: it's dimmed under the menu, so a soft one does */
 export const STILL_QUALITY = 0.7;

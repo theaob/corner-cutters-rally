@@ -1,34 +1,36 @@
-// The rally's screen. With no rally under way: the rallies to pick from (each
-// one's surface, its stages and your best there). With one under way: where
-// you stand (the standings after the stages run so far), the stage up next and
-// your car's state (repaired at the service park), and START SS…; once it's
-// over, the final standings. Touch, or keys: up/down moves, A or START picks,
-// SELECT goes back.
+// The rally's screen: the game's home. With no rally under way: your car's
+// paint (CAR), the rallies to pick from (each one's surface, its stages and
+// your best there), and SETTINGS. With one under way: where you stand (the
+// standings after the stages run so far), the stage up next and your car's
+// state (repaired at the service park), and START SS…; once it's over, the
+// final standings (a trophy and confetti for a win). Touch, or keys: up/down
+// moves, left/right changes CAR, A or START picks.
 
 import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
-import { onBack } from '../../engine/backButton';
-import { menuButton } from '../circuitSelect';
+import { menuButton, optionRow, framed, ownTabButton } from '../menu';
 import { menuPick, menuTick } from '../sounds';
-import { formatTime as fmt } from '../records';
+import { formatTime as fmt } from '../time';
 import { layoutById } from '../layouts';
 import { weatherById } from '../weather';
+import { SCHEMES, type Scheme } from '../crews';
 import {
-  RALLIES, crewName, crewTeam, gapText, loadBests, nextStage, rallyEvent, rallyOver, serviceAfter, standings, yourPlace, type Rally, type RallyEvent,
+  RALLIES, crewName, crewNumber, crewScheme, gapText, loadBests, nextStage, rallyEvent, rallyOver, serviceAfter, standings, yourPlace, type Rally, type RallyEvent,
 } from '../rally';
 import { reportOpen } from '../report';
+import { confetti, trophy } from './celebrate';
 
-export type RallyAction = 'stage' | 'abandon' | 'back' | { start: RallyEvent };
+export type RallyAction = 'stage' | 'abandon' | 'settings' | { start: RallyEvent; scheme: Scheme };
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'ST' : n % 10 === 2 && n % 100 !== 12 ? 'ND' : n % 10 === 3 && n % 100 !== 13 ? 'RD' : 'TH'}`;
 
-/** The standings as a table: place, crew, team, total or gap; you in gold. */
+/** The standings as a table: place, car number, crew, total or gap; you in gold. */
 function standingsTable(r: Rally): HTMLTableElement {
-  const cell = (text: string, right = false) => {
+  const cell = (text: string, right = false, color?: string) => {
     const c = document.createElement('td');
     c.textContent = text;
-    Object.assign(c.style, { padding: '2px 4px', textAlign: right ? 'right' : 'left', whiteSpace: 'nowrap' });
+    Object.assign(c.style, { padding: '2px 4px', textAlign: right ? 'right' : 'left', whiteSpace: 'nowrap', ...(color ? { color } : {}) });
     return c;
   };
   const table = document.createElement('table');
@@ -38,14 +40,21 @@ function standingsTable(r: Rally): HTMLTableElement {
     if (s.crew === r.you) row.style.color = 'var(--gold)';
     row.style.animation = `row-in 0.35s ease-out ${(0.1 + k * 0.05).toFixed(2)}s both`;
     const crew = r.crews[s.crew];
-    row.append(cell(`${k + 1}`, true), cell(crew === r.crews[r.you] ? 'YOU' : crewName(crew)), cell(crewTeam(crew).code), cell(k === 0 ? fmt(s.total) : gapText(s.gap), true));
+    const scheme = crewScheme(crew);
+    const chip = document.createElement('td');
+    chip.textContent = `#${crewNumber(crew)}`;
+    Object.assign(chip.style, { padding: '2px 4px', color: scheme.trim, background: scheme.body, textAlign: 'center' });
+    row.append(cell(`${k + 1}`, true), chip, cell(crewName(crew)), cell(k === 0 ? fmt(s.total) : gapText(s.gap), true));
     table.append(row);
   });
   return table;
 }
 
-/** Show the rally screen in `host` (the rally under way, if any) until the player picks. */
-export function showRally(host: HTMLElement, services: Services, rally: Rally | undefined, closed?: AbortSignal): Promise<RallyAction> {
+/**
+ * Show the rally screen in `host` (the rally under way, if any; your car's paint `scheme` for a new one) until the
+ * player picks.
+ */
+export function showRally(host: HTMLElement, services: Services, rally: Rally | undefined, scheme: Scheme, closed?: AbortSignal): Promise<RallyAction> {
   const { controls, hud } = services;
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
@@ -62,27 +71,29 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
     const finish = (a: RallyAction) => {
       if (done) return;
       done = true;
-      offBack();
       menuPick();
       screen.remove();
       resolve(a);
     };
-    const offBack = onBack(() => (finish('back'), true));
-    const buttons: { el: HTMLElement; pick: () => void }[] = [];
+    /** the places up/down moves through: each picked with A, and a row also changed with left/right */
+    const places: { el: HTMLElement; pick?: () => void; step?: (by: number) => void }[] = [];
     const button = (text: string, pick: () => void, main = false) => {
       const b = menuButton(text, pick);
       if (main) b.classList.add('race-button');
-      buttons.push({ el: b, pick });
+      places.push({ el: b, pick });
       return b;
     };
     if (!rally) {
-      // the rallies to pick from
-      title.textContent = 'RALLY';
-      screen.append(line('PICK A RALLY: STAGE BY STAGE AGAINST THE CLOCK, THE LEAST TIME OVERALL WINS', 'var(--accent-b)'));
+      // a new rally: your car's paint, then the rallies to pick from
+      title.textContent = 'CORNER CUTTERS RALLY';
+      screen.append(line('STAGE BY STAGE AGAINST THE CLOCK, THE CO-DRIVER CALLING THE BENDS: THE LEAST TIME OVERALL WINS', 'var(--accent-b)'));
+      const car = optionRow('CAR', SCHEMES, scheme, (s) => ({ name: s.name, about: 'your paint · #1 on the roof', colors: [s.body, s.trim, ...(s.accent ? [s.accent] : [])] }));
+      places.push({ el: car.el, step: car.step });
+      screen.append(car.el);
       const bests = loadBests();
       for (const e of RALLIES) {
         const best = bests[e.id];
-        const b = button(`${e.name} · ${e.surface}`, () => finish({ start: e }));
+        const b = button(`${e.name} · ${e.surface}`, () => finish({ start: e, scheme: car.value() }));
         const sub = document.createElement('span');
         sub.textContent = `${e.stages.length} STAGES · ${e.about.toUpperCase()}${best ? ` · BEST: ${ordinal(best.place)}` : ''}`;
         Object.assign(sub.style, { display: 'block', fontSize: '9px', color: best?.place === 1 ? 'var(--gold)' : 'var(--muted)', marginTop: '3px' });
@@ -95,6 +106,12 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
       const k = nextStage(rally);
       if (rallyOver(rally)) {
         const place = yourPlace(rally);
+        if (place === 1) {
+          const cup = trophy(64);
+          Object.assign(cup.style, { display: 'block', margin: '0 auto' });
+          screen.append(cup);
+          requestAnimationFrame(() => confetti(host));
+        }
         screen.append(
           line(place === 1 ? 'RALLY WINNER!' : `YOU FINISHED ${ordinal(place)}`, place === 1 ? 'var(--gold)' : 'var(--text)'),
           line(`${e.surface} · ${e.stages.length} STAGES · FINAL STANDINGS`),
@@ -116,7 +133,9 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
         screen.append(button('RETIRE FROM THE RALLY', () => finish('abandon')));
       }
     }
-    screen.append(button('BACK', () => finish('back')));
+    screen.append(button('SETTINGS', () => finish('settings')));
+    // (framed in another page, as on itch.io, where the browser may hold it to 30 fps: a way to a tab of its own)
+    if (framed()) screen.append(ownTabButton());
     holdTouches(screen);
     host.append(screen);
     hud.setPosition('');
@@ -125,11 +144,11 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
     hud.setLabel('b', '');
     closed?.addEventListener('abort', () => {
       done = true;
-      offBack();
       screen.remove();
     });
-    let focus = 0;
-    const show = () => buttons.forEach((b, i) => b.el.classList.toggle('focused', i === focus));
+    // (the first place that's picked, not the CAR row, highlighted to start with)
+    let focus = Math.max(0, places.findIndex((p) => p.pick));
+    const show = () => places.forEach((p, i) => p.el.classList.toggle('focused', i === focus));
     show();
     const seen = new Map<Button, number>();
     const pressed = (b: Button) => {
@@ -140,15 +159,16 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
     };
     const tick = () => {
       if (done) return;
-      const [down, up, a, start, select] = (['down', 'up', 'a', 'start', 'select'] as const).map((k) => pressed(k) && !reportOpen());
+      const [down, up, left, right, a, start] = (['down', 'up', 'left', 'right', 'a', 'start'] as const).map((k) => pressed(k) && !reportOpen());
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (move) {
-        focus = (focus + move + buttons.length) % buttons.length;
+        focus = (focus + move + places.length) % places.length;
         menuTick();
         show();
       }
-      if (a || start) buttons[focus].pick();
-      if (select) finish('back');
+      const at = places[focus];
+      if ((left || right) && at.step) at.step(right ? 1 : -1);
+      if ((a || start) && at.pick) at.pick();
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);

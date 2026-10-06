@@ -1,13 +1,15 @@
 // Accessibility: the device's ask for less motion, and two settings of the
 // game's own. TEXT: LARGE makes the menus' text and the race's messages (the
-// banner, the radio, the pause screen) a fifth bigger (index.html: their sizes
+// banner, the co-driver's card, the pause screen) a fifth bigger (index.html: their sizes
 // times --ts). COLOURS: COLOUR-SAFE swaps the colours that tell things apart
-// by colour alone (a Time Trial's splits: purple, green and amber, which red-green
+// by colour alone (a stage's splits: purple, green and amber, which red-green
 // colour blindness runs together) for blue, white and orange, and says which
 // is which in words too. Remembered.
 
 import { save, saved } from '../engine/save';
-import type { SplitMark } from './timeTrial';
+
+/** How a split stands: quickest of all, quicker than the mark, or slower. */
+export type SplitMark = 'record' | 'better' | 'worse';
 
 /** The device asks for less motion (prefers-reduced-motion): no screen shake unless turned on, no speed lines. */
 export function motionReduced(): boolean {

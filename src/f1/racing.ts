@@ -3,7 +3,6 @@
 // standings, and AI drivers that follow the racing line. Engine-free and
 // unit-tested; the circuit layout and rendering live in circuit.ts and race.ts.
 
-import type { Levels } from './bridge';
 import { DEFAULT_HANDLING, angleDiff, speedOf, type Car, type CarClass, type DriveInput, type HandlingParams } from '../engine/driving';
 
 /**
@@ -56,8 +55,6 @@ export interface Track {
   length: number;
   /** how hard the circuit is on tyres (1 unless given): a slow street circuit wears them less */
   tyreWear?: number;
-  /** a bridge, where the track crosses itself (bridge.ts) */
-  levels?: Levels;
   /** on dirt: every car on off-road tyres (tyres.ts) */
   dirt?: boolean;
   /** a road with two ends (a rally's stage), not a loop: its samples run from one end to the other, never round */

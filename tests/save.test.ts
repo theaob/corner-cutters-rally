@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { migrateSave, parseSaveDoc, save, saved, savedSection, saveVersion, useSave, type SaveFormat, type SaveStore } from '../src/engine/save';
 import { useStore } from '../src/engine/storage';
 import { CC_SAVE } from '../src/f1/save';
-import { loadRecords, recordLap, saveRecords } from '../src/f1/records';
+import { loadStageBests, recordStageBest } from '../src/f1/rally';
 
 /** The device's storage, in memory; `broken` makes every call throw (blocked storage), `full` makes writes throw. */
 function fakeStore(init: Record<string, string> = {}, mode: 'ok' | 'broken' | 'full' = 'ok'): SaveStore & { items: Map<string, string> } {
@@ -29,7 +29,7 @@ const stored = (s: ReturnType<typeof fakeStore>) => JSON.parse(s.items.get('cc:s
 beforeEach(() => useStore('cc:'));
 
 describe('the first save, from the keys of before', () => {
-  it('carries every setting, choice and record over, and removes the old keys', () => {
+  it('carries every setting and choice over, and removes the old keys (old lap records too)', () => {
     const s = fakeStore({
       'cc:sound': '0.35',
       'cc:vibration': 'off',
@@ -50,7 +50,6 @@ describe('the first save, from the keys of before', () => {
     expect(saved('settings', 'stickSide')).toBe('right');
     expect(saved('settings', 'layout')).toBe('desktop');
     expect(savedSection('choices')).toEqual({ circuit: 'silver-heath', team: 'maas', difficulty: 'hard', weather: 'wet' });
-    expect(loadRecords().circuits['silver-heath']).toEqual({ bestLap: 24.5, bestRace: { 3: 80.1 } });
     expect(saveVersion()).toBe(2);
     // one save now, the old keys gone; dev tools' own keys and other games' keys untouched
     expect([...s.items.keys()].sort()).toEqual(['cc:save', 'cc:tune:f1', 'other:records']);
@@ -61,13 +60,13 @@ describe('the first save, from the keys of before', () => {
     const s = fakeStore();
     useSave(CC_SAVE, s);
     expect(saved('settings', 'sound')).toBeUndefined();
-    expect(loadRecords().circuits).toEqual({});
-    expect(stored(s)).toEqual({ version: 2, data: { settings: {}, choices: {}, records: { circuits: {} } } });
+    expect(loadStageBests()).toEqual({});
+    expect(stored(s)).toEqual({ version: 2, data: { settings: {}, choices: {} } });
   });
 
-  it('keeps what it can of a damaged old record', () => {
+  it('starts clean from a damaged old record and an odd old value', () => {
     useSave(CC_SAVE, fakeStore({ 'cc:records': '{broken', 'cc:sound': 'loud' }));
-    expect(loadRecords().circuits).toEqual({});
+    expect(loadStageBests()).toEqual({});
     expect(saved('settings', 'sound')).toBeUndefined();
   });
 });
@@ -77,29 +76,27 @@ describe('saving', () => {
     const s = fakeStore();
     useSave(CC_SAVE, s);
     save('settings', 'sound', 1);
-    save('choices', 'team', 'dmw');
-    const r = loadRecords();
-    recordLap(r, 'crescent-park', 21.2);
-    saveRecords(r);
+    save('choices', 'scheme', 'powder');
+    recordStageBest('ss-pine-ridge', 321.5);
     useSave(CC_SAVE, s); // a reload
     expect(saved('settings', 'sound')).toBe(1);
-    expect(saved('choices', 'team')).toBe('dmw');
-    expect(loadRecords().circuits['crescent-park'].bestLap).toBe(21.2);
-    save('choices', 'team', undefined);
-    expect(saved('choices', 'team')).toBeUndefined();
+    expect(saved('choices', 'scheme')).toBe('powder');
+    expect(loadStageBests()['ss-pine-ridge']).toBe(321.5);
+    save('choices', 'scheme', undefined);
+    expect(saved('choices', 'scheme')).toBeUndefined();
   });
 
   it("doesn't undo another tab's save", () => {
     const s = fakeStore();
     useSave(CC_SAVE, s);
     saved('settings', 'sound'); // this tab has read the save
-    // another tab saves a record…
+    // another tab saves a stage best…
     const other = stored(s);
-    other.data.records.circuits = { x: { bestLap: 30, bestRace: {} } };
+    other.data.rally = { stages: { 'ss-old-mill': 300 } };
     s.items.set('cc:save', JSON.stringify(other));
     // …then this one changes a setting
     save('settings', 'vibration', false);
-    expect(stored(s).data.records.circuits.x.bestLap).toBe(30);
+    expect(stored(s).data.rally.stages['ss-old-mill']).toBe(300);
     expect(stored(s).data.settings.vibration).toBe(false);
   });
 
