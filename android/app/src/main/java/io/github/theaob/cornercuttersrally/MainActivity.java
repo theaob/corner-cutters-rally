@@ -1,4 +1,4 @@
-package io.github.theaob.cornercutters;
+package io.github.theaob.cornercuttersrally;
 
 import android.os.Bundle;
 import android.view.WindowManager;
