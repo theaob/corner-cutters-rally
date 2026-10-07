@@ -44,6 +44,8 @@ if (BROWSER) {
   sh = async (cmd) => (await device.shell(cmd)).toString();
   androidVersion = (await sh('getprop ro.build.version.release')).trim();
   webviewVersion = (await sh(`dumpsys package com.google.android.webview | grep -m1 versionName`)).trim();
+  // (no "isn't responding" dialogs over the game: the emulator's software GPU is slow enough to raise them)
+  await sh('settings put global hide_error_dialogs 1');
   [screenW, screenH] = (await sh('wm size')).trim().split('\n').pop().split(':').pop().trim().split('x').map(Number);
 }
 console.log(`device: ${device.model()} (${device.serial()}) · Android ${androidVersion} · WebView ${webviewVersion}`);
@@ -109,9 +111,11 @@ const tap = async (p) => {
 const watchPresses = () =>
   page.evaluate(() => {
     window.__downs = [];
-    addEventListener('pointerdown', (e) => window.__downs.push(`${Math.round(e.clientX)},${Math.round(e.clientY)} on ${e.target.className || e.target.tagName}`), true);
+    addEventListener('pointerdown', (e) => window.__downs.push(`${Math.round(e.clientX)},${Math.round(e.clientY)} on ${e.target.getAttribute?.('class') || e.target.tagName}`), true);
   });
 const presses = () => page.evaluate(() => window.__downs.splice(0));
+/** The window that has the screen's input now (on Android): the game's, or something over it. */
+const focus = async () => (BROWSER ? 'the page' : (await sh('dumpsys window | grep -E "mCurrentFocus|mFocusedApp"')).trim().replace(/\s+/g, ' '));
 
 /** Where a real tap in the middle of the screen lands in the page (swallowed before the game sees it). */
 async function calibrate() {
@@ -377,7 +381,7 @@ for (const [name, run] of Object.entries(schemes)) {
 // ---------------------------------------------------------------- the views
 try {
   await stage('tap');
-  console.log('\nVIEW');
+  console.log(`\nVIEW · game runs at ×${fmt(await pace())} real time`);
   const button = await centre('[data-view]');
   await watchPresses();
   console.log(`camera button at ${button.map(Math.round).join(',')} css px → ${toScreen(button).join(',')} on the screen`);
@@ -389,7 +393,8 @@ try {
     const v = await page.evaluate(() => JSON.parse(localStorage.getItem('ccr:save')).data.settings.view);
     const b = await me();
     views.push(v);
-    console.log(`  press ${i + 1}: ${(await presses()).join(' · ') || 'no pointerdown reached the page'} → view ${v}`);
+    const landed = (await presses()).join(' · ');
+    console.log(`  press ${i + 1}: ${landed || `no pointerdown reached the page (input to: ${await focus()})`} → view ${v}`);
     await shot(`view-${i + 1}-${v}`);
     // (the button sits over TAP's right half: a press on it must not steer)
     if (i === 0) check('VIEW: the camera button doesn\'t steer', Math.abs(turnOf(a.heading, b.heading)) < 0.15, `turned ${fmt(turnOf(a.heading, b.heading))} rad`);
