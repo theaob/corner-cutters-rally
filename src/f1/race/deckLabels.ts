@@ -1,6 +1,6 @@
 // What each deck button does just now ('' for nothing), from the stage's state:
 // A the stage's own action (on to the results, on to the rally's screen; the
-// controls lap's SKIP or MENU), B drift while you're driving, START restart,
+// controls lap's SKIP or MENU), B drift while you're driving (where there's one), START restart,
 // SELECT pause while driving (A still pauses on the keys and a gamepad), else
 // exit. The stage's loop reads its input by the same labels. Engine-free.
 
@@ -17,6 +17,8 @@ export interface DeckState {
   /** your stage is over (finished, or out) */
   done: boolean;
   paused: boolean;
+  /** whether the way you drive has a drift (TAP on a touch screen hasn't: its halves steer and brake); yes if unsaid */
+  drift?: boolean;
 }
 
 export function deckLabels(s: DeckState): Record<DeckButton, string> {
@@ -35,7 +37,7 @@ export function deckLabels(s: DeckState): Record<DeckButton, string> {
   const lessonDone = s.tutorial && s.learnt;
   return {
     a: racing ? '' : a,
-    b: driving && !lessonDone ? 'DRIFT' : '',
+    b: driving && !lessonDone && s.drift !== false ? 'DRIFT' : '',
     // (a stage once finished counts: no running it again)
     start: s.paused || (s.done && !s.tutorial) || lessonDone ? '' : 'RESTART',
     select: racing ? 'PAUSE' : s.paused ? '' : 'EXIT',

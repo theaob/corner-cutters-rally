@@ -1,6 +1,6 @@
 // The settings rows shared by the menu's SETTINGS screen and the pause screen:
 // the screen's shape (SCREEN: HANDHELD or WIDE, where the device can switch), the text's size (TEXT) and the
-// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), which side the thumbstick sits on, how the controls drive (DRIVING), vibration, screen shake, the grid walk
+// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the touch deck (TOUCH, on a touch screen), which side the thumbstick sits on, how keys and pads drive (DRIVING), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
 // as it changes. Difficulty is the menu's alone (not changed mid-race).
 
@@ -10,7 +10,8 @@ import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
 import { musicVolume, setMusicVolume } from '../engine/music';
 import { optionRow } from './menu';
 import { setShake, shakeOn } from './shake';
-import { DRIVE_STYLES, driveStyle, setDriveStyle } from './driveStyle';
+import { DRIVE_STYLES, TOUCH_ABOUT, TOUCH_SCHEMES, driveStyle, setDriveStyle, setTouchScheme, touchScheme } from './driveStyle';
+import { askTilt } from '../engine/tilt';
 import { setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
@@ -38,12 +39,19 @@ export type SettingsRow = ReturnType<typeof optionRow<unknown>>;
 export function settingsRows(): SettingsRow[] {
   const deck = document.getElementById('deck');
   const sides: StickSide[] = ['left', 'right'];
-  const stickRow = optionRow('STICK', sides, stickSide(), (side) => ({ name: side.toUpperCase(), about: side === 'left' ? 'thumbstick left · A and B right' : 'thumbstick right · A and B left' }), (side) => {
+  const stickRow = optionRow('STICK', sides, stickSide(), (side) => ({ name: side.toUpperCase(), about: side === 'left' ? 'stick or slider left · buttons right' : 'stick or slider right · buttons left' }), (side) => {
     if (deck) setStickSide(deck, side);
   });
+  // TOUCH: the touch deck (on a touch screen); DRIVING: the keys and a gamepad
+  const touchRow = optionRow('TOUCH', TOUCH_SCHEMES, touchScheme(), (s) => ({ name: s.toUpperCase(), about: TOUCH_ABOUT[s] }), (s) => {
+    setTouchScheme(s);
+    // (iOS lets a page read the tilt only once asked, from a tap: this one)
+    if (s === 'tilt') void askTilt();
+  });
+  const touchScreen = window.matchMedia?.('(any-pointer: coarse)').matches ?? false;
   const drivingRow = optionRow('DRIVING', DRIVE_STYLES, driveStyle(), (s) => ({
     name: s.toUpperCase(),
-    about: s === 'auto' ? 'touch points the way · keys and pads steer' : s === 'point' ? 'the car goes where you point' : 'touch: a slider, gas and brake · keys and pads steer',
+    about: s === 'point' ? 'keys and pads: point where to go' : 'keys and pads: gas, brake and steer',
   }), setDriveStyle);
   const vibrationRow = optionRow('VIBRATION', [true, false], vibrationOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, grass, kerbs' : 'no buzzing' }), (on) => {
     setVibration(on);
@@ -62,7 +70,7 @@ export function settingsRows(): SettingsRow[] {
   const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
   const coloursRow = optionRow('COLOURS', [false, true], colourSafe(), (on) => ({ name: on ? 'COLOUR-SAFE' : 'STANDARD', about: on ? 'splits in blue, white, orange, and in words' : 'splits in purple, green, amber' }), setColourSafe);
   // (STATS only where the build has a backend to send them to)
-  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, stickRow, drivingRow, vibrationRow, shakeRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
+  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, ...(touchScreen ? [touchRow] : []), stickRow, drivingRow, vibrationRow, shakeRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
 }
 
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */

@@ -75,10 +75,18 @@ A big crash tears off the bumper and its lamps, and a wreck loses a wheel or two
 
 Each device drives the way it suits, and the game follows whichever you used last:
 
-- **Touch:** the analogue thumbstick points where you want to go on the screen (up is straight ahead, as the camera follows the car), and how far you push it is the throttle. B (DRIFT) drifts. The stick floats: put your thumb down anywhere on its side of the lower half of the screen and it comes to it.
+- **Touch:** **TOUCH** in the settings picks the deck (`src/f1/driveStyle.ts`). PEDALS is the default.
+  - **PEDALS:** a steering slider under one thumb, and GAS and BRAKE under the other, with DRIFT above them.
+  - **STICK:** one floating stick as a wheel. Across steers, up is the gas and down the brake. The round well reads as a square, so a push out on a diagonal is full lock and full gas together.
+  - **ARCADE:** the gas is always on. The slider steers, BRAKE slows (held once stopped, it reverses), and DRIFT drifts.
+  - **TAP:** the gas is always on. Hold the left or right half of the screen to steer that way, harder the longer you hold it. Hold both to brake. There is no drift.
+  - **TILT:** the gas is always on. Tilt the phone like a wheel to steer, and the slider's knob shows the tilt. A thumb on the slider steers instead. BRAKE and DRIFT as in ARCADE. iOS asks first: picking TILT in the settings, or a touch on the deck, asks.
+  - **POINT:** the stick points at the spot on the screen you want to drive to, and how far you push it is the throttle. The spot is found by looking from your car's place on the screen, the way you push, down through the camera onto the road.
+
+  The stick, and the slider, float or sit on the side STICK in the settings says. DRIFT is on the deck on dirt. Where the gas is always on, it's on from before GO: an ordinary start, never a jump start or a launch.
 - **Keyboard:** ↑ (or W) is the gas, ↓ (S) the brake (held once stopped, it reverses), ← → (A, D) steer, and X or Shift drifts. Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, and V switches between the handheld and wide layouts.
 - **Gamepad:** the right trigger is the gas, the left the brake, the left stick steers, A drifts, Start pauses, Y restarts, and Back is SELECT.
-- **DRIVING** in the settings (`src/f1/driveStyle.ts`): AUTO (each device as above), POINT (the car goes where you point, on every device) or STEER (you drive the car itself; on a touch screen, a steering slider and GAS and BRAKE pedals).
+- **DRIVING** in the settings, for the keys and a gamepad: STEER (as above) or POINT (the arrows or the left stick point where to go, as POINT on touch).
 
 **SETTINGS** (from home, and from the pause screen; `src/f1/menu.ts`, `src/f1/settingsRows.ts`):
 
@@ -86,8 +94,9 @@ Each device drives the way it suits, and the game follows whichever you used las
 - SCREEN, on a device with a mouse or trackpad;
 - TEXT: NORMAL or LARGE;
 - COLOURS: STANDARD or COLOUR-SAFE, for the splits;
-- STICK: the thumbstick's side;
-- DRIVING, VIBRATION, SCREEN SHAKE, SOUND and MUSIC;
+- TOUCH: the touch deck, on a touch screen;
+- STICK: the side of the thumbstick or the steering slider;
+- DRIVING (keys and gamepads), VIBRATION, SCREEN SHAKE, SOUND and MUSIC;
 - STATS, only when the build has a backend.
 
 All are remembered.
@@ -169,7 +178,7 @@ stats.html        The play-stats dashboard (src/stats/)
 src/
   main.ts         The entry: the host made ready, then app.ts
   app.ts          Routes in the page: home, the settings, a stage (?circuit=<id>&mode=rally), the controls lap
-  engine/         Controls, deck, layout, storage, save, TUNE panel, driving physics (driving.ts), ground and
+  engine/         Controls, deck, the phone's tilt (tilt.ts), layout, storage, save, TUNE panel, driving physics (driving.ts), ground and
                   collision (sim.ts), render/ (HD-2D pipeline, quality, effects, car models, daylight, textures)
   f1/             The rally game (the folder keeps its old name): uses only engine/
     stages.ts     The stages, grown from their seeds

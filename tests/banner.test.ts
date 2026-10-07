@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { evenLines } from '../src/f1/race/banner';
 import { STEPS, prompt } from '../src/f1/onboarding';
+import { DRIVE_STYLES, TOUCH_SCHEMES } from '../src/f1/driveStyle';
 
 const lines = (text: string) => evenLines(text).split('\n');
 
@@ -24,8 +25,8 @@ describe("the banner's message on two lines", () => {
   it("every controls-lap prompt: its two lines within a few letters of each other, unless a ' · ' splits it", () => {
     for (const device of ['touch', 'keys', 'pad'] as const) {
       for (const step of STEPS) {
-        for (const points of [true, false]) {
-          const text = prompt(step, device, points);
+        for (const how of [...TOUCH_SCHEMES, ...DRIVE_STYLES]) {
+          const text = prompt(step, device, how);
           if (!text.includes(' ')) continue;
           const [a, b] = lines(text);
           expect(a.length && b.length).toBeTruthy();

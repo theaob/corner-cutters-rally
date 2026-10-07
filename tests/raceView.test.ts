@@ -12,6 +12,9 @@ describe('the deck labels', () => {
   it('driving a stage: SELECT pauses (no A on the touch deck), B drifts, START restarts', () => {
     expect(deckLabels(deck())).toEqual({ a: '', b: 'DRIFT', start: 'RESTART', select: 'PAUSE' });
   });
+  it('driving without a drift (TAP on a touch screen): nothing on B', () => {
+    expect(deckLabels(deck({ drift: false })).b).toBe('');
+  });
   it("paused: nothing on A (the pause screen resumes), no RESTART or EXIT (the pause screen's own; EXIT asked first); the settings: DONE alone", () => {
     expect(deckLabels(deck({ paused: true }))).toEqual({ a: '', b: '', start: '', select: '' });
     expect(deckLabels(deck({ settings: true }))).toEqual({ a: '', b: '', start: '', select: '' });
