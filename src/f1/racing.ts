@@ -308,10 +308,19 @@ export interface Pad {
   b: boolean;
 }
 
-/** The driving input for the player from the touch thumbstick: it points where to go, and how far it's pushed is the throttle; B drifts. */
-export function playerInput(pad: Pad): DriveInput {
+/**
+ * The driving input for the player from the touch thumbstick: it points where to go, and how far it's pushed is the
+ * throttle; B drifts. The stick is read on the screen, so `viewYaw` (the way the camera looks, radians, 0 north; none
+ * for the north-up view) turns it into the map's directions: pushing up is straight ahead on the screen, whichever way
+ * a camera turning with the car has swung.
+ */
+export function playerInput(pad: Pad, viewYaw?: number): DriveInput {
   const { stick, b } = pad;
-  return { steer: stick.x || stick.y ? stick : undefined, handbrake: b };
+  if (!(stick.x || stick.y)) return { steer: undefined, handbrake: b };
+  if (!viewYaw) return { steer: stick, handbrake: b };
+  const len = Math.hypot(stick.x, stick.y);
+  const a = Math.atan2(stick.x, -stick.y) + viewYaw;
+  return { steer: { x: Math.sin(a) * len, y: -Math.cos(a) * len }, handbrake: b };
 }
 
 /** Keys and gamepads drive the car itself: steering (−1 left … 1 right), gas and brake (0…1), and drift. */

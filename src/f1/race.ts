@@ -714,7 +714,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const pedals = source === 'wheel' ? controls.drive('wheel') ?? { turn: 0, gas: 0, brake: 0 } : undefined;
     const points = pointsOn(device());
     const driveInput = (car: Car) =>
-      points ? playerInput(drive ? { ...pad, stick: drive.stick ?? { x: 0, y: 0 } } : pad)
+      // (the stick as seen on the screen: turned by the camera's yaw under a camera that turns with the car)
+      points ? playerInput(drive ? { ...pad, stick: drive.stick ?? { x: 0, y: 0 } } : pad, camYaw)
       : drive ? wheelInput({ ...drive, drift: pad.b }, car)
       : pedals ? wheelInput({ ...pedals, drift: false }, car)
       : source === 'keyboard' ? wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car)
