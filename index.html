@@ -1188,7 +1188,7 @@
       .stick-zone {
         display: none;
       }
-      html:not(.desktop) #deck:not(.steer-deck) .stick-zone {
+      html:not(.desktop) #deck:not(.slider-deck):not(.tap-deck) .stick-zone {
         display: block;
         position: absolute;
         bottom: 0;
@@ -1198,14 +1198,56 @@
         pointer-events: auto;
         touch-action: none;
       }
-      html:not(.desktop) #deck.stick-right:not(.steer-deck) .stick-zone {
+      html:not(.desktop) #deck.stick-right:not(.slider-deck):not(.tap-deck) .stick-zone {
         left: auto;
         right: 0;
       }
       html.results-up:not(.desktop) #deck .stick-zone,
       html.ceremony:not(.desktop) #deck .stick-zone,
       html.paused:not(.desktop) #deck .stick-zone,
-      html.menu #deck .stick-zone {
+      html.menu #deck .stick-zone,
+      html.results-up:not(.desktop) #deck .tap-zone,
+      html.ceremony:not(.desktop) #deck .tap-zone,
+      html.paused:not(.desktop) #deck .tap-zone,
+      html.menu #deck .tap-zone {
+        display: none !important;
+      }
+      /* TAP (race.ts sets #deck.tap-deck): the screen's two halves, top to bottom, held to steer (both to brake); a
+         faint arrow low on each, lit while it's held. The deck's buttons stay over them */
+      .tap-zone {
+        display: none;
+      }
+      html:not(.desktop) #deck.tap-deck .tap-zone {
+        display: block;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 50%;
+        pointer-events: auto;
+        touch-action: none;
+      }
+      .tap-zone.left { left: 0; }
+      .tap-zone.right { right: 0; }
+      .tap-zone::after {
+        content: attr(data-arrow);
+        position: absolute;
+        /* (above the deck's buttons at the bottom: A's SKIP, TUNE) */
+        bottom: 170px;
+        font-size: 30px;
+        line-height: 1;
+        color: rgba(244, 244, 248, 0.22);
+        text-shadow: 0 1px 0 #000;
+        transition: color 0.1s;
+      }
+      .tap-zone.left::after { left: 28px; }
+      .tap-zone.right::after { right: 28px; }
+      .tap-zone.left.pressed { background: linear-gradient(90deg, rgba(244, 244, 248, 0.08), transparent 70%); }
+      .tap-zone.right.pressed { background: linear-gradient(270deg, rgba(244, 244, 248, 0.08), transparent 70%); }
+      .tap-zone.pressed::after { color: var(--accent-b); }
+      html:not(.desktop) #deck.tap-deck .controls {
+        position: relative;
+      }
+      html:not(.desktop) #deck.tap-deck .stick {
         display: none;
       }
       html:not(.desktop) .sys button {
@@ -1217,21 +1259,44 @@
       html:not(.desktop) #deck.stick-right .face {
         flex-direction: row-reverse;
       }
-      /* STEER on a touch screen (race.ts sets #deck.steer-deck): the steering slider where the thumbstick is, and the
-         GAS and BRAKE pedals where A is; each as wide as the other, so they mirror about the middle, GAS outermost */
+      /* PEDALS, ARCADE and TILT on a touch screen (race.ts sets #deck.slider-deck): the steering slider where the
+         thumbstick is, and the GAS and BRAKE pedals where A is; each as wide as the other, so they mirror about the
+         middle, GAS outermost. The face (DRIFT, on dirt) stands over the pedals while you drive */
       .slider,
       .pedals {
         display: none;
       }
-      #deck.steer-deck .stick,
-      #deck.steer-deck .face {
+      #deck.slider-deck .stick {
         display: none;
       }
-      #deck.steer-deck .slider {
+      #deck.slider-deck .slider {
         display: block;
       }
-      #deck.steer-deck .pedals {
+      #deck.slider-deck .pedals {
         display: flex;
+      }
+      html:not(.desktop):not(.results-up):not(.ceremony):not(.paused) #deck.slider-deck .face {
+        position: absolute;
+        bottom: 128px;
+        right: 28px;
+      }
+      html:not(.desktop):not(.results-up):not(.ceremony):not(.paused) #deck.slider-deck.stick-right .face {
+        right: auto;
+        left: 28px;
+      }
+      /* (the gas always on, ARCADE and TILT: no GAS pedal, BRAKE as big as it was) */
+      #deck.auto-gas .pedal.gas {
+        display: none;
+      }
+      #deck.auto-gas .pedal.brake {
+        width: 76px;
+        height: 100px;
+        font-size: 14px;
+      }
+      /* (TILT: the slider shows the phone's tilt on its knob, and steers while a thumb's on it) */
+      #deck.tilt-deck .slider:not(.pressed) .knob {
+        transition: none;
+        border-color: #8f8bb8;
       }
       .slider {
         position: relative;
@@ -1489,8 +1554,8 @@
         display: none;
       }
       .desktop .stick,
-      .desktop #deck.steer-deck .slider,
-      .desktop #deck.steer-deck .pedals {
+      .desktop #deck.slider-deck .slider,
+      .desktop #deck.slider-deck .pedals {
         display: none;
       }
       /* A and B as key prompts, bottom right: [Z] ENTER CAR  [X] RUN */

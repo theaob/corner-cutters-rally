@@ -341,10 +341,56 @@ export const keysWheel = (keys: { up: boolean; down: boolean; left: boolean; rig
   turn: (keys.right ? 1 : 0) - (keys.left ? 1 : 0), gas: keys.up ? 1 : 0, brake: keys.down ? 1 : 0, drift,
 });
 
-/** The wheel from the touch thumbstick (screen space, y down): across steers, up is the gas, down the brake. */
-export const stickWheel = (stick: { x: number; y: number }, drift: boolean): WheelPad => ({
-  turn: stick.x, gas: Math.max(0, -stick.y), brake: Math.max(0, stick.y), drift,
-});
+/** How the touch stick reads as a wheel: a dead zone across of its own (small, for fine corrections) and one for the
+ * pedals (bigger, so steering hard doesn't creep onto the gas or the brake). */
+export const STICK_WHEEL = { turnDead: 0.08, pedalDead: 0.15 };
+
+/** `v` (−1…1) past a dead zone `dead`, rescaled so the rest of the travel is the whole range. */
+const pastDead = (v: number, dead: number) => (Math.abs(v) <= dead ? 0 : Math.sign(v) * Math.min(1, (Math.abs(v) - dead) / (1 - dead)));
+
+/**
+ * The wheel from the touch thumbstick (screen space, y down): across steers, up is the gas, down the brake. The round
+ * well is read as a square (out to the rim on a diagonal is full lock and full gas together, as a hard bend wants), and
+ * each axis has its own dead zone.
+ */
+export function stickWheel(stick: { x: number; y: number }, drift: boolean): WheelPad {
+  const big = Math.max(Math.abs(stick.x), Math.abs(stick.y));
+  const k = big ? Math.min(1, Math.hypot(stick.x, stick.y)) / big : 0;
+  const x = Math.max(-1, Math.min(1, stick.x * k));
+  const y = Math.max(-1, Math.min(1, stick.y * k));
+  const pedal = pastDead(y, STICK_WHEEL.pedalDead);
+  return { turn: pastDead(x, STICK_WHEEL.turnDead), gas: Math.max(0, -pedal), brake: Math.max(0, pedal), drift };
+}
+
+/** The gas always on (ARCADE, TAP, TILT): you steer, brake (the gas off while you do; held once stopped, it reverses) and drift. */
+export const autoWheel = (turn: number, brake: number, drift: boolean): WheelPad => ({ turn, gas: brake > 0.2 ? 0 : 1, brake, drift });
+
+/** s for a held side of the screen (TAP) to go from its first bite to full lock: a tap is a nudge, a hold a bend */
+export const TAP_RAMP = { from: 0.45, secs: 0.3 };
+
+/**
+ * TAP: the halves of the screen held (`left`, `right`), and for how long the side held now has been (s). One side
+ * steers that way, turning harder the longer it's held; both brake.
+ */
+export function tapWheel(left: boolean, right: boolean, heldFor: number): WheelPad {
+  if (left && right) return autoWheel(0, 1, false);
+  const side = (right ? 1 : 0) - (left ? 1 : 0);
+  const bite = TAP_RAMP.from + (1 - TAP_RAMP.from) * Math.min(1, Math.max(0, heldFor) / TAP_RAMP.secs);
+  return autoWheel(side * bite, 0, false);
+}
+
+/**
+ * POINT's aim: toward `at` (a spot on the map the stick points at, through the camera), from the car, with the stick's
+ * push (0…1) as the throttle; B drifts.
+ */
+export function steerToward(car: { x: number; y: number }, at: { x: number; y: number }, push: number, drift: boolean): DriveInput {
+  const dx = at.x - car.x;
+  const dy = at.y - car.y;
+  const d = Math.hypot(dx, dy);
+  if (!d || !push) return { steer: undefined, handbrake: drift };
+  const k = Math.min(1, push) / d;
+  return { steer: { x: dx * k, y: dy * k }, handbrake: drift };
+}
 
 /**
  * The driving input for keys, a gamepad or the stick steering: the wheel turns the car (a gentle

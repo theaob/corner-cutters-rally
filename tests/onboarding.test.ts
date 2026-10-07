@@ -38,7 +38,8 @@ describe('the controls lap', () => {
   });
   it('says each prompt for the device you drive with', () => {
     for (const step of STEPS) for (const device of ['touch', 'keys', 'pad'] as const) expect(prompt(step, device).length).toBeGreaterThan(5);
-    expect(prompt('go', 'touch')).toContain('STICK');
+    expect(prompt('go', 'touch')).toContain('SLIDE TO STEER');
+    expect(prompt('go', 'touch', 'stick')).toContain('STICK');
     expect(prompt('go', 'keys')).toContain('UP');
     expect(prompt('bend', 'pad')).toContain('TRIGGER');
   });

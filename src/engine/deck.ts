@@ -1,5 +1,5 @@
-// The control deck under the game screen: an analogue thumbstick (or, to STEER on a touch screen, a steering
-// slider and GAS and BRAKE pedals), two face
+// The control deck under the game screen: an analogue thumbstick (or, by TOUCH in the settings, a steering
+// slider with GAS and BRAKE pedals, or the screen's two halves held to steer), two face
 // buttons and two small ones (A, B, START and SELECT inside), each showing what
 // it does now, an icon on it and the action's name (hidden when it does
 // nothing), and the status strip (race position, lap).
@@ -57,6 +57,7 @@ export function bindDeck(deck: HTMLElement, controls: Controls): void {
   const stick = deck.querySelector<HTMLElement>('[data-dpad]');
   if (stick) bindStick(stick, controls, deck);
   bindWheel(deck, controls);
+  bindTap(deck, controls);
 
   for (const el of deck.querySelectorAll<HTMLElement>('[data-button]')) {
     const button = el.dataset.button as Button;
@@ -247,6 +248,67 @@ function bindWheel(deck: HTMLElement, controls: Controls): void {
     pedal.addEventListener('lostpointercapture', release);
     releaseAnywhere(() => held, release);
   }
+}
+
+/**
+ * TAP on a touch screen: the screen's two halves, held. One steers that way, both brake; a thumb sliding across the
+ * middle steers the other way. They're the 'tap' source's driving: turn −1 or 1, or brake 1 for both.
+ */
+function bindTap(deck: HTMLElement, controls: Controls): void {
+  const zones = (['left', 'right'] as const).map((side) => {
+    const el = document.createElement('div');
+    el.className = `tap-zone ${side}`;
+    el.dataset.arrow = side === 'left' ? '\u25C0' : '\u25B6';
+    el.setAttribute('aria-hidden', 'true');
+    deck.prepend(el);
+    return el;
+  });
+  /** the side each finger down on the zones is on now */
+  const fingers = new Map<number, 'left' | 'right'>();
+  const sideAt = (x: number): 'left' | 'right' => {
+    const r = deck.getBoundingClientRect();
+    return x < r.left + r.width / 2 ? 'left' : 'right';
+  };
+  const send = () => {
+    const sides = new Set(fingers.values());
+    zones[0].classList.toggle('pressed', sides.has('left'));
+    zones[1].classList.toggle('pressed', sides.has('right'));
+    if (!sides.size) controls.clear('tap');
+    else if (sides.size === 2) controls.setDrive('tap', { turn: 0, gas: 0, brake: 1 });
+    else controls.setDrive('tap', { turn: sides.has('left') ? -1 : 1, gas: 0, brake: 0 });
+  };
+  const release = (e: PointerEvent) => {
+    if (!fingers.delete(e.pointerId)) return;
+    send();
+  };
+  for (const el of zones) {
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      fingers.set(e.pointerId, sideAt(e.clientX));
+      capture(el, e.pointerId);
+      send();
+      buzz();
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!fingers.has(e.pointerId)) return;
+      // (sent on every move: after the controls were cleared from outside, a finger still down steers again)
+      fingers.set(e.pointerId, sideAt(e.clientX));
+      send();
+    });
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('lostpointercapture', release);
+  }
+  for (const type of ['pointerup', 'pointercancel'] as const) window.addEventListener(type, release);
+}
+
+/** Show `turn` (−1…1) on the steering slider's knob, while no thumb is on it (TILT: how far the phone is tilted). */
+export function showSliderTurn(deck: HTMLElement, turn: number): void {
+  const slider = deck.querySelector<HTMLElement>('[data-slider]');
+  const knob = slider?.querySelector<HTMLElement>('.knob');
+  if (!slider || !knob || slider.classList.contains('pressed')) return;
+  const travel = (slider.clientWidth - knob.offsetWidth) / 2;
+  knob.style.setProperty('transform', `translateX(${(turn * travel).toFixed(1)}px)`);
 }
 
 /** Show every deck button as let go (after the controls were cleared from outside). */
