@@ -46,6 +46,9 @@ if (BROWSER) {
   webviewVersion = (await sh(`dumpsys package com.google.android.webview | grep -m1 versionName`)).trim();
   // (no "isn't responding" dialogs over the game: the emulator's software GPU is slow enough to raise them)
   await sh('settings put global hide_error_dialogs 1');
+  // (nor Android's one-time "viewing full screen" banner: it sits over the top of the screen, the camera button under it,
+  // and takes the presses there until it's dismissed; a player taps its GOT IT once)
+  await sh('settings put secure immersive_mode_confirmations confirmed');
   [screenW, screenH] = (await sh('wm size')).trim().split('\n').pop().split(':').pop().trim().split('x').map(Number);
 }
 console.log(`device: ${device.model()} (${device.serial()}) · Android ${androidVersion} · WebView ${webviewVersion}`);
