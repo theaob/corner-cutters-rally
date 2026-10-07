@@ -32,7 +32,7 @@ export interface Difficulty {
 
 export const DIFFICULTIES: Difficulty[] = [
   { id: 'easy', name: 'EASY', about: 'slower AI · crashes forgiven', aiPace: 0.86, aiSpread: 0.08, crashDamage: 0.1, damageSlow: 0.15, aiCraft: 0.3, aiMistakes: 0.08, aiIncidents: 0.06 },
-  { id: 'normal', name: 'NORMAL', about: 'a fair fight', aiPace: 0.95, aiSpread: 0.05, crashDamage: 0.2, damageSlow: 0.3, aiCraft: 0.6, aiMistakes: 0.05, aiIncidents: 0.045 },
+  { id: 'normal', name: 'NORMAL', about: 'a fair fight', aiPace: 0.92, aiSpread: 0.05, crashDamage: 0.2, damageSlow: 0.3, aiCraft: 0.6, aiMistakes: 0.05, aiIncidents: 0.045 },
   { id: 'hard', name: 'HARD', about: 'flat-out AI · crashes cost you', aiPace: 0.985, aiSpread: 0.02, crashDamage: 0.35, damageSlow: 0.4, aiCraft: 0.9, aiMistakes: 0.025, aiIncidents: 0.03 },
 ];
 
