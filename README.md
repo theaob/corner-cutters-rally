@@ -84,7 +84,7 @@ Each device drives the way it suits, and the game follows whichever you used las
   - **POINT:** the stick points at the spot on the screen you want to drive to, and how far you push it is the throttle. The spot is found by looking from your car's place on the screen, the way you push, down through the camera onto the road.
 
   The stick, and the slider, float or sit on the side STICK in the settings says. DRIFT is on the deck on dirt. Where the gas is always on, it's on from before GO: an ordinary start, never a jump start or a launch.
-- **Keyboard:** ↑ (or W) is the gas, ↓ (S) the brake (held once stopped, it reverses), ← → (A, D) steer, and X or Shift drifts. Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, and V switches between the handheld and wide layouts.
+- **Keyboard:** ↑ (or W) is the gas, ↓ (S) the brake (held once stopped, it reverses), ← → (A, D) steer, and X or Shift drifts. Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, C changes the view, and V switches between the handheld and wide layouts.
 - **Gamepad:** the right trigger is the gas, the left the brake, the left stick steers, A drifts, Start pauses, Y restarts, and Back is SELECT.
 - **DRIVING** in the settings, for the keys and a gamepad: STEER (as above) or POINT (the arrows or the left stick point where to go, as POINT on touch).
 
@@ -94,6 +94,7 @@ Each device drives the way it suits, and the game follows whichever you used las
 - SCREEN, on a device with a mouse or trackpad;
 - TEXT: NORMAL or LARGE;
 - COLOURS: STANDARD or COLOUR-SAFE, for the splits;
+- VIEW: the camera;
 - TOUCH: the touch deck, on a touch screen;
 - STICK: the side of the thumbstick or the steering slider;
 - DRIVING (keys and gamepads), VIBRATION, SCREEN SHAKE, SOUND and MUSIC;
@@ -111,7 +112,7 @@ All are remembered.
 
 **Sound and music:** sound is synthesised with Web Audio (`src/engine/audio.ts`, `src/f1/sounds.ts`): the engine, tyre squeal, rough ground and gravel, hits and scrapes, rain, the countdown's beeps, and a fanfare at your flag. The theme plays at home and the stage's own track on the road (`public/music/`, `src/f1/music.ts`).
 
-**Cameras:** the default is the chase camera (low, behind the car). To try others on a stage, add `&cam=` to the address: `classic` (the HD-2D view, high, north up), `heading` (turns with the car), `road` (turns with the road ahead), `bonnet` or `iso` (a fixed diagonal).
+**Cameras:** VIEW in the settings picks the camera, remembered (`src/f1/view.ts`): CHASE (low, behind the car; the default), ROAD (high, turns with the road ahead), HEADING (high, turns with the car), BONNET, CLASSIC (the HD-2D view, high, north up) and ISO (a fixed diagonal). Mid-stage, the camera button under PAUSE (top right on a phone) or C on the keys goes to the next view, named on the banner a moment. `&cam=` in the address still tries one out, until the view is changed in the game.
 
 **Fixed-step simulation:** the stage runs in steps of exactly 1/60 s, however fast or slow the screen draws (`src/engine/fixedStep.ts`), so a run comes out the same on any screen and in the headless tests.
 

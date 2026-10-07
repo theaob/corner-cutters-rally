@@ -1,6 +1,6 @@
 // The settings rows shared by the menu's SETTINGS screen and the pause screen:
 // the screen's shape (SCREEN: HANDHELD or WIDE, where the device can switch), the text's size (TEXT) and the
-// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the touch deck (TOUCH, on a touch screen), which side the thumbstick sits on, how keys and pads drive (DRIVING), vibration, screen shake, the grid walk
+// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the camera (VIEW), the touch deck (TOUCH, on a touch screen), which side the thumbstick sits on, how keys and pads drive (DRIVING), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
 // as it changes. Difficulty is the menu's alone (not changed mid-race).
 
@@ -12,6 +12,7 @@ import { optionRow } from './menu';
 import { setShake, shakeOn } from './shake';
 import { DRIVE_STYLES, TOUCH_ABOUT, TOUCH_SCHEMES, driveStyle, setDriveStyle, setTouchScheme, touchScheme } from './driveStyle';
 import { askTilt } from '../engine/tilt';
+import { VIEWS, VIEW_ABOUT, setView, viewSetting } from './view';
 import { setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import type { LayoutMode } from '../engine/layout';
@@ -48,6 +49,7 @@ export function settingsRows(): SettingsRow[] {
     // (iOS lets a page read the tilt only once asked, from a tap: this one)
     if (s === 'tilt') void askTilt();
   });
+  const viewRow = optionRow('VIEW', VIEWS, viewSetting(), (v) => ({ name: v.toUpperCase(), about: VIEW_ABOUT[v] }), setView);
   const touchScreen = window.matchMedia?.('(any-pointer: coarse)').matches ?? false;
   const drivingRow = optionRow('DRIVING', DRIVE_STYLES, driveStyle(), (s) => ({
     name: s.toUpperCase(),
@@ -70,7 +72,7 @@ export function settingsRows(): SettingsRow[] {
   const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
   const coloursRow = optionRow('COLOURS', [false, true], colourSafe(), (on) => ({ name: on ? 'COLOUR-SAFE' : 'STANDARD', about: on ? 'splits in blue, white, orange, and in words' : 'splits in purple, green, amber' }), setColourSafe);
   // (STATS only where the build has a backend to send them to)
-  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, ...(touchScreen ? [touchRow] : []), stickRow, drivingRow, vibrationRow, shakeRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
+  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, viewRow, ...(touchScreen ? [touchRow] : []), stickRow, drivingRow, vibrationRow, shakeRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
 }
 
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */

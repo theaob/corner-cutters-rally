@@ -1212,6 +1212,36 @@
       html.menu #deck .tap-zone {
         display: none !important;
       }
+      /* the camera button: under PAUSE, top right, while you drive a stage (C on the keys; VIEW in the settings) */
+      .view-btn {
+        display: none;
+      }
+      html:not(.desktop):not(.menu):not(.results-up):not(.ceremony):not(.paused) #deck .view-btn {
+        display: flex;
+        position: absolute;
+        top: 60px;
+        right: 12px;
+        z-index: 1;
+        width: 44px;
+        height: 44px;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border-radius: 50%;
+        border: 1px solid var(--key-edge);
+        background: rgba(37, 35, 58, 0.75);
+        color: var(--text);
+        pointer-events: auto;
+        touch-action: none;
+        cursor: pointer;
+      }
+      .view-btn svg {
+        width: 22px;
+        height: 22px;
+      }
+      .view-btn:active {
+        background: var(--key-held);
+      }
       /* TAP (race.ts sets #deck.tap-deck): the screen's two halves, top to bottom, held to steer (both to brake); a
          faint arrow low on each, lit while it's held. The deck's buttons stay over them */
       .tap-zone {
@@ -2000,6 +2030,8 @@
             <button class="pedal gas" data-pedal="gas" aria-label="Gas">GAS</button>
           </div>
         </div>
+        <!-- the camera: the next view (race.ts binds it; on a stage, while you drive) -->
+        <button class="view-btn" data-view aria-label="View"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="12" cy="13.2" r="3.4" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button>
         <div class="sys">
           <button class="idle" data-button="select" aria-label="select"><span class="icon" data-hud="icon-select"></span><span data-hud="label-select"></span></button>
           <button class="idle" data-button="start" aria-label="start"><span class="icon" data-hud="icon-start"></span><span data-hud="label-start"></span></button>

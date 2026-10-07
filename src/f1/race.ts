@@ -20,6 +20,7 @@ import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { autoThrottle, howOn, touchDrifts, touchScheme } from './driveStyle';
 import { askTilt, tiltNow, tiltTurn } from '../engine/tilt';
+import { isView, nextView, setView, viewSetting, type ViewId } from './view';
 import { showSliderTurn } from '../engine/deck';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
@@ -562,7 +563,10 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     if (hidden && !done) setPaused(true);
   });
   const onKey = (e: KeyboardEvent) => {
-    if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat && !(e.target instanceof HTMLInputElement) && !reportOpen() && !done) setPaused(!paused);
+    if (e.repeat || e.target instanceof HTMLInputElement || reportOpen()) return;
+    if ((e.code === 'Escape' || e.code === 'KeyP') && !done) setPaused(!paused);
+    // (C: the next view)
+    if (e.code === 'KeyC' && !paused) cycleView();
   };
   window.addEventListener('keydown', onKey);
 
@@ -617,13 +621,28 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   /** the camera held on a point of the map (a debug hook, for looking at the scenery) */
   let lookAt: { x: number; y: number } | undefined;
   /**
-   * The cameras, chase (low, behind the car) unless another is tried out with ?cam=: classic (the HD-2D view, north
-   * up), heading (the same, turned with the car so it drives up the screen), road (turned with the road ahead instead,
-   * steady through a slide), bonnet (from the front of the car) and iso (a fixed diagonal)
+   * The cameras, VIEW in the settings (view.ts; chase, low behind the car, unless another was picked): classic (the
+   * HD-2D view, north up), heading (the same, turned with the car so it drives up the screen), road (turned with the
+   * road ahead instead, steady through a slide), bonnet (from the front of the car) and iso (a fixed diagonal). One
+   * tried out with ?cam= holds until the view is changed in the game.
    */
-  const CAMERAS = ['classic', 'heading', 'road', 'chase', 'bonnet', 'iso'];
-  const camParam = new URLSearchParams(window.location.search).get('cam') ?? 'chase';
-  const camMode = CAMERAS.includes(camParam) ? camParam : 'chase';
+  const camParam = new URLSearchParams(window.location.search).get('cam');
+  let camTry: ViewId | undefined = isView(camParam) ? camParam : undefined;
+  const camMode = (): ViewId => camTry ?? viewSetting();
+  /** The next view (the deck's camera button, or C), named on the banner a moment, and remembered. */
+  const cycleView = () => {
+    const v = nextView(camMode());
+    camTry = undefined;
+    setView(v);
+    announce(`VIEW · ${v.toUpperCase()}`, '#f4f4f8', 1.2);
+  };
+  const viewButton = document.querySelector<HTMLElement>('#deck [data-view]');
+  const onViewButton = (e: PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!paused && !done) cycleView();
+  };
+  viewButton?.addEventListener('pointerdown', onViewButton);
   /** the way a turning camera looks (eased), radians */
   let camYaw: number | undefined;
   // POINT's aim, through the camera (aimAt)
@@ -1008,7 +1027,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
     const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / t.zoom) * (1 + RUSH.pullBack * rushNow);
     // (the chase camera, or another tried out with ?cam=: CAMERAS; held on a point of the map, the classic view)
-    const mode = lookAt ? 'classic' : camMode;
+    const mode = lookAt ? 'classic' : camMode();
     if (mode === 'classic') {
       setFov(LOOK.fov);
       camera.up.set(0, 0, -1);
@@ -1075,6 +1094,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     noteDriven();
     offHidden();
     window.removeEventListener('keydown', onKey);
+    viewButton?.removeEventListener('pointerdown', onViewButton);
     setAudioPaused(false);
     sounds.dispose();
     paceCard.hush();
