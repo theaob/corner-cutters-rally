@@ -75,7 +75,7 @@ A big crash tears off the bumper and its lamps, and a wreck loses a wheel or two
 
 Each device drives the way it suits, and the game follows whichever you used last:
 
-- **Touch:** the analogue thumbstick points where you want to go, and how far you push it is the throttle. B (DRIFT) drifts. The stick floats: put your thumb down anywhere on its side of the lower half of the screen and it comes to it.
+- **Touch:** the analogue thumbstick points where you want to go on the screen (up is straight ahead, as the camera follows the car), and how far you push it is the throttle. B (DRIFT) drifts. The stick floats: put your thumb down anywhere on its side of the lower half of the screen and it comes to it.
 - **Keyboard:** ↑ (or W) is the gas, ↓ (S) the brake (held once stopped, it reverses), ← → (A, D) steer, and X or Shift drifts. Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, and V switches between the handheld and wide layouts.
 - **Gamepad:** the right trigger is the gas, the left the brake, the left stick steers, A drifts, Start pauses, Y restarts, and Back is SELECT.
 - **DRIVING** in the settings (`src/f1/driveStyle.ts`): AUTO (each device as above), POINT (the car goes where you point, on every device) or STEER (you drive the car itself; on a touch screen, a steering slider and GAS and BRAKE pedals).

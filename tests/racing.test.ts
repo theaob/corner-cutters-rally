@@ -185,6 +185,18 @@ describe('the player\'s controls', () => {
     expect(playerInput({ stick: { x: 0.3, y: -0.4 }, a: true, b: false })).toEqual({ steer: { x: 0.3, y: -0.4 }, handbrake: false });
     expect(playerInput({ stick: { x: 0, y: 0 }, a: false, b: true })).toEqual({ steer: undefined, handbrake: true });
   });
+  it('reads the stick on the screen: under a camera looking east, up is east (straight ahead) and left is north', () => {
+    const east = Math.PI / 2;
+    const ahead = playerInput({ stick: { x: 0, y: -1 }, a: false, b: false }, east).steer!;
+    expect(ahead.x).toBeCloseTo(1);
+    expect(ahead.y).toBeCloseTo(0);
+    // half throttle stays half throttle
+    const left = playerInput({ stick: { x: -0.5, y: 0 }, a: false, b: false }, east).steer!;
+    expect(left.x).toBeCloseTo(0);
+    expect(left.y).toBeCloseTo(-0.5);
+    // the north-up view: the stick as it is
+    expect(playerInput({ stick: { x: 0.3, y: -0.4 }, a: false, b: false }, undefined).steer).toEqual({ x: 0.3, y: -0.4 });
+  });
 });
 
 

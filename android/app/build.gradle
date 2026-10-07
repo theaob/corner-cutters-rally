@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "io.github.theaob.cornercutters"
+    namespace = "io.github.theaob.cornercuttersrally"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "io.github.theaob.cornercuttersrally"
