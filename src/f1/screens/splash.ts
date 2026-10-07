@@ -7,6 +7,7 @@
 // race or a mode goes straight there.
 
 import type { Button, Controls } from '../../engine/controls';
+import { isTouchScreen } from '../../engine/layout';
 import type { CircuitLayout } from '../layouts';
 import { versionLine } from '../settingsRows';
 import { showStill } from './backdropStill';
@@ -63,7 +64,8 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
   tag.textContent = 'ARCADE RALLY';
   const prompt = document.createElement('p');
   prompt.className = 'splash-start';
-  const touch = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;
+  // (a phone whose WebView reports no coarse pointer still taps: isTouchScreen)
+  const touch = isTouchScreen();
   prompt.textContent = startPrompt(touch);
   page.append(logo, tag, prompt, versionLine());
   host.append(page);

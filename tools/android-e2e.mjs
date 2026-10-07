@@ -97,10 +97,21 @@ const down = (p) => (BROWSER ? touch('touchStart', p) : sh(`input motionevent DO
 const move = (p) => (BROWSER ? touch('touchMove', p) : sh(`input motionevent MOVE ${toScreen(p).join(' ')}`));
 const up = (p) => (BROWSER ? touch('touchEnd', p) : sh(`input motionevent UP ${toScreen(p).join(' ')}`));
 const tap = async (p) => {
-  if (!BROWSER) return sh(`input tap ${toScreen(p).join(' ')}`);
-  await touch('touchStart', p);
-  await touch('touchEnd', p);
+  if (BROWSER) {
+    await touch('touchStart', p);
+    return touch('touchEnd', p);
+  }
+  await down(p);
+  await sleep(120);
+  await up(p);
 };
+/** Where the page's last pointerdown landed, and on what (to see a press that missed its target). */
+const watchPresses = () =>
+  page.evaluate(() => {
+    window.__downs = [];
+    addEventListener('pointerdown', (e) => window.__downs.push(`${Math.round(e.clientX)},${Math.round(e.clientY)} on ${e.target.className || e.target.tagName}`), true);
+  });
+const presses = () => page.evaluate(() => window.__downs.splice(0));
 
 /** Where a real tap in the middle of the screen lands in the page (swallowed before the game sees it). */
 async function calibrate() {
@@ -333,21 +344,33 @@ const schemes = {
   },
 };
 
+/** The app went down under the run (an emulator just booted can kill it while Play services settle): worth one more go. */
+const wentDown = (err) => /closed|crashed|Target page/i.test(String(err));
+
 let first = true;
 for (const [name, run] of Object.entries(schemes)) {
-  try {
-    await stage(name);
-    if (first) {
-      await calibrate();
-      first = false;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const mark = results.length;
+    try {
+      await stage(name);
+      if (first) {
+        await calibrate();
+        first = false;
+      }
+      const deck = await page.evaluate(() => document.getElementById('deck').className);
+      console.log(`\n${name.toUpperCase()} · deck: ${deck} · game runs at ×${fmt(await pace())} real time`);
+      await run();
+      break;
+    } catch (err) {
+      await shot(`${name}-error`).catch(() => {});
+      await crashLog().catch(() => {});
+      if (attempt === 1 && wentDown(err)) {
+        console.log(`RETRY  ${name.toUpperCase()}: the app went down (${String(err).split('\n')[0]}); once more`);
+        results.length = mark;
+        continue;
+      }
+      check(`${name.toUpperCase()}: ran`, false, String(err).split('\n')[0]);
     }
-    const deck = await page.evaluate(() => document.getElementById('deck').className);
-    console.log(`\n${name.toUpperCase()} · deck: ${deck} · game runs at ×${fmt(await pace())} real time`);
-    await run();
-  } catch (err) {
-    check(`${name.toUpperCase()}: ran`, false, String(err).split('\n')[0]);
-    await shot(`${name}-error`).catch(() => {});
-    await crashLog().catch(() => {});
   }
 }
 
@@ -356,6 +379,8 @@ try {
   await stage('tap');
   console.log('\nVIEW');
   const button = await centre('[data-view]');
+  await watchPresses();
+  console.log(`camera button at ${button.map(Math.round).join(',')} css px → ${toScreen(button).join(',')} on the screen`);
   const views = [];
   for (let i = 0; i < 6; i++) {
     const a = await me();
@@ -364,6 +389,7 @@ try {
     const v = await page.evaluate(() => JSON.parse(localStorage.getItem('ccr:save')).data.settings.view);
     const b = await me();
     views.push(v);
+    console.log(`  press ${i + 1}: ${(await presses()).join(' · ') || 'no pointerdown reached the page'} → view ${v}`);
     await shot(`view-${i + 1}-${v}`);
     // (the button sits over TAP's right half: a press on it must not steer)
     if (i === 0) check('VIEW: the camera button doesn\'t steer', Math.abs(turnOf(a.heading, b.heading)) < 0.15, `turned ${fmt(turnOf(a.heading, b.heading))} rad`);
@@ -380,9 +406,11 @@ try {
   await launch();
   await open('/?debug', { touch: 'pedals', view: 'chase' });
   console.log('\nSETTINGS');
-  // (the title splash first: TAP TO START)
-  await page.waitForFunction(() => /TAP TO START|SETTINGS/.test(document.body.innerText), null, { timeout: 120000 });
-  if (/TAP TO START/.test(await page.evaluate(() => document.body.innerText))) {
+  // (the title splash first: TAP TO START, on a touch screen)
+  await page.waitForFunction(() => /TAP TO START|PRESS ANY KEY|SETTINGS/.test(document.body.innerText), null, { timeout: 120000 });
+  const splash = await page.evaluate(() => document.body.innerText.match(/TAP TO START|PRESS ANY KEY/)?.[0]);
+  if (splash) check('SETTINGS: the splash asks for a tap', splash === 'TAP TO START', `it says ${splash}`);
+  if (splash) {
     const [w, h] = await viewport();
     await tap([w / 2, h / 2]);
   }
