@@ -85,6 +85,14 @@ export function canSwitchLayout(win: Window = window): boolean {
   return win.matchMedia?.('(any-hover: hover) and (any-pointer: fine)').matches ?? false;
 }
 
+/**
+ * Whether this is a touch screen: a coarse pointer, or a screen that takes touches at all (some Android WebViews, an
+ * emulator's among them, report no coarse pointer on a touch screen). It picks the touch deck.
+ */
+export function isTouchScreen(win: Pick<Window, 'matchMedia' | 'navigator'> = window): boolean {
+  return (win.matchMedia?.('(any-pointer: coarse)').matches ?? false) || (win.navigator?.maxTouchPoints ?? 0) > 0;
+}
+
 export function measureFit(mode: LayoutMode, win: Window = window): ScreenFit {
   if (mode === 'desktop') return fitDesktop(win.innerWidth, win.innerHeight);
   const width = Math.min(win.innerWidth, MAX_APP_WIDTH);

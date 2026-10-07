@@ -45,16 +45,43 @@ if (BROWSER) {
   androidVersion = (await sh('getprop ro.build.version.release')).trim();
   webviewVersion = (await sh(`dumpsys package com.google.android.webview | grep -m1 versionName`)).trim();
   [screenW, screenH] = (await sh('wm size')).trim().split('\n').pop().split(':').pop().trim().split('x').map(Number);
+}
+console.log(`device: ${device.model()} (${device.serial()}) · Android ${androidVersion} · WebView ${webviewVersion}`);
+
+/** What Android said about the app going down (a crash, the WebView's renderer, low memory), the last of it. */
+async function crashLog() {
+  if (BROWSER) return;
+  const log = await sh('logcat -d -t 2000');
+  const lines = log.split('\n').filter((l) => /FATAL|AndroidRuntime|crash|died|lowmemorykiller|renderer|cr_.*(error|fail)|WebViewFactory|ANR /i.test(l));
+  console.log(`--- logcat (${lines.length} lines of note) ---\n${lines.slice(-30).join('\n')}\n---`);
+}
+
+/** The app started afresh (on Android: stopped and opened again, each part of the run on its own), its WebView's page. */
+async function launch() {
+  if (BROWSER) return;
   await sh(`am force-stop ${PKG}`);
+  await sh('logcat -c');
   await sh(`am start -n ${PKG}/.MainActivity`);
   const webview = await device.webView({ pkg: PKG }, { timeout: 90000 });
   page = await webview.page();
+  page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
+  page.on('console', (m) => m.type() === 'error' && console.log('CONSOLE', m.text()));
+  page.on('close', () => console.log('PAGE CLOSED'));
+  await page.waitForLoadState();
 }
-console.log(`device: ${device.model()} (${device.serial()}) · Android ${androidVersion} · WebView ${webviewVersion}`);
-page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
-page.on('console', (m) => m.type() === 'error' && console.log('CONSOLE', m.text()));
-await page.waitForLoadState();
+await launch();
+if (BROWSER) {
+  page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
+  page.on('console', (m) => m.type() === 'error' && console.log('CONSOLE', m.text()));
+}
 console.log(`app at ${page.url()}`);
+console.log('the page sees:', JSON.stringify(await page.evaluate(() => ({
+  anyCoarse: matchMedia('(any-pointer: coarse)').matches,
+  pointer: ['coarse', 'fine', 'none'].find((p) => matchMedia(`(pointer: ${p})`).matches),
+  maxTouchPoints: navigator.maxTouchPoints,
+  screen: [innerWidth, innerHeight, devicePixelRatio],
+  webgl2: !!document.createElement('canvas').getContext('webgl2'),
+}))));
 
 // ---------------------------------------------------------------- the phone's touches
 /** CSS px in the WebView to the screen's px: the WebView's offset on the screen and its pixel ratio (calibrate). */
@@ -120,6 +147,7 @@ const shot = (name) => device.screenshot({ path: `${OUT}/${name}.png` });
 
 /** The save's settings (merged), past the controls lap, then the page at `path`. */
 async function open(path, settings) {
+  await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 60000 });
   await page.evaluate((settings) => {
     const raw = localStorage.getItem('ccr:save');
     const d = raw ? JSON.parse(raw) : { version: 2, data: {} };
@@ -132,6 +160,7 @@ async function open(path, settings) {
 
 /** The shakedown, driven `touch`, under the chase camera; once the car can go. */
 async function stage(touch) {
+  await launch();
   await open('/?debug&circuit=ss-shakedown&mode=tutorial', { touch, view: 'chase' });
   await page.waitForFunction(() => window.__cc?.phase?.() === 'racing', null, { timeout: 180000 });
   await sleep(1500);
@@ -318,6 +347,7 @@ for (const [name, run] of Object.entries(schemes)) {
   } catch (err) {
     check(`${name.toUpperCase()}: ran`, false, String(err).split('\n')[0]);
     await shot(`${name}-error`).catch(() => {});
+    await crashLog().catch(() => {});
   }
 }
 
@@ -342,10 +372,12 @@ try {
 } catch (err) {
   check('VIEW: ran', false, String(err).split('\n')[0]);
   await shot('view-error').catch(() => {});
+  await crashLog().catch(() => {});
 }
 
 // ---------------------------------------------------------------- the settings
 try {
+  await launch();
   await open('/?debug', { touch: 'pedals', view: 'chase' });
   console.log('\nSETTINGS');
   // (the title splash first: TAP TO START)
@@ -369,6 +401,7 @@ try {
 } catch (err) {
   check('SETTINGS: ran', false, String(err).split('\n')[0]);
   await shot('settings-error').catch(() => {});
+  await crashLog().catch(() => {});
 }
 
 writeFileSync(`${OUT}/results.json`, JSON.stringify({ device: device.model(), android: androidVersion, webview: webviewVersion, results }, null, 2));

@@ -28,7 +28,7 @@ import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effec
 import { Hd2dPipeline } from '../engine/render/hd2d';
 import { HD2D_VIEW } from '../engine/look';
 import { QUALITY_LEVELS, QualityGovernor } from '../engine/render/quality';
-import type { ScreenFit } from '../engine/layout';
+import { isTouchScreen, type ScreenFit } from '../engine/layout';
 import { loadVehicleEdits } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
 import { defaults } from '../engine/tuning';
@@ -577,7 +577,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     if (s === 'gamepad') return 'pad';
     // (the stick, the slider and pedals, the tap zones, and the deck's buttons)
     if (s === 'dpad' || s === 'wheel' || s === 'tap' || s.startsWith('touch-')) return 'touch';
-    return window.matchMedia?.('(any-pointer: coarse)').matches ? 'touch' : 'keys';
+    return isTouchScreen() ? 'touch' : 'keys';
   };
 
   /** What each deck button does just now (race/deckLabels.ts). */
@@ -587,7 +587,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   });
   const deckEl = document.getElementById('deck');
   /** a touch screen: TOUCH in the settings picks its deck (index.html: the deck's classes) */
-  const touchScreen = window.matchMedia?.('(any-pointer: coarse)').matches ?? false;
+  const touchScreen = isTouchScreen();
   const SCHEME_CLASSES = ['slider-deck', 'auto-gas', 'tilt-deck', 'tap-deck'];
   const showDeckLabels = () => {
     const scheme = touchScreen ? touchScheme() : undefined;

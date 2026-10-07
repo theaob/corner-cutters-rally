@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DESKTOP_GAME_HEIGHT, GAME_WIDTH, MAX_GAME_HEIGHT, MAX_HANDHELD_HEIGHT, MIN_GAME_HEIGHT, fitDesktop, fitHandheld, fitScreen, startLayout } from '../src/engine/layout';
+import { DESKTOP_GAME_HEIGHT, GAME_WIDTH, MAX_GAME_HEIGHT, MAX_HANDHELD_HEIGHT, MIN_GAME_HEIGHT, fitDesktop, fitHandheld, fitScreen, isTouchScreen, startLayout } from '../src/engine/layout';
 
 describe('fitScreen', () => {
   it('fills the width edge to edge, whatever the pixel ratio', () => {
@@ -88,5 +88,15 @@ describe('startLayout', () => {
   it('can be forced either way from the address', () => {
     expect(startLayout('?desktop', null)).toBe('desktop');
     expect(startLayout('?tune&mobile', 'desktop')).toBe('handheld');
+  });
+});
+
+describe('isTouchScreen', () => {
+  const win = (coarse: boolean, maxTouchPoints: number) =>
+    ({ matchMedia: () => ({ matches: coarse }), navigator: { maxTouchPoints } }) as unknown as Window;
+  it('a coarse pointer, or a screen that takes touches (an Android WebView can report no coarse pointer)', () => {
+    expect(isTouchScreen(win(true, 0))).toBe(true);
+    expect(isTouchScreen(win(false, 5))).toBe(true);
+    expect(isTouchScreen(win(false, 0))).toBe(false);
   });
 });

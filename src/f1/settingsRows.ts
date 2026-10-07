@@ -15,7 +15,7 @@ import { askTilt } from '../engine/tilt';
 import { VIEWS, VIEW_ABOUT, setView, viewSetting } from './view';
 import { setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
-import type { LayoutMode } from '../engine/layout';
+import { isTouchScreen, type LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, setColourSafe, setLargeText } from './access';
 
 /** The page's layout, as the page (src/app.ts) switches it: the one now, whether this device can switch, and a switch. */
@@ -50,7 +50,7 @@ export function settingsRows(): SettingsRow[] {
     if (s === 'tilt') void askTilt();
   });
   const viewRow = optionRow('VIEW', VIEWS, viewSetting(), (v) => ({ name: v.toUpperCase(), about: VIEW_ABOUT[v] }), setView);
-  const touchScreen = window.matchMedia?.('(any-pointer: coarse)').matches ?? false;
+  const touchScreen = isTouchScreen();
   const drivingRow = optionRow('DRIVING', DRIVE_STYLES, driveStyle(), (s) => ({
     name: s.toUpperCase(),
     about: s === 'point' ? 'keys and pads: point where to go' : 'keys and pads: gas, brake and steer',
