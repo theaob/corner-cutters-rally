@@ -62,9 +62,17 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_6
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          ram-size: 4096M
+          # (the GPU in software, through ANGLE: the plain SwiftShader mode brought the emulator down under the game's WebGL)
+          emulator-options: -no-window -gpu swangle_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: adb install -r android/app/build/outputs/apk/debug/app-debug.apk && node tools/android-e2e.mjs e2e-android
+      - name: Why it went down (the runner's kernel log, the emulator's crash reports)
+        if: failure()
+        run: |
+          sudo dmesg | tail -40 || true
+          ls -la /tmp/android-$USER/ 2>/dev/null | tail -20 || true
+          free -m
       - uses: actions/upload-artifact@v7
         if: always()
         continue-on-error: true
