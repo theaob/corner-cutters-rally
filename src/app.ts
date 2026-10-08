@@ -2,7 +2,7 @@ import { type StandaloneView } from './engine/view';
 import { mountTuning } from './engine/tuning';
 import { Controls, bindGamepad, bindKeyboard, guardInput } from './engine/controls';
 import type { Services } from './engine/services';
-import { Hud, bindDeck, releaseDeck, setStickSide, stickSide } from './engine/deck';
+import { Hud, bindDeck, releaseDeck } from './engine/deck';
 import { showInputLog } from './engine/inputLog';
 import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
 import { useStore } from './engine/storage';
@@ -74,7 +74,6 @@ void listenForBack(() => hintToast('PRESS BACK AGAIN TO EXIT'));
 // (with ?debug, a press of it by hand: __back())
 if (new URLSearchParams(location.search).has('debug')) Object.assign(window, { __back: () => pressBack(performance.now() / 1000, () => hintToast('PRESS BACK AGAIN TO EXIT'), () => console.log('exit')) });
 bindDeck(deck, controls);
-setStickSide(deck, stickSide());
 guardInput(controls, () => releaseDeck(deck));
 const services: Services = { controls, hud: new Hud(deck) };
 // ?inputlog lists the input events the page receives, for debugging controls on a device

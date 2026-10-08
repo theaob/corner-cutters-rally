@@ -1,23 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Controls, THUMBSTICK, directionsFromOffset, guardInput, readGamepad, thumbstick } from '../src/engine/controls';
-
-describe('directionsFromOffset', () => {
-  it('ignores the dead zone', () => {
-    expect(directionsFromOffset(3, -2, 10)).toEqual([]);
-  });
-
-  it('maps the four arms', () => {
-    expect(directionsFromOffset(40, 0, 10)).toEqual(['right']);
-    expect(directionsFromOffset(-40, 2, 10)).toEqual(['left']);
-    expect(directionsFromOffset(0, -40, 10)).toEqual(['up']);
-    expect(directionsFromOffset(1, 40, 10)).toEqual(['down']);
-  });
-
-  it('maps diagonals', () => {
-    expect(directionsFromOffset(30, -30, 10)).toEqual(['up', 'right']);
-    expect(directionsFromOffset(-30, 30, 10)).toEqual(['down', 'left']);
-  });
-});
+import { Controls, guardInput, readGamepad } from '../src/engine/controls';
 
 describe('Controls', () => {
   it('holds a button while any source holds it', () => {
@@ -58,54 +40,6 @@ describe('Controls', () => {
   });
 });
 
-describe('thumbstick', () => {
-  const len = (v: { x: number; y: number }) => Math.hypot(v.x, v.y);
-
-  it('keeps the exact angle and ramps the push from the dead zone to full, short of the rim', () => {
-    const s = thumbstick(30, 40, 50).stick; // 50 px out: at the rim
-    expect(s.x / s.y).toBeCloseTo(0.75);
-    expect(len(s)).toBeCloseTo(1);
-    expect(len(thumbstick(0, 50 * THUMBSTICK.deadZone * 0.9, 50).stick)).toBe(0);
-    expect(len(thumbstick(0, 50 * THUMBSTICK.full, 50).stick)).toBeCloseTo(1);
-    const mid = (THUMBSTICK.deadZone + THUMBSTICK.full) / 2;
-    expect(len(thumbstick(50 * mid, 0, 50).stick)).toBeCloseTo(0.5);
-  });
-
-  it('moves the knob with the thumb, stopped at the rim', () => {
-    expect(thumbstick(10, -20, 50).knob).toEqual({ x: 10, y: -20 });
-    const far = thumbstick(300, 400, 50).knob;
-    expect(len(far)).toBeCloseTo(50);
-    expect(far.x / far.y).toBeCloseTo(0.75);
-    expect(thumbstick(0, 0, 50)).toEqual({ stick: { x: 0, y: 0 }, knob: { x: 0, y: 0 }, dirs: [] });
-  });
-
-  it('holds direction buttons only when pushed well out, 8-way', () => {
-    expect(thumbstick(0, -20, 50).dirs).toEqual([]);
-    expect(thumbstick(0, -40, 50).dirs).toEqual(['up']);
-    expect(thumbstick(30, 30, 50).dirs).toEqual(['down', 'right']);
-  });
-});
-
-describe('Controls.direction', () => {
-  it('uses the touch thumb position when there is one', () => {
-    const c = new Controls();
-    c.setStick('dpad', { x: 0.3, y: -0.4 });
-    c.set('dpad', ['up']);
-    expect(c.direction()).toEqual({ x: 0.3, y: -0.4 });
-  });
-
-  it('falls back to the held buttons, 8-way at full length', () => {
-    const c = new Controls();
-    c.press('keyboard', 'right', true);
-    c.press('keyboard', 'down', true);
-    const d = c.direction();
-    expect(d.x).toBeCloseTo(Math.SQRT1_2);
-    expect(d.y).toBeCloseTo(Math.SQRT1_2);
-    c.clear('keyboard');
-    expect(c.direction()).toEqual({ x: 0, y: 0 });
-  });
-});
-
 describe('guardInput', () => {
   const fakeWindow = () => {
     const win = Object.assign(new EventTarget(), {
@@ -119,8 +53,7 @@ describe('guardInput', () => {
     const c = new Controls();
     c.press('touch-select', 'select', true);
     c.press('touch-start', 'start', true);
-    c.set('dpad', ['up']);
-    c.setStick('dpad', { x: 0, y: -1 });
+    c.set('keyboard', ['up']);
     return c;
   };
 
@@ -131,7 +64,6 @@ describe('guardInput', () => {
     guardInput(c, onRelease, win as unknown as Window);
     win.dispatchEvent(new Event('pagehide'));
     expect(c.isDown('select') || c.isDown('start') || c.isDown('up')).toBe(false);
-    expect(c.stick()).toBeUndefined();
     expect(onRelease).toHaveBeenCalled();
   });
 
@@ -175,32 +107,21 @@ describe('menu row gestures', () => {
 });
 
 describe('the last source used, and gamepads', () => {
-  it('remembers which source the player last used', () => {
+  it('remembers which source the player last used (an idle one never takes over)', () => {
     const c = new Controls();
     expect(c.lastSource()).toBe('');
     c.press('keyboard', 'up', true);
     expect(c.lastSource()).toBe('keyboard');
-    c.setStick('touch-stick', { x: 0.5, y: 0 });
-    expect(c.lastSource()).toBe('touch-stick');
-    // a gamepad lying idle doesn't take over
-    c.setDrive('gamepad', { turn: 0, gas: 0, brake: 0 });
     c.set('gamepad', []);
-    expect(c.lastSource()).toBe('touch-stick');
-    c.setDrive('gamepad', { turn: 0, gas: 0.6, brake: 0 });
+    expect(c.lastSource()).toBe('keyboard');
+    c.set('gamepad', ['a']);
     expect(c.lastSource()).toBe('gamepad');
-    expect(c.drive('gamepad')?.gas).toBe(0.6);
   });
 
-  it('reads a gamepad: the left stick steers (with a dead zone), the triggers are gas and brake, A drifts, Start pauses', () => {
-    const pad = (axes: number[], pressed: Record<number, number> = {}) => ({
-      axes, buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: (pressed[i] ?? 0) > 0.5, value: pressed[i] ?? 0 })),
-    });
-    expect(readGamepad(pad([0.1, 0])).drive.turn).toBe(0);
-    expect(readGamepad(pad([1, 0])).drive.turn).toBeCloseTo(1);
-    expect(readGamepad(pad([-0.575, 0])).drive.turn).toBeCloseTo(-0.5);
-    const r = readGamepad(pad([0, 0], { 7: 0.8, 6: 0.3, 0: 1, 9: 1 }));
-    expect(r.drive.gas).toBe(0.8);
-    expect(r.drive.brake).toBe(0.3);
-    expect(r.buttons).toEqual(expect.arrayContaining(['b', 'a']));
+  it("reads a gamepad's buttons for the menus: A is B, Start is A, Y is START, Back is SELECT, the d-pad moves", () => {
+    const pad = (pressed: number[]) => ({ buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: pressed.includes(i), value: pressed.includes(i) ? 1 : 0 })) });
+    expect(readGamepad(pad([0, 9])).buttons).toEqual(expect.arrayContaining(['b', 'a']));
+    expect(readGamepad(pad([3, 8, 12])).buttons).toEqual(expect.arrayContaining(['start', 'select', 'up']));
+    expect(readGamepad(pad([])).buttons).toEqual([]);
   });
 });

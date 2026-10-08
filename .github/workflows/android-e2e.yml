@@ -1,0 +1,82 @@
+# The touch controls and the views, tried on Android: the app built for testing (a debug APK, its WebView open to
+# DevTools; the shipped app keeps it closed), installed on an emulated Pixel 6, and driven by tools/android-e2e.mjs
+# with the phone's own touch input. Each TOUCH scheme goes down the shakedown; the views are gone through with the
+# camera button; the settings are opened. The phone's screenshots and results.json are a download on the run.
+#
+# Runs on every push (and by hand from the Actions tab).
+name: android-e2e
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      - name: Build the web game and copy it into the Android project
+        run: npm run android:sync
+      - name: Open the test build's WebView to DevTools (Playwright drives the game through it)
+        run: |
+          node -e "
+            const fs = require('fs');
+            const f = 'android/app/src/main/assets/capacitor.config.json';
+            const c = JSON.parse(fs.readFileSync(f, 'utf8'));
+            c.android = { ...c.android, webContentsDebuggingEnabled: true };
+            fs.writeFileSync(f, JSON.stringify(c, null, 2));
+          "
+      - name: Build a debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+      - name: Playwright's Android driver
+        run: npm install --no-save --no-audit --no-fund playwright-core@1.56.1
+      # (the emulator wants hardware virtualisation: the runner has it, for the runner's user once this rule is in)
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: On an emulated Pixel 6 (Android 14)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          # (the GPU in software, through ANGLE: the plain SwiftShader mode brought the emulator down under the game's WebGL)
+          emulator-options: -no-window -gpu swangle_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: adb install -r android/app/build/outputs/apk/debug/app-debug.apk && node tools/android-e2e.mjs e2e-android
+      - name: Why it went down (the runner's kernel log, the emulator's crash reports)
+        if: failure()
+        run: |
+          sudo dmesg | tail -40 || true
+          ls -la /tmp/android-$USER/ 2>/dev/null | tail -20 || true
+          free -m
+      - uses: actions/upload-artifact@v7
+        if: always()
+        continue-on-error: true
+        with:
+          name: android-e2e
+          path: e2e-android/
+          retention-days: 7
