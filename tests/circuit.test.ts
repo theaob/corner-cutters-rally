@@ -4,7 +4,10 @@ import { layoutById } from '../src/f1/layouts';
 import { ROAD, SHAKEDOWN, STAGE_SPECS, stageById } from '../src/f1/stages';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
-import { RACE_HANDLING, aiInput, buildTrack, keysWheel, wheelInput, lineCornerSpeed, lineDecel, newProgress, stepProgress, type Track } from '../src/f1/racing';
+import { Driver } from '../src/engine/drive/driver';
+import { keysIntent } from '../src/engine/drive/keys';
+import { DRIVE_DEFAULTS } from '../src/engine/drive/settings';
+import { RACE_HANDLING, aiInput, buildTrack, lineCornerSpeed, lineDecel, newProgress, stepProgress, type Track } from '../src/f1/racing';
 
 const f1 = carClass('f1');
 
@@ -133,7 +136,9 @@ describe.each(EXPECT)('the $id stage', ({ id, time }) => {
     expect(speedOf(car)).toBeGreaterThan(100);
   }, 30_000);
 
-  it('can be driven on the keyboard (car-relative: up gas, down brake, left and right steer at full lock), unhurt', () => {
+  it('can be driven on the keyboard, through the steering wheel (src/engine/drive/), unhurt', () => {
+    let held = new Set<string>();
+    const driver = new Driver({ keys: () => keysIntent(held), pad: () => undefined }, () => ({ ...DRIVE_DEFAULTS, assist: 'off' }));
     const start = circuit.slots[0];
     const car = newCar(f1, start.x, start.y, start.heading);
     let p = newProgress(startIdx(track));
@@ -142,8 +147,9 @@ describe.each(EXPECT)('the $id stage', ({ id, time }) => {
       // a simple player: steer toward a point on the line a little ahead, a key at a time; lift, then brake, when well off it
       const ahead = track.samples[Math.min(n - 1, p.idx + 10)];
       const off = angleDiff(Math.atan2(ahead.x - car.x, -(ahead.y - car.y)), car.heading);
-      const keys = { left: off < -0.04, right: off > 0.04, up: Math.abs(off) < 0.35, down: Math.abs(off) > 0.6 && speedOf(car) > 150 };
-      stepCar(car, wheelInput(keysWheel(keys, false), car), RACE_HANDLING, 1 / 60, grid);
+      held = new Set([off < -0.04 && 'ArrowLeft', off > 0.04 && 'ArrowRight', Math.abs(off) < 0.35 && 'ArrowUp', Math.abs(off) > 0.6 && speedOf(car) > 150 && 'ArrowDown'].filter((k): k is string => !!k));
+      driver.sample();
+      stepCar(car, driver.step(car, 1 / 60), RACE_HANDLING, 1 / 60, grid);
       p = stepProgress(p, track, car, t, 1, 1 / 60);
     }
     expect(finished(track, p.idx)).toBe(true);

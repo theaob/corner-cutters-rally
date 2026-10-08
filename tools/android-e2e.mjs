@@ -1,5 +1,6 @@
 // The touch controls and the views, tried on Android: the app (a debug build, its WebView open to DevTools) on an
-// emulator or a phone over adb, each TOUCH scheme driven down the shakedown with the phone's own touch input
+// emulator or a phone over adb, driven down the shakedown with the phone's own touch input (src/engine/drive/touch.ts:
+// the steering drag and the pedals, with GAS on MANUAL and AUTO, and steering on either side)
 // (`input motionevent`: a real finger down, moved, lifted), and the car's speed and heading read back from the game's
 // debug hook. Run by .github/workflows/android-e2e.yml; locally, with a device on adb and the app installed:
 //   npm install --no-save playwright-core && node tools/android-e2e.mjs out-dir
@@ -176,10 +177,10 @@ async function open(path, settings) {
   await page.goto(new URL(path, page.url()).href);
 }
 
-/** The shakedown, driven `touch`, under the chase camera; once the car can go. */
-async function stage(touch) {
+/** The shakedown under the chase camera with the driving settings `drive` (the save's keys), once the car can go. */
+async function stage(drive = {}) {
   await launch();
-  await open('/?debug&circuit=ss-shakedown&mode=tutorial', { touch, view: 'chase' });
+  await open('/?debug&circuit=ss-shakedown&mode=tutorial', { view: 'chase', driveGas: 'manual', driveSide: 'left', driveAssist: 'off', driveSteering: 'normal', ...drive });
   await page.waitForFunction(() => window.__cc?.phase?.() === 'racing', null, { timeout: 180000 });
   await sleep(1500);
 }
@@ -215,139 +216,77 @@ async function hold(at, sec, speed, to) {
 const turned = (r) => `turned ${fmt(r.turn)} rad`;
 const slowed = (r) => `speed ${fmt(r.from.speed)} → ${fmt(r.to.speed)}`;
 
+/** The steering half's middle, low down (where a thumb rests), and a point `dx` px across from it. */
+const steerSpot = async (dx = 0) => {
+  const [x, y] = await centre('.drive-steer');
+  const [, h] = await viewport();
+  return [x + dx, Math.min(h - 60, y + 120)];
+};
+const pressed = (sel) => page.evaluate((sel) => document.querySelector(sel).classList.contains('pressed'), sel);
+
+/** Each part of the run: the driving settings it's driven with, and what it tries. */
 const schemes = {
-  async pedals() {
-    const gas = await centre('.pedal.gas');
-    const brake = await centre('.pedal.brake');
-    const slider = await centre('[data-slider]');
-    const drift = await page.evaluate(() => getComputedStyle(document.querySelector('.face .b')).visibility === 'visible');
-    check('PEDALS: DRIFT button on the deck (gravel)', drift, `visible: ${drift}`);
-    const go = await hold(gas, 2, 0);
-    check('PEDALS: holding GAS goes', go.to.speed > 15, slowed(go));
-    const steer = await hold(slider, 0.5, 150, [slider[0] + 70, slider[1]]);
-    check('PEDALS: slider right turns right', steer.turn > 0.03, turned(steer));
-    const stop = await hold(brake, 0.3, 200);
-    check('PEDALS: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
-    await placeCar(0);
-    await down(slider);
-    await move([slider[0] + 70, slider[1]]);
-    await game(0.2);
-    await shot('pedals');
-    await up([slider[0] + 70, slider[1]]);
-  },
-  async stick() {
-    const [w, h] = await viewport();
-    const at = [w * 0.75, h * 0.82];
-    const go = await hold(at, 2, 0, [at[0], at[1] - 70]);
-    check('STICK: pushed up goes', go.to.speed > 15, slowed(go));
-    const steer = await hold(at, 0.5, 150, [at[0] + 55, at[1] - 55]);
-    check('STICK: up and right turns right on the gas', steer.turn > 0.03 && steer.to.speed > 10, `${turned(steer)} at ${fmt(steer.to.speed)}`);
-    const stop = await hold(at, 0.3, 200, [at[0], at[1] + 70]);
-    check('STICK: pulled down brakes', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
-    await placeCar(0);
-    await down(at);
-    await move([at[0] + 40, at[1] - 60]);
-    await game(0.2);
-    await shot('stick');
-    await up([at[0] + 40, at[1] - 60]);
-  },
-  async arcade() {
-    await placeCar(0);
-    await game(2);
-    const a = await me();
-    check('ARCADE: goes by itself', a.speed > 15, `speed ${fmt(a.speed)}`);
-    const gasShown = await page.evaluate(() => getComputedStyle(document.querySelector('.pedal.gas')).display !== 'none');
-    check('ARCADE: no GAS pedal', !gasShown, `GAS shown: ${gasShown}`);
-    const slider = await centre('[data-slider]');
-    const steer = await hold(slider, 0.5, 150, [slider[0] - 70, slider[1]]);
-    check('ARCADE: slider left turns left', steer.turn < -0.03, turned(steer));
-    const stop = await hold(await centre('.pedal.brake'), 0.3, 200);
-    check('ARCADE: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
-    await shot('arcade');
-  },
-  async tap() {
-    await placeCar(0);
-    await game(2);
-    const a = await me();
-    check('TAP: goes by itself', a.speed > 15, `speed ${fmt(a.speed)}`);
-    const [w, h] = await viewport();
-    const right = [w * 0.8, h * 0.45];
-    const left = [w * 0.2, h * 0.45];
-    const r = await hold(right, 0.5, 150);
-    check('TAP: holding the right half turns right', r.turn > 0.03, turned(r));
-    const l = await hold(left, 0.5, 150);
-    check('TAP: holding the left half turns left', l.turn < -0.03, turned(l));
-    await placeCar(200);
-    const b = await me();
-    await twoFingers(left, right, () => game(0.3));
-    const c = await me();
-    check('TAP: both halves brake (two fingers, through DevTools)', c.speed < b.speed * 0.8, `speed ${fmt(b.speed)} → ${fmt(c.speed)}`);
-    const drift = await page.evaluate(() => document.querySelector('[data-hud="label-b"]')?.textContent ?? '');
-    check('TAP: no DRIFT on the deck', drift === '', `B says "${drift}"`);
-    await placeCar(100);
-    await down(right);
-    await game(0.2);
-    await shot('tap');
-    await up(right);
-  },
-  async tilt() {
-    await placeCar(0);
-    await game(2);
-    const a = await me();
-    check('TILT: goes by itself', a.speed > 15, `speed ${fmt(a.speed)}`);
-    await page.evaluate(() => {
-      window.__gamma = undefined;
-      addEventListener('deviceorientation', (e) => (window.__gamma = e.gamma));
-    });
-    // the emulator's own sensors: the phone held up at 40°, its right edge down 20° (gravity's reaction, m/s²)
-    const g = 9.81;
-    const beta = (40 * Math.PI) / 180;
-    const gamma = (20 * Math.PI) / 180;
-    const accel = [-g * Math.sin(gamma), g * Math.sin(beta) * Math.cos(gamma), g * Math.cos(beta) * Math.cos(gamma)];
-    let sensor = 'not reachable';
-    if (!BROWSER) {
-      try {
-        execFileSync('adb', ['-s', device.serial(), 'emu', 'sensor', 'set', 'acceleration', accel.map((v) => v.toFixed(3)).join(':')]);
-        sensor = 'set';
-      } catch (err) {
-        sensor = `adb emu failed: ${String(err).slice(0, 80)}`;
-      }
-    }
-    await placeCar(150);
-    const b = await me();
-    await game(0.5);
-    const c = await me();
-    const seen = await page.evaluate(() => window.__gamma);
-    const bySensor = typeof seen === 'number' && seen > 5;
-    check("TILT: the emulator's tilt reaches the game", bySensor, `sensor ${sensor} · gamma seen ${seen}`, true);
-    if (bySensor) {
-      check('TILT: tilted right turns right', turnOf(b.heading, c.heading) > 0.03, `turned ${fmt(turnOf(b.heading, c.heading))} rad`);
-    } else {
-      // (the WebView's own event, as the sensor would send it)
-      await page.evaluate(() => dispatchEvent(new DeviceOrientationEvent('deviceorientation', { alpha: 0, beta: 40, gamma: 20 })));
+  manual: {
+    drive: { driveGas: 'manual', driveSide: 'left' },
+    async run() {
+      const deck = await page.evaluate(() => ({ cls: document.getElementById('deck').className, ...document.querySelector('.drive').dataset }));
+      check('MANUAL: the driving layer is up, steering left, pedals right', deck.cls.includes('driving') && deck.side === 'left' && deck.gas === 'manual', JSON.stringify(deck));
+      const gas = await centre('.drive-pedal.gas');
+      const brake = await centre('.drive-pedal.brake');
+      const drift = await centre('.drive-pedal.drift');
+      const [w] = await viewport();
+      check('MANUAL: GAS on the right, steering on the left', gas[0] > w / 2 && (await steerSpot())[0] < w / 2, `GAS at ${gas.map(Math.round)}`);
+      const go = await hold(gas, 2, 0);
+      check('MANUAL: holding GAS goes', go.to.speed > 15, slowed(go));
+      const at = await steerSpot();
+      const right = await hold(at, 0.6, 150, [at[0] + 60, at[1]]);
+      check('MANUAL: dragging right turns right', right.turn > 0.03, turned(right));
+      const left = await hold(at, 0.6, 150, [at[0] - 60, at[1]]);
+      check('MANUAL: dragging left turns left', left.turn < -0.03, turned(left));
+      const stop = await hold(brake, 0.3, 200);
+      check('MANUAL: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
+      // a thumb rolled from GAS onto BRAKE without lifting
+      const roll = await hold(gas, 0.3, 200, brake);
+      check('MANUAL: rolling from GAS onto BRAKE brakes', roll.to.speed < roll.from.speed * 0.8, slowed(roll));
       await placeCar(150);
-      const d = await me();
-      await game(0.5);
-      const e = await me();
-      check('TILT: tilted right turns right (orientation event in the WebView)', turnOf(d.heading, e.heading) > 0.03, `turned ${fmt(turnOf(d.heading, e.heading))} rad`);
-    }
-    const knob = await page.evaluate(() => document.querySelector('[data-slider] .knob').style.transform);
-    check('TILT: the slider shows the tilt', /translateX\([1-9]/.test(knob), `knob ${knob}`);
-    await shot('tilt');
+      await down(drift);
+      await game(0.2);
+      const on = await pressed('.drive-pedal.drift');
+      await shot('manual');
+      await up(drift);
+      check('MANUAL: DRIFT takes a press', on, `pressed: ${on}`);
+    },
   },
-  async point() {
-    const [w, h] = await viewport();
-    const at = [w * 0.75, h * 0.82];
-    const go = await hold(at, 2, 0, [at[0], at[1] - 70]);
-    check('POINT: pushed up goes', go.to.speed > 15, slowed(go));
-    const steer = await hold(at, 0.8, 150, [at[0] + 25, at[1] - 68]);
-    check('POINT: a little right turns right', steer.turn > 0.02, turned(steer));
-    await placeCar(0);
-    await down(at);
-    await move([at[0] + 25, at[1] - 68]);
-    await game(0.2);
-    await shot('point');
-    await up([at[0] + 25, at[1] - 68]);
+  auto: {
+    drive: { driveGas: 'auto', driveSide: 'left' },
+    async run() {
+      const gasShown = await page.evaluate(() => getComputedStyle(document.querySelector('.drive-pedal.gas')).display !== 'none');
+      check('AUTO: no GAS pedal', !gasShown, `GAS shown: ${gasShown}`);
+      await placeCar(0);
+      await game(2);
+      const a = await me();
+      check('AUTO: goes by itself', a.speed > 15, `speed ${fmt(a.speed)}`);
+      const at = await steerSpot();
+      const left = await hold(at, 0.6, 150, [at[0] - 60, at[1]]);
+      check('AUTO: dragging left turns left', left.turn < -0.03, turned(left));
+      const stop = await hold(await centre('.drive-pedal.brake'), 0.3, 200);
+      check('AUTO: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
+      await shot('auto');
+    },
+  },
+  sides: {
+    drive: { driveGas: 'manual', driveSide: 'right' },
+    async run() {
+      const [w] = await viewport();
+      const at = await steerSpot();
+      const gas = await centre('.drive-pedal.gas');
+      check('STEER RIGHT: steering on the right, GAS on the left', at[0] > w / 2 && gas[0] < w / 2, `steer at ${at.map(Math.round)} · GAS at ${gas.map(Math.round)}`);
+      const go = await hold(gas, 2, 0);
+      check('STEER RIGHT: holding GAS goes', go.to.speed > 15, slowed(go));
+      const right = await hold(at, 0.6, 150, [at[0] + 60, at[1]]);
+      check('STEER RIGHT: dragging right turns right', right.turn > 0.03, turned(right));
+      await shot('sides');
+    },
   },
 };
 
@@ -355,11 +294,11 @@ const schemes = {
 const wentDown = (err) => /closed|crashed|Target page/i.test(String(err));
 
 let first = true;
-for (const [name, run] of Object.entries(schemes)) {
+for (const [name, { run }] of Object.entries(schemes)) {
   for (let attempt = 1; attempt <= 2; attempt++) {
     const mark = results.length;
     try {
-      await stage(name);
+      await stage(schemes[name].drive);
       if (first) {
         await calibrate();
         first = false;
@@ -383,7 +322,7 @@ for (const [name, run] of Object.entries(schemes)) {
 
 // ---------------------------------------------------------------- the views
 try {
-  await stage('tap');
+  await stage({ driveGas: 'auto' });
   console.log(`\nVIEW · game runs at ×${fmt(await pace())} real time`);
   const button = await centre('[data-view]');
   await watchPresses();
@@ -399,7 +338,7 @@ try {
     const landed = (await presses()).join(' · ');
     console.log(`  press ${i + 1}: ${landed || `no pointerdown reached the page (input to: ${await focus()})`} → view ${v}`);
     await shot(`view-${i + 1}-${v}`);
-    // (the button sits over TAP's right half: a press on it must not steer)
+    // (a press on it is the camera's alone: it mustn't steer)
     if (i === 0) check('VIEW: the camera button doesn\'t steer', Math.abs(turnOf(a.heading, b.heading)) < 0.15, `turned ${fmt(turnOf(a.heading, b.heading))} rad`);
   }
   check('VIEW: the camera button goes through every view', new Set(views).size === 6 && views[5] === 'chase', views.join(' → '));
@@ -412,7 +351,7 @@ try {
 // ---------------------------------------------------------------- the settings
 try {
   await launch();
-  await open('/?debug', { touch: 'pedals', view: 'chase' });
+  await open('/?debug', { view: 'chase' });
   console.log('\nSETTINGS');
   // (the title splash first: TAP TO START, on a touch screen)
   await page.waitForFunction(() => /TAP TO START|PRESS ANY KEY|SETTINGS/.test(document.body.innerText), null, { timeout: 120000 });
@@ -433,7 +372,8 @@ try {
   await sleep(2000);
   await shot('settings');
   const rows = await page.evaluate(() => document.body.innerText);
-  check('SETTINGS: TOUCH and VIEW rows', /TOUCH/.test(rows) && /VIEW/.test(rows) && /PEDALS/.test(rows), 'rows present');
+  const want = ['VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES'];
+  check('SETTINGS: the VIEW and driving rows', want.every((r) => rows.includes(r)), `missing: ${want.filter((r) => !rows.includes(r)).join(', ') || 'none'}`);
 } catch (err) {
   check('SETTINGS: ran', false, String(err).split('\n')[0]);
   await shot('settings-error').catch(() => {});

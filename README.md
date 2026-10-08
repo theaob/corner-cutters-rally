@@ -73,20 +73,19 @@ A big crash tears off the bumper and its lamps, and a wreck loses a wheel or two
 
 ### Controls
 
-Each device drives the way it suits, and the game follows whichever you used last:
+The driving (`src/engine/drive/`) works the same way on every device: you ask for a steering wheel position, gas, brake and the handbrake, and whichever device you used last drives.
 
-- **Touch:** **TOUCH** in the settings picks the deck (`src/f1/driveStyle.ts`). PEDALS is the default.
-  - **PEDALS:** a steering slider under one thumb, and GAS and BRAKE under the other, with DRIFT above them.
-  - **STICK:** one floating stick as a wheel. Across steers, up is the gas and down the brake. The round well reads as a square, so a push out on a diagonal is full lock and full gas together.
-  - **ARCADE:** the gas is always on. The slider steers, BRAKE slows (held once stopped, it reverses), and DRIFT drifts.
-  - **TAP:** the gas is always on. Hold the left or right half of the screen to steer that way, harder the longer you hold it. Hold both to brake. There is no drift.
-  - **TILT:** the gas is always on. Tilt the phone like a wheel to steer, and the slider's knob shows the tilt. A thumb on the slider steers instead. BRAKE and DRIFT as in ARCADE. iOS asks first: picking TILT in the settings, or a touch on the deck, asks.
-  - **POINT:** the stick points at the spot on the screen you want to drive to, and how far you push it is the throttle. The spot is found by looking from your car's place on the screen, the way you push, down through the camera onto the road.
+- **The steering wheel:** whatever you steer with sets where you want the wheel. The wheel turns toward it at its own rate, and comes back to the middle a little quicker, so a key tapped is a nudge and held is a bend. The tyres turn on a curve of the wheel: softly round the middle, for fine corrections on fast roads, and full lock at the ends. Flat out the lock closes a little, never below what the racing line uses, since the rivals' times come from it.
+- **Touch:** one thumb steers. Put it down anywhere on its half of the lower screen and drag across: where it lands is the middle, and full lock is a thumb's width away. A wheel drawn under the thumb shows the steering. The other thumb has the pedals in its corner: GAS, BRAKE beside it, and DRIFT (the handbrake) above them. A thumb can roll from one pedal to the next without lifting. Held on BRAKE once stopped, the car backs up.
+- **Keyboard:** ← → (A, D) steer, ↑ (W) is the gas, ↓ (S) the brake, and Shift or X the handbrake. Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, C changes the view, and V switches between the handheld and wide layouts.
+- **Gamepad:** the left stick steers, past a dead zone and on a gentle curve. The right trigger is the gas, the left the brake, and A or RB the handbrake. Start pauses, Y restarts, and Back is SELECT.
 
-  The stick, and the slider, float or sit on the side STICK in the settings says. DRIFT is on the deck on dirt. Where the gas is always on, it's on from before GO: an ordinary start, never a jump start or a launch.
-- **Keyboard:** ↑ (or W) is the gas, ↓ (S) the brake (held once stopped, it reverses), ← → (A, D) steer, and X or Shift drifts. Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, C changes the view, and V switches between the handheld and wide layouts.
-- **Gamepad:** the right trigger is the gas, the left the brake, the left stick steers, A drifts, Start pauses, Y restarts, and Back is SELECT.
-- **DRIVING** in the settings, for the keys and a gamepad: STEER (as above) or POINT (the arrows or the left stick point where to go, as POINT on touch).
+The driving settings:
+
+- **GAS:** MANUAL (a pedal) or AUTO (always on unless you brake). With AUTO the gas is on from before GO: an ordinary start, never a jump start or a launch.
+- **STEERING:** GENTLE, NORMAL or QUICK, for how fast and how far the wheel turns.
+- **ASSIST:** OFF, LIGHT or STRONG. A hand on the wheel steers toward where the road goes a little ahead, and back toward its middle. It gives way to you: the harder you steer, the less it does, and at full lock nothing. It never touches the gas or the brakes, and it lets go when reversing or turned away from the road.
+- **SIDES** (on a touch screen): STEER LEFT (the default: pedals right) or STEER RIGHT.
 
 **SETTINGS** (from home, and from the pause screen; `src/f1/menu.ts`, `src/f1/settingsRows.ts`):
 
@@ -95,9 +94,8 @@ Each device drives the way it suits, and the game follows whichever you used las
 - TEXT: NORMAL or LARGE;
 - COLOURS: STANDARD or COLOUR-SAFE, for the splits;
 - VIEW: the camera;
-- TOUCH: the touch deck, on a touch screen;
-- STICK: the side of the thumbstick or the steering slider;
-- DRIVING (keys and gamepads), VIBRATION, SCREEN SHAKE, SOUND and MUSIC;
+- GAS, STEERING, ASSIST, and SIDES on a touch screen (above);
+- VIBRATION, SCREEN SHAKE, SOUND and MUSIC;
 - STATS, only when the build has a backend.
 
 All are remembered.
@@ -165,7 +163,7 @@ base64 -w0 release.keystore      # the value for ANDROID_KEYSTORE_BASE64
 
 Then add the repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`.
 
-**Tested on Android:** `.github/workflows/android-e2e.yml` builds a debug APK on every push, installs it on an emulated Pixel 6 (Android 14) and runs `tools/android-e2e.mjs` on it. That script drives each TOUCH scheme down the shakedown with the phone's own touch input, reads the car's speed and heading back from the game, goes through the views with the camera button, and opens the settings. The phone's screenshots and `results.json` are the run's **android-e2e** download. With a phone on adb and a debug build installed, the same script runs locally (`npm install --no-save playwright-core && node tools/android-e2e.mjs out`).
+**Tested on Android:** `.github/workflows/android-e2e.yml` builds a debug APK on every push, installs it on an emulated Pixel 6 (Android 14) and runs `tools/android-e2e.mjs` on it. That script drives the shakedown with the phone's own touch input (the steering drag, the pedals, both SIDES and GAS on AUTO), reads the car's speed and heading back from the game, goes through the views with the camera button, and opens the settings. The phone's screenshots and `results.json` are the run's **android-e2e** download. With a phone on adb and a debug build installed, the same script runs locally (`npm install --no-save playwright-core && node tools/android-e2e.mjs out`).
 
 Locally (with the Android SDK and JDK 21): `npm run android:apk` builds `android/app/build/outputs/apk/release/app-release.apk`, and `npm run android:play` the Play AAB. `npm run android:art` redraws the launcher icons and splash screens (`tools/android-art.py`, needs Pillow).
 
@@ -181,7 +179,7 @@ stats.html        The play-stats dashboard (src/stats/)
 src/
   main.ts         The entry: the host made ready, then app.ts
   app.ts          Routes in the page: home, the settings, a stage (?circuit=<id>&mode=rally), the controls lap
-  engine/         Controls, deck, the phone's tilt (tilt.ts), layout, storage, save, TUNE panel, driving physics (driving.ts), ground and
+  engine/         the driving (drive/: the steering wheel, assist, touch, keys, gamepad), the menus' buttons and deck, layout, storage, save, TUNE panel, driving physics (driving.ts), ground and
                   collision (sim.ts), render/ (HD-2D pipeline, quality, effects, car models, daylight, textures)
   f1/             The rally game (the folder keeps its old name): uses only engine/
     stages.ts     The stages, grown from their seeds

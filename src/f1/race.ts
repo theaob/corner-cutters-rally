@@ -7,21 +7,23 @@
 // app or tab); START restarts a stage not yet finished; SELECT goes back.
 
 import * as THREE from 'three';
-import type { Button, Drive } from '../engine/controls';
+import type { Button } from '../engine/controls';
 import { applyDamage, carClass, newCar, speedOf, type Car, type DriveInput, type StepEvents } from '../engine/driving';
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { groundAt } from '../engine/sim';
-import { aiInput, autoWheel, keysWheel, newProgress, lineCornerSpeed, lineDecel, playerInput, stageSplits, steerToward, stickWheel, tapWheel, wheelInput } from './racing';
+import { aiInput, lateralOffset, newProgress, lineCornerSpeed, lineDecel, stageSplits } from './racing';
 import { stopAt } from './stageDressing';
 import { NORMAL, handlingFor, type Difficulty } from './difficulty';
 import { DRY, lookAt as weatherLook, type Weather } from './weather';
 import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
-import { autoThrottle, howOn, touchDrifts, touchScheme } from './driveStyle';
-import { askTilt, tiltNow, tiltTurn } from '../engine/tilt';
+import { Driver, forwardSpeed } from '../engine/drive/driver';
+import { KeyDriving } from '../engine/drive/keys';
+import { readPad } from '../engine/drive/pad';
+import { driveSettings } from '../engine/drive/settings';
+import { TouchDriving } from '../engine/drive/touch';
 import { isView, nextView, setView, viewSetting, type ViewId } from './view';
-import { showSliderTurn } from '../engine/deck';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
@@ -68,9 +70,6 @@ import { SCHEMES, liveryOf, type Scheme } from './crews';
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
-/** POINT's aim: how far from your car on the screen the stick points (a share of the screen's height), and px on the
- * ground past which a spot is too near the horizon to aim at */
-const AIM = { reach: 0.22, far: 1500 };
 
 /** How a stage is set up. */
 export interface StageOptions {
@@ -230,9 +229,20 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   let pendingHit = 0;
   /** your start off the line (judged once) */
   let launch = newLaunch();
+  // the driving (src/engine/drive/): on a touch screen its own layer over the deck, the keys, a gamepad; whichever you used
+  // last drives, through the steering wheel and the assist
+  const deckHost = document.getElementById('deck');
+  const touchDrive = deckHost && isTouchScreen() ? new TouchDriving(deckHost) : undefined;
+  const keyDrive = new KeyDriving();
+  const driver = new Driver({ touch: touchDrive && (() => touchDrive.intent()), keys: () => keyDrive.intent(), pad: () => readPad() }, driveSettings);
   const setPaused = (on: boolean) => {
     if (on === paused) return;
     paused = on;
+    // (nothing held carries over a pause)
+    if (on) {
+      touchDrive?.release();
+      keyDrive.release();
+    }
     setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
     if (!on) openPauseSettings(false);
@@ -295,6 +305,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     lastAt = undefined;
     shake = newShake();
     launch = newLaunch();
+    driver.reset();
     setPaused(false);
     resetClock(simClock);
     before = undefined;
@@ -570,33 +581,31 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   };
   window.addEventListener('keydown', onKey);
 
-  /** The device you're driving with (before you've touched anything: touch on a touch screen, else keys). */
+  /** The device you're driving with (before you've driven at all: what you last pressed, else a touch screen's touch). */
   const device = (): Device => {
+    const d = driver.source();
+    if (d === 'touch' || d === 'keys' || d === 'pad') return d;
     const s = controls.lastSource();
     if (s === 'keyboard') return 'keys';
     if (s === 'gamepad') return 'pad';
-    // (the stick, the slider and pedals, the tap zones, and the deck's buttons)
-    if (s === 'dpad' || s === 'wheel' || s === 'tap' || s.startsWith('touch-')) return 'touch';
     return isTouchScreen() ? 'touch' : 'keys';
   };
 
   /** What each deck button does just now (race/deckLabels.ts). */
   const deckLabels = () => labelsFor({
     settings: pauseSettingsOn, resultsUp: results.style.display === 'block', tutorial: session === 'tutorial', learnt: learn?.o.step === 'done', done, paused,
-    drift: !(touchScreen && device() === 'touch' && !touchDrifts(touchScheme())),
+    // (on a touch screen DRIFT is the driving layer's, not the deck's)
+    drift: device() !== 'touch',
   });
   const deckEl = document.getElementById('deck');
-  /** a touch screen: TOUCH in the settings picks its deck (index.html: the deck's classes) */
-  const touchScreen = isTouchScreen();
-  const SCHEME_CLASSES = ['slider-deck', 'auto-gas', 'tilt-deck', 'tap-deck'];
   const showDeckLabels = () => {
-    const scheme = touchScreen ? touchScheme() : undefined;
-    // (the steering slider and the pedals in the stick's and A's places; the gas pedal gone where the gas is always
-    // on; or the screen's halves to hold)
-    deckEl?.classList.toggle('slider-deck', scheme === 'pedals' || scheme === 'arcade' || scheme === 'tilt');
-    deckEl?.classList.toggle('auto-gas', !!scheme && autoThrottle(scheme));
-    deckEl?.classList.toggle('tilt-deck', scheme === 'tilt');
-    deckEl?.classList.toggle('tap-deck', scheme === 'tap');
+    // the driving layer while you drive (index.html: #deck.driving), set out as the settings say, its wheel turned
+    deckEl?.classList.toggle('driving', !paused && !done && results.style.display !== 'block');
+    if (touchDrive) {
+      const ds = driveSettings();
+      touchDrive.setOptions(ds.side, ds.gas);
+      touchDrive.showWheel(driver.wheelPos());
+    }
     const labels = deckLabels();
     for (const k of ['a', 'b', 'start', 'select'] as const) hud.setLabel(k, labels[k]);
     // with the results up, RESTART and EXIT go under the table, big (on a phone: index.html)
@@ -645,40 +654,6 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   viewButton?.addEventListener('pointerdown', onViewButton);
   /** the way a turning camera looks (eased), radians */
   let camYaw: number | undefined;
-  // POINT's aim, through the camera (aimAt)
-  const aimCaster = new THREE.Raycaster();
-  const aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  const aimHit = new THREE.Vector3();
-  const aimSpot = new THREE.Vector3();
-  const aimNdc = new THREE.Vector2();
-  /**
-   * POINT: the spot on the map the stick points at, as the screen shows it. From your car's place on the screen,
-   * `AIM.reach` of the screen's height the way the stick is pushed, then down through the camera onto the ground. So
-   * pushing toward a bend on the screen aims at that bend, and the stick's angle is never a heading on its own.
-   * Undefined under the north-up view (the stick's way is the map's), with the car off the screen, or above the horizon.
-   */
-  const aimAt = (car: Car, stick: { x: number; y: number }): { x: number; y: number } | undefined => {
-    const len = Math.hypot(stick.x, stick.y);
-    if (camYaw === undefined || !len) return undefined;
-    aimSpot.set(car.x, car.z, car.y).applyMatrix4(camera.matrixWorldInverse);
-    if (aimSpot.z > -camera.near) return undefined;
-    aimSpot.applyMatrix4(camera.projectionMatrix);
-    aimNdc.set(aimSpot.x + ((stick.x / len) * 2 * AIM.reach) / camera.aspect, aimSpot.y - (stick.y / len) * 2 * AIM.reach);
-    aimCaster.setFromCamera(aimNdc, camera);
-    aimPlane.constant = -car.z;
-    const hit = aimCaster.ray.intersectPlane(aimPlane, aimHit);
-    if (!hit || Math.hypot(hit.x - car.x, hit.z - car.y) > AIM.far) return undefined;
-    return { x: hit.x, y: hit.z };
-  };
-  /** TAP: the side held now (−1 left, 1 right, 2 both, 0 none), and for how long (s) */
-  let tapSide = 0;
-  let tapHeld = 0;
-  // TILT: read the phone's roll (Android needs no asking; iOS asks on a tap: the settings row's, or one on the deck)
-  if (touchScreen && touchScheme() === 'tilt') void askTilt();
-  const onDeckTouch = () => {
-    if (touchScheme() === 'tilt' && tiltNow() === undefined) void askTilt();
-  };
-  deckEl?.addEventListener('pointerdown', onDeckTouch);
   const setFov = (fov: number) => {
     if (camera.fov === fov) return;
     camera.fov = fov;
@@ -771,59 +746,23 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     }
 
     // the stage: you drive, the rules run
-    const pad = { stick: controls.direction(), a: controls.isDown('a'), b: controls.isDown('b') };
-    // the device you last used, and the settings, decide how you drive: on a touch screen TOUCH's scheme (driveStyle.ts),
-    // on the keys or a gamepad DRIVING's STEER (up or the right trigger the gas, down or the left trigger the brake)
-    // or POINT (the arrows or the left stick point where to go)
-    const dev = device();
-    const how = howOn(dev);
-    const zero: Drive = { turn: 0, gas: 0, brake: 0 };
-    const gamepad = dev === 'pad' ? controls.drive('gamepad') ?? zero : undefined;
-    // (the touch slider and pedals)
-    const slider = controls.drive('wheel') ?? zero;
-    // TAP: the side held, and for how long (turning harder the longer)
-    {
-      const tap = controls.drive('tap');
-      const side = !tap ? 0 : tap.brake ? 2 : Math.sign(tap.turn);
-      tapHeld = side === tapSide ? tapHeld + dt : 0;
-      tapSide = side;
-    }
-    // TILT: the slider while a thumb's on it, else the phone's roll (shown on the slider's knob)
-    const tilted = how === 'tilt' ? slider.turn || tiltTurn(tiltNow()) : 0;
-    if (how === 'tilt' && !slider.turn && deckEl) showSliderTurn(deckEl, tilted);
-    /** the stick that points, for POINT: a gamepad's left stick, else the touch stick or the arrows */
-    const pointer = gamepad ? gamepad.stick ?? { x: 0, y: 0 } : pad.stick;
-    const driveInput = (car: Car): DriveInput => {
-      if (how === 'point') {
-        const push = Math.min(1, Math.hypot(pointer.x, pointer.y));
-        const at = aimAt(car, pointer);
-        // (no spot on the ground to aim at: the stick as seen on the screen, turned by the camera's yaw)
-        return at ? steerToward(car, at, push, pad.b) : playerInput({ ...pad, stick: pointer }, camYaw);
-      }
-      if (gamepad) return wheelInput({ ...gamepad, drift: pad.b }, car);
-      if (dev === 'keys') return wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car);
-      switch (how) {
-        case 'pedals':
-          return wheelInput({ ...slider, drift: pad.b }, car);
-        case 'arcade':
-          return wheelInput(autoWheel(slider.turn, slider.brake, pad.b), car);
-        case 'tilt':
-          return wheelInput(autoWheel(tilted, slider.brake, pad.b), car);
-        case 'tap':
-          return wheelInput(tapWheel(tapSide === -1 || tapSide === 2, tapSide === 1 || tapSide === 2, tapHeld), car);
-        default:
-          return wheelInput(stickWheel(pad.stick, pad.b), car);
-      }
+    // what you're asking for, from whatever you drove with last (src/engine/drive/)
+    driver.sample();
+    /** the road a little ahead of your car (further the faster it goes), and how far right of its middle the car is: for the assist */
+    const roadAhead = (car: Car) => {
+      const at = race.entrants[you].progress.idx;
+      const ahead = Math.min(track.samples.length - 1, at + 6 + Math.round((Math.max(0, forwardSpeed(car)) * 0.35) / track.spacing));
+      return { dir: track.samples[ahead].dir, lateral: lateralOffset(track, at, car.x, car.y) };
     };
+    /** your car's input for one fixed step */
+    const driveInput = (car: Car): DriveInput => driver.step(car, SIM_DT, roadAhead(car));
     /** past the flying finish (or the controls lap's end): on the brakes to the stop */
     const pastFinish = () => done || race.entrants[you].progress.idx * track.spacing >= finishAt;
     // the start: going in the last of the countdown is a jump start; after GO, your reaction is judged
     if (session === 'rally') {
       const car = race.entrants[you].car;
-      const input = driveInput(car);
-      // (where the gas is always on, it's on from before GO: an ordinary start, never a jump start nor a launch)
-      const gas = dev === 'touch' && autoThrottle(touchScheme()) ? 1
-        : input.wheel ? (input.wheel.reverse ? 0 : input.wheel.gas) : Math.hypot(input.steer?.x ?? 0, input.steer?.y ?? 0);
+      // (with GAS on AUTO the gas is on from before GO: an ordinary start, never a jump start nor a launch)
+      const gas = driver.intent().throttle;
       const verdict = stepLaunch(launch, race.phase === 'lights' && race.clock >= 0, race.phase === 'racing' ? race.clock : undefined, gas);
       if (verdict === 'jump') {
         race.entrants[you].progress.penalty += LAUNCH.jumpPenalty;
@@ -846,12 +785,13 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const { steps, alpha } = advance(simClock, dt * timeScale(shake));
     const raceEvents: RaceEvent[] = [];
     const cars: StepEvents[] = race.entrants.map(() => ({ damage: 0, skidding: false, wreckedNow: false, onRough: false, airborne: false, landed: 0, impact: 0, scrape: 0, rolledNow: false, rolling: false }));
-    const brakes = (car: Car) => wheelInput({ turn: 0, gas: 0, brake: 1, drift: false }, car);
+    /** on the brakes, straight on, and stopped there (never backing up) */
+    const brakes = (): DriveInput => ({ wheel: { turn: 0, gas: 0, reverse: false }, brake: true, handbrake: false });
     /** past the flying finish: on down the road, easing down to a stop at the stop control (out of the stage: just the brakes) */
     const toTheStop = (e: Entrant) => {
       const left = stopLine - e.progress.idx * track.spacing;
-      if (done && !stage?.result) return brakes(e.car);
-      if (left <= 4) return brakes(e.car);
+      if (done && !stage?.result) return brakes();
+      if (left <= 4) return brakes();
       return aiInput(e.car, track, e.progress.idx, { lane: 0, pace: 0.7 }, [], { limit: Math.sqrt(2 * STOP_DECEL * left) });
     };
     for (let k = 0; k < steps; k++) {
@@ -880,7 +820,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       fitTyres(me.tyres, me.car, race.wetness);
       learn.bends += apexesPassed(tutorApexes, learn.lastIdx, p.idx, track.samples.length);
       learn.lastIdx = p.idx;
-      const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: pad.b, canDrift: dev !== 'touch' || (!!layout.dirt && touchDrifts(touchScheme())), lapDone: pastFinish() };
+      const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: driver.intent().handbrake, canDrift: true, lapDone: pastFinish() };
       if (nextPrompt(learn.o, facts)) sounds.record();
       if (me.car.wrecked) startTutorial();
     }
@@ -989,7 +929,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       const [text, color] = bannerMessage({
         out: me.car.wrecked || !!p.retired, done, finishedPlace: stage?.result?.place || undefined, resultsUp: results.style.display === 'block',
         wrongWay: p.wrongWay, clock, notice,
-        learn: learn && { text: prompt(learn.o.step, device(), howOn(device())), last: learn.o.step === 'done' },
+        learn: learn && { text: prompt(learn.o.step, device(), driveSettings().gas), last: learn.o.step === 'done' },
       });
       showBanner(text);
       banner.style.color = color;
@@ -1114,8 +1054,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     offBack();
     for (const el of [paceCard.el, streaks.el, rain.el, readout, banner, results, crewCard, pauseScreen, pauseSettings, flagOverlay.el]) el.remove();
     deckEl?.classList.remove('results-up');
-    deckEl?.classList.remove(...SCHEME_CLASSES);
-    deckEl?.removeEventListener('pointerdown', onDeckTouch);
+    deckEl?.classList.remove('driving');
+    touchDrive?.dispose();
+    keyDrive.dispose();
     document.documentElement.classList.remove('results-up', 'paused', 'dirt');
     delete (window as { __cc?: unknown }).__cc;
   };

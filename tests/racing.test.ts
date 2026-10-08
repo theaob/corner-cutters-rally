@@ -3,10 +3,6 @@ import { DEFAULT_HANDLING, carClass, newCar, speedOf, stepCar } from '../src/eng
 import type { Grid } from '../src/engine/sim';
 import {
   aiInput,
-  keysWheel,
-  wheelInput,
-  WHEEL_LOCK,
-  playerInput,
   buildTrack,
   nearestSample,
   newProgress,
@@ -177,45 +173,5 @@ describe('AI driver', () => {
     // it aims off the line to one side (a lane over), not straight at the wreck
     const straight = aiInput(car, track, i, { lane: 0, pace: 1 }, [], { noOvertaking: true });
     expect(Math.abs(round.steer!.y - straight.steer!.y)).toBeGreaterThan(0.05);
-  });
-});
-
-describe('the player\'s controls', () => {
-  it('point the car where the stick points, how far it\'s pushed is the throttle, and B drifts', () => {
-    expect(playerInput({ stick: { x: 0.3, y: -0.4 }, a: true, b: false })).toEqual({ steer: { x: 0.3, y: -0.4 }, handbrake: false });
-    expect(playerInput({ stick: { x: 0, y: 0 }, a: false, b: true })).toEqual({ steer: undefined, handbrake: true });
-  });
-  it('reads the stick on the screen: under a camera looking east, up is east (straight ahead) and left is north', () => {
-    const east = Math.PI / 2;
-    const ahead = playerInput({ stick: { x: 0, y: -1 }, a: false, b: false }, east).steer!;
-    expect(ahead.x).toBeCloseTo(1);
-    expect(ahead.y).toBeCloseTo(0);
-    // half throttle stays half throttle
-    const left = playerInput({ stick: { x: -0.5, y: 0 }, a: false, b: false }, east).steer!;
-    expect(left.x).toBeCloseTo(0);
-    expect(left.y).toBeCloseTo(-0.5);
-    // the north-up view: the stick as it is
-    expect(playerInput({ stick: { x: 0.3, y: -0.4 }, a: false, b: false }, undefined).steer).toEqual({ x: 0.3, y: -0.4 });
-  });
-});
-
-
-describe('driving with keys or a gamepad', () => {
-  const car = newCar(carClass('f1'), 0, 0); // facing north, stopped
-  it('steers the car itself: a key at full lock, a stick gentler near the centre', () => {
-    expect(wheelInput(keysWheel({ up: true, down: false, left: false, right: true }, false), car).wheel).toEqual({ turn: WHEEL_LOCK, gas: 1, reverse: false });
-    const half = wheelInput({ turn: 0.5, gas: 0, brake: 0, drift: false }, car).wheel!.turn;
-    expect(half).toBeLessThan(WHEEL_LOCK * 0.5);
-    expect(half).toBeGreaterThan(0);
-  });
-
-  it('brakes while rolling forwards, reverses once stopped, and drifts', () => {
-    const moving = newCar(carClass('f1'), 0, 0);
-    moving.vy = -150;
-    const down = keysWheel({ up: false, down: true, left: false, right: false }, true);
-    const braking = wheelInput(down, moving);
-    expect(braking.brake).toBe(true);
-    expect(braking.handbrake).toBe(true);
-    expect(wheelInput(down, car).wheel?.reverse).toBe(true);
   });
 });

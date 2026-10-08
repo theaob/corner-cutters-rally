@@ -1,17 +1,17 @@
 // The settings rows shared by the menu's SETTINGS screen and the pause screen:
 // the screen's shape (SCREEN: HANDHELD or WIDE, where the device can switch), the text's size (TEXT) and the
-// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the camera (VIEW), the touch deck (TOUCH, on a touch screen), which side the thumbstick sits on, how keys and pads drive (DRIVING), vibration, screen shake, the grid walk
+// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the camera (VIEW), the driving (GAS, STEERING, ASSIST, and on a touch screen SIDES: src/engine/drive/settings.ts), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
 // as it changes. Difficulty is the menu's alone (not changed mid-race).
 
-import { setStickSide, stickSide, type StickSide } from '../engine/deck';
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
 import { musicVolume, setMusicVolume } from '../engine/music';
 import { optionRow } from './menu';
 import { setShake, shakeOn } from './shake';
-import { DRIVE_STYLES, TOUCH_ABOUT, TOUCH_SCHEMES, driveStyle, setDriveStyle, setTouchScheme, touchScheme } from './driveStyle';
-import { askTilt } from '../engine/tilt';
+import { GAS_MODES, STEER_SIDES, driveSettings, setDriveSetting } from '../engine/drive/settings';
+import { STEER_FEELS } from '../engine/drive/steering';
+import { ASSIST_LEVELS } from '../engine/drive/assist';
 import { VIEWS, VIEW_ABOUT, setView, viewSetting } from './view';
 import { setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
@@ -38,23 +38,20 @@ export type SettingsRow = ReturnType<typeof optionRow<unknown>>;
 
 /** The rows, read from the save as they are now. */
 export function settingsRows(): SettingsRow[] {
-  const deck = document.getElementById('deck');
-  const sides: StickSide[] = ['left', 'right'];
-  const stickRow = optionRow('STICK', sides, stickSide(), (side) => ({ name: side.toUpperCase(), about: side === 'left' ? 'stick or slider left · buttons right' : 'stick or slider right · buttons left' }), (side) => {
-    if (deck) setStickSide(deck, side);
-  });
-  // TOUCH: the touch deck (on a touch screen); DRIVING: the keys and a gamepad
-  const touchRow = optionRow('TOUCH', TOUCH_SCHEMES, touchScheme(), (s) => ({ name: s.toUpperCase(), about: TOUCH_ABOUT[s] }), (s) => {
-    setTouchScheme(s);
-    // (iOS lets a page read the tilt only once asked, from a tap: this one)
-    if (s === 'tilt') void askTilt();
-  });
   const viewRow = optionRow('VIEW', VIEWS, viewSetting(), (v) => ({ name: v.toUpperCase(), about: VIEW_ABOUT[v] }), setView);
+  // the driving (src/engine/drive/)
+  const ds = driveSettings();
+  const gasRow = optionRow('GAS', GAS_MODES, ds.gas, (g) => ({ name: g.toUpperCase(), about: g === 'auto' ? 'always on: you steer and brake' : 'yours: hold the gas pedal' }), (g) => setDriveSetting('gas', g));
+  const steeringRow = optionRow('STEERING', STEER_FEELS, ds.feel, (f) => ({
+    name: f.toUpperCase(),
+    about: f === 'gentle' ? 'slower and softer, for fine lines' : f === 'quick' ? 'sharper, for the hairpins' : 'the wheel as set up',
+  }), (f) => setDriveSetting('feel', f));
+  const assistRow = optionRow('ASSIST', ASSIST_LEVELS, ds.assist, (a) => ({
+    name: a.toUpperCase(),
+    about: a === 'off' ? 'all your own steering' : a === 'strong' ? 'a firm hand keeps you on the road' : 'a light hand toward the road',
+  }), (a) => setDriveSetting('assist', a));
+  const sidesRow = optionRow('SIDES', STEER_SIDES, ds.side, (side) => ({ name: side === 'left' ? 'STEER LEFT' : 'STEER RIGHT', about: side === 'left' ? 'left thumb steers · pedals right' : 'right thumb steers · pedals left' }), (side) => setDriveSetting('side', side));
   const touchScreen = isTouchScreen();
-  const drivingRow = optionRow('DRIVING', DRIVE_STYLES, driveStyle(), (s) => ({
-    name: s.toUpperCase(),
-    about: s === 'point' ? 'keys and pads: point where to go' : 'keys and pads: gas, brake and steer',
-  }), setDriveStyle);
   const vibrationRow = optionRow('VIBRATION', [true, false], vibrationOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, grass, kerbs' : 'no buzzing' }), (on) => {
     setVibration(on);
     vibrate(40);
@@ -72,7 +69,7 @@ export function settingsRows(): SettingsRow[] {
   const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
   const coloursRow = optionRow('COLOURS', [false, true], colourSafe(), (on) => ({ name: on ? 'COLOUR-SAFE' : 'STANDARD', about: on ? 'splits in blue, white, orange, and in words' : 'splits in purple, green, amber' }), setColourSafe);
   // (STATS only where the build has a backend to send them to)
-  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, viewRow, ...(touchScreen ? [touchRow] : []), stickRow, drivingRow, vibrationRow, shakeRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
+  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, viewRow, gasRow, steeringRow, assistRow, ...(touchScreen ? [sidesRow] : []), vibrationRow, shakeRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
 }
 
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */
