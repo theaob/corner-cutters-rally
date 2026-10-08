@@ -5,7 +5,7 @@ import { STEERING, lockAt, turnWheel, tyreTurn } from '../src/engine/drive/steer
 import { ASSIST_SHARE, assisted, roadSteer } from '../src/engine/drive/assist';
 import { keysIntent } from '../src/engine/drive/keys';
 import { PAD, padIntent } from '../src/engine/drive/pad';
-import { DRAG, dragSteer, followAnchor } from '../src/engine/drive/touch';
+import { arrowSteer } from '../src/engine/drive/touch';
 import { Driver, REVERSE_BELOW } from '../src/engine/drive/driver';
 import { DRIVE_DEFAULTS, type DriveSettings } from '../src/engine/drive/settings';
 import { IDLE, type Intent } from '../src/engine/drive/intent';
@@ -81,18 +81,12 @@ describe('the keys and a gamepad', () => {
   });
 });
 
-describe('the touch steering drag', () => {
-  it('steers as far across as the thumb goes from where it landed, full lock a thumb-width away', () => {
-    expect(dragSteer(DRAG.dead)).toBe(0);
-    expect(dragSteer(DRAG.full)).toBe(1);
-    expect(dragSteer(-DRAG.full * 3)).toBe(-1);
-    expect(dragSteer((DRAG.full + DRAG.dead) / 2)).toBeCloseTo(0.5);
-  });
-
-  it('moves the middle along past full lock, so steering back answers at once', () => {
-    expect(followAnchor(100, 120)).toBe(100);
-    expect(followAnchor(100, 100 + DRAG.full + 30)).toBe(130);
-    expect(followAnchor(100, 100 - DRAG.full - 10)).toBe(90);
+describe('the touch steering buttons', () => {
+  it('◀ steers left, ▶ right; both, or neither, straight on', () => {
+    expect(arrowSteer(true, false)).toBe(-1);
+    expect(arrowSteer(false, true)).toBe(1);
+    expect(arrowSteer(true, true)).toBe(0);
+    expect(arrowSteer(false, false)).toBe(0);
   });
 });
 

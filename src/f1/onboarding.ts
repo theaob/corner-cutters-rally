@@ -18,7 +18,7 @@ export function prompt(step: Step, device: Device, gas: GasMode = 'manual'): str
   const auto = gas === 'auto';
   switch (step) {
     case 'go':
-      if (device === 'touch') return auto ? 'THE GAS IS ON · DRAG ACROSS TO STEER' : 'HOLD GAS TO GO · DRAG ACROSS TO STEER';
+      if (device === 'touch') return auto ? 'THE GAS IS ON · HOLD AN ARROW TO STEER' : 'HOLD GAS TO GO · HOLD AN ARROW TO STEER';
       if (device === 'keys') return auto ? 'THE GAS IS ON · LEFT AND RIGHT TO STEER' : 'UP TO GO · LEFT AND RIGHT TO STEER';
       return auto ? 'THE GAS IS ON · LEFT STICK TO STEER' : 'RIGHT TRIGGER TO GO · LEFT STICK TO STEER';
     case 'faster':

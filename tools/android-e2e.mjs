@@ -1,6 +1,6 @@
 // The touch controls and the views, tried on Android: the app (a debug build, its WebView open to DevTools) on an
 // emulator or a phone over adb, driven down the shakedown with the phone's own touch input (src/engine/drive/touch.ts:
-// the steering drag and the pedals, with GAS on MANUAL and AUTO, and steering on either side)
+// the steering buttons and the pedals, with GAS on MANUAL and AUTO, and steering on either side)
 // (`input motionevent`: a real finger down, moved, lifted), and the car's speed and heading read back from the game's
 // debug hook. Run by .github/workflows/android-e2e.yml; locally, with a device on adb and the app installed:
 //   npm install --no-save playwright-core && node tools/android-e2e.mjs out-dir
@@ -216,12 +216,6 @@ async function hold(at, sec, speed, to) {
 const turned = (r) => `turned ${fmt(r.turn)} rad`;
 const slowed = (r) => `speed ${fmt(r.from.speed)} → ${fmt(r.to.speed)}`;
 
-/** The steering half's middle, low down (where a thumb rests), and a point `dx` px across from it. */
-const steerSpot = async (dx = 0) => {
-  const [x, y] = await centre('.drive-steer');
-  const [, h] = await viewport();
-  return [x + dx, Math.min(h - 60, y + 120)];
-};
 const pressed = (sel) => page.evaluate((sel) => document.querySelector(sel).classList.contains('pressed'), sel);
 
 /** Each part of the run: the driving settings it's driven with, and what it tries. */
@@ -235,14 +229,28 @@ const schemes = {
       const brake = await centre('.drive-pedal.brake');
       const drift = await centre('.drive-pedal.drift');
       const [w] = await viewport();
-      check('MANUAL: GAS on the right, steering on the left', gas[0] > w / 2 && (await steerSpot())[0] < w / 2, `GAS at ${gas.map(Math.round)}`);
+      const left = await centre('.drive-arrow.left');
+      const right = await centre('.drive-arrow.right');
+      check('MANUAL: GAS on the right, ◀ ▶ on the left', gas[0] > w / 2 && right[0] < w / 2 && left[0] < right[0], `GAS at ${gas.map(Math.round)} · ◀ ${left.map(Math.round)} · ▶ ${right.map(Math.round)}`);
       const go = await hold(gas, 2, 0);
       check('MANUAL: holding GAS goes', go.to.speed > 15, slowed(go));
-      const at = await steerSpot();
-      const right = await hold(at, 0.6, 150, [at[0] + 60, at[1]]);
-      check('MANUAL: dragging right turns right', right.turn > 0.03, turned(right));
-      const left = await hold(at, 0.6, 150, [at[0] - 60, at[1]]);
-      check('MANUAL: dragging left turns left', left.turn < -0.03, turned(left));
+      const r = await hold(right, 0.6, 150);
+      check('MANUAL: holding ▶ turns right', r.turn > 0.03, turned(r));
+      const l = await hold(left, 0.6, 150);
+      check('MANUAL: holding ◀ turns left', l.turn < -0.03, turned(l));
+      // a thumb rolled from ◀ onto ▶ without lifting: ▶ takes over from ◀, and once the wheel's back past the middle
+      // the car turns right (measured after the roll, briefly, so the left turn first stays on the road)
+      await placeCar(200);
+      await down(left);
+      await game(0.2);
+      await move(right);
+      const swapped = (await pressed('.drive-arrow.right')) && !(await pressed('.drive-arrow.left'));
+      await game(0.15);
+      const mid = await me();
+      await game(0.4);
+      const end = await me();
+      await up(right);
+      check('MANUAL: rolling from ◀ onto ▶ steers back right', swapped && turnOf(mid.heading, end.heading) > 0.02, `▶ took over: ${swapped} · turned ${fmt(turnOf(mid.heading, end.heading))} rad after the roll`);
       const stop = await hold(brake, 0.3, 200);
       check('MANUAL: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
       // a thumb rolled from GAS onto BRAKE without lifting
@@ -266,9 +274,8 @@ const schemes = {
       await game(2);
       const a = await me();
       check('AUTO: goes by itself', a.speed > 15, `speed ${fmt(a.speed)}`);
-      const at = await steerSpot();
-      const left = await hold(at, 0.6, 150, [at[0] - 60, at[1]]);
-      check('AUTO: dragging left turns left', left.turn < -0.03, turned(left));
+      const l = await hold(await centre('.drive-arrow.left'), 0.6, 150);
+      check('AUTO: holding ◀ turns left', l.turn < -0.03, turned(l));
       const stop = await hold(await centre('.drive-pedal.brake'), 0.3, 200);
       check('AUTO: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
       await shot('auto');
@@ -278,13 +285,14 @@ const schemes = {
     drive: { driveGas: 'manual', driveSide: 'right' },
     async run() {
       const [w] = await viewport();
-      const at = await steerSpot();
+      const left = await centre('.drive-arrow.left');
+      const right = await centre('.drive-arrow.right');
       const gas = await centre('.drive-pedal.gas');
-      check('STEER RIGHT: steering on the right, GAS on the left', at[0] > w / 2 && gas[0] < w / 2, `steer at ${at.map(Math.round)} · GAS at ${gas.map(Math.round)}`);
+      check('STEER RIGHT: ◀ ▶ on the right, GAS on the left', left[0] > w / 2 && left[0] < right[0] && gas[0] < w / 2, `◀ ${left.map(Math.round)} · ▶ ${right.map(Math.round)} · GAS at ${gas.map(Math.round)}`);
       const go = await hold(gas, 2, 0);
       check('STEER RIGHT: holding GAS goes', go.to.speed > 15, slowed(go));
-      const right = await hold(at, 0.6, 150, [at[0] + 60, at[1]]);
-      check('STEER RIGHT: dragging right turns right', right.turn > 0.03, turned(right));
+      const r = await hold(right, 0.6, 150);
+      check('STEER RIGHT: holding ▶ turns right', r.turn > 0.03, turned(r));
       await shot('sides');
     },
   },
