@@ -1,6 +1,6 @@
 // The touch controls and the views, tried on Android: the app (a debug build, its WebView open to DevTools) on an
 // emulator or a phone over adb, driven down the shakedown with the phone's own touch input (src/engine/drive/touch.ts:
-// the steering drag and the pedals, with GAS on MANUAL and AUTO, and steering on either side)
+// the steering drag and the pedals, with GAS on MANUAL and AUTO, TOP-DOWN's gas always on, and steering on either side)
 // (`input motionevent`: a real finger down, moved, lifted), and the car's speed and heading read back from the game's
 // debug hook. Run by .github/workflows/android-e2e.yml; locally, with a device on adb and the app installed:
 //   npm install --no-save playwright-core && node tools/android-e2e.mjs out-dir
@@ -177,10 +177,10 @@ async function open(path, settings) {
   await page.goto(new URL(path, page.url()).href);
 }
 
-/** The shakedown under the chase camera with the driving settings `drive` (the save's keys), once the car can go. */
+/** The shakedown under the chase camera with the driving settings `drive` (the save's keys; SIM unless they say), once the car can go. */
 async function stage(drive = {}) {
   await launch();
-  await open('/?debug&circuit=ss-shakedown&mode=tutorial', { view: 'chase', driveGas: 'manual', driveSide: 'left', driveAssist: 'off', driveSteering: 'normal', ...drive });
+  await open('/?debug&circuit=ss-shakedown&mode=tutorial', { view: 'chase', driveStyle: 'sim', driveGas: 'manual', driveSide: 'left', driveAssist: 'off', driveSteering: 'normal', ...drive });
   await page.waitForFunction(() => window.__cc?.phase?.() === 'racing', null, { timeout: 180000 });
   await sleep(1500);
 }
@@ -274,6 +274,24 @@ const schemes = {
       await shot('auto');
     },
   },
+  topdown: {
+    // (GAS saved as MANUAL: TOP-DOWN's gas is on whatever it says)
+    drive: { driveStyle: 'topdown', driveGas: 'manual', driveSide: 'left' },
+    async run() {
+      const gasShown = await page.evaluate(() => getComputedStyle(document.querySelector('.drive-pedal.gas')).display !== 'none');
+      check('TOP-DOWN: no GAS pedal', !gasShown, `GAS shown: ${gasShown}`);
+      await placeCar(0);
+      await game(2);
+      const a = await me();
+      check('TOP-DOWN: goes by itself', a.speed > 15, `speed ${fmt(a.speed)}`);
+      const at = await steerSpot();
+      const right = await hold(at, 0.6, 120, [at[0] + 60, at[1]]);
+      check('TOP-DOWN: dragging right turns right', right.turn > 0.03, turned(right));
+      const stop = await hold(await centre('.drive-pedal.brake'), 0.3, 150);
+      check('TOP-DOWN: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
+      await shot('topdown');
+    },
+  },
   sides: {
     drive: { driveGas: 'manual', driveSide: 'right' },
     async run() {
@@ -328,7 +346,7 @@ try {
   await watchPresses();
   console.log(`camera button at ${button.map(Math.round).join(',')} css px → ${toScreen(button).join(',')} on the screen`);
   const views = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 7; i++) {
     const a = await me();
     await tap(button);
     await sleep(1200);
@@ -341,7 +359,7 @@ try {
     // (a press on it is the camera's alone: it mustn't steer)
     if (i === 0) check('VIEW: the camera button doesn\'t steer', Math.abs(turnOf(a.heading, b.heading)) < 0.15, `turned ${fmt(turnOf(a.heading, b.heading))} rad`);
   }
-  check('VIEW: the camera button goes through every view', new Set(views).size === 6 && views[5] === 'chase', views.join(' → '));
+  check('VIEW: the camera button goes through every view', new Set(views).size === 7 && views[6] === 'chase', views.join(' → '));
 } catch (err) {
   check('VIEW: ran', false, String(err).split('\n')[0]);
   await shot('view-error').catch(() => {});
@@ -372,8 +390,8 @@ try {
   await sleep(2000);
   await shot('settings');
   const rows = await page.evaluate(() => document.body.innerText);
-  const want = ['VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES'];
-  check('SETTINGS: the VIEW and driving rows', want.every((r) => rows.includes(r)), `missing: ${want.filter((r) => !rows.includes(r)).join(', ') || 'none'}`);
+  const want = ['STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES'];
+  check('SETTINGS: the STYLE, VIEW and driving rows', want.every((r) => rows.includes(r)), `missing: ${want.filter((r) => !rows.includes(r)).join(', ') || 'none'}`);
 } catch (err) {
   check('SETTINGS: ran', false, String(err).split('\n')[0]);
   await shot('settings-error').catch(() => {});

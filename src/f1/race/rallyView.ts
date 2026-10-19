@@ -31,7 +31,7 @@ export function createPaceCard() {
     call(call: PaceNote[], now: number) {
       const first = call[0];
       big.textContent = first.finish ? '▣ FINISH ▣' : first.jump ? '▲ JUMP ▲' : first.grade === 'hairpin' ? (first.dir === 'left' ? '◀◀ HP' : 'HP ▶▶') : first.dir === 'left' ? `◀ ${first.grade}` : `${first.grade} ▶`;
-      words.textContent = shown(call);
+      words.textContent = shown(call, 2);
       el.style.display = 'flex';
       until = now + 2.4;
       const volume = soundVolume();

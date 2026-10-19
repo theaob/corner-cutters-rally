@@ -10,7 +10,7 @@
 // and the crew patch the car up enough to go on. The rally in progress is kept
 // on the device, and your best result in each. Engine-free and unit-tested.
 
-import { carClass, newCar, type HandlingParams } from '../engine/driving';
+import { carClass, newCar, type CarClass, type HandlingParams } from '../engine/driving';
 import { SIM_DT } from '../engine/fixedStep';
 import type { Grid } from '../engine/sim';
 import { save, saved } from '../engine/save';
@@ -147,8 +147,8 @@ export const crewName = (c: RallyCrew): string => crewById(c.crew)?.name ?? 'YOU
  * A stage's reference run: one car flat out on the racing line, alone, from a standing start at `start`; its time from
  * GO to the flying finish, and its time at each split (stageSplits).
  */
-export function referenceStage(track: Track, grid: Grid, handling: HandlingParams, weather: WeatherId, start: { x: number; y: number; heading: number }): { time: number; splits: number[] } {
-  const race = newRace(track, grid, handling, 1, [{ car: newCar(carClass('f1'), start.x, start.y, start.heading), ai: { lane: 0, pace: 1 } }], 0, weather);
+export function referenceStage(track: Track, grid: Grid, handling: HandlingParams, weather: WeatherId, start: { x: number; y: number; heading: number }, cls: CarClass = carClass('f1')): { time: number; splits: number[] } {
+  const race = newRace(track, grid, handling, 1, [{ car: newCar(cls, start.x, start.y, start.heading), ai: { lane: 0, pace: 1 } }], 0, weather);
   const marks = stageSplits(track);
   const finish = track.stage?.finish ?? track.length;
   const splits: number[] = [];
