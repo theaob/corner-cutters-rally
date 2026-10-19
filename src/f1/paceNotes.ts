@@ -157,8 +157,10 @@ export function spoken(notes: PaceNote[]): string {
   return said.join(', into ') + (last?.gap ? `, ${last.gap}` : '');
 }
 
-/** A call as it's shown: 'LEFT 4 › RIGHT 3', with the distance after the last ('· 300'). */
-export function shown(notes: PaceNote[]): string {
+/** A call as it's shown: 'LEFT 4 › RIGHT 3', with the distance after the last ('· 300'); past `most` notes, the rest
+ * as '› …' (a long chain runs off a phone's screen, and the road ahead shows the rest). */
+export function shown(notes: PaceNote[], most = Infinity): string {
+  if (notes.length > most) return notes.slice(0, most).map(noteText).join(' › ') + ' › …';
   const last = notes[notes.length - 1];
   return notes.map(noteText).join(' › ') + (last?.gap ? ` · ${last.gap}` : '');
 }

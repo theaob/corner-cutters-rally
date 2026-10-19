@@ -1,6 +1,6 @@
 // The settings rows shared by the menu's SETTINGS screen and the pause screen:
 // the screen's shape (SCREEN: HANDHELD or WIDE, where the device can switch), the text's size (TEXT) and the
-// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the camera (VIEW), the driving (GAS, STEERING, ASSIST, and on a touch screen SIDES: src/engine/drive/settings.ts), vibration, screen shake, the grid walk
+// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the driving's STYLE (TOP-DOWN or SIM), the camera (VIEW), the driving (GAS, STEERING, ASSIST, and on a touch screen SIDES: src/engine/drive/settings.ts), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
 // as it changes. Difficulty is the menu's alone (not changed mid-race).
 
@@ -9,7 +9,7 @@ import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
 import { musicVolume, setMusicVolume } from '../engine/music';
 import { optionRow } from './menu';
 import { setShake, shakeOn } from './shake';
-import { GAS_MODES, STEER_SIDES, driveSettings, setDriveSetting } from '../engine/drive/settings';
+import { DRIVE_STYLES, GAS_MODES, STEER_SIDES, savedDriveSettings, setDriveSetting } from '../engine/drive/settings';
 import { STEER_FEELS } from '../engine/drive/steering';
 import { ASSIST_LEVELS } from '../engine/drive/assist';
 import { VIEWS, VIEW_ABOUT, setView, viewSetting } from './view';
@@ -40,8 +40,12 @@ export type SettingsRow = ReturnType<typeof optionRow<unknown>>;
 export function settingsRows(): SettingsRow[] {
   const viewRow = optionRow('VIEW', VIEWS, viewSetting(), (v) => ({ name: v.toUpperCase(), about: VIEW_ABOUT[v] }), setView);
   // the driving (src/engine/drive/)
-  const ds = driveSettings();
-  const gasRow = optionRow('GAS', GAS_MODES, ds.gas, (g) => ({ name: g.toUpperCase(), about: g === 'auto' ? 'always on: you steer and brake' : 'yours: hold the gas pedal' }), (g) => setDriveSetting('gas', g));
+  const ds = savedDriveSettings();
+  const styleRow = optionRow('STYLE', DRIVE_STYLES, ds.style, (st) => ({
+    name: st === 'topdown' ? 'TOP-DOWN' : 'SIM',
+    about: st === 'topdown' ? 'high view · gas always on · soft roadside' : 'your VIEW and GAS · full speed · hard trees',
+  }), (st) => setDriveSetting('style', st));
+  const gasRow = optionRow('GAS', GAS_MODES, ds.gas, (g) => ({ name: g.toUpperCase(), about: g === 'auto' ? 'always on: you steer and brake' : 'yours: hold the gas pedal (SIM)' }), (g) => setDriveSetting('gas', g));
   const steeringRow = optionRow('STEERING', STEER_FEELS, ds.feel, (f) => ({
     name: f.toUpperCase(),
     about: f === 'gentle' ? 'slower and softer, for fine lines' : f === 'quick' ? 'sharper, for the hairpins' : 'the wheel as set up',
@@ -69,7 +73,7 @@ export function settingsRows(): SettingsRow[] {
   const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
   const coloursRow = optionRow('COLOURS', [false, true], colourSafe(), (on) => ({ name: on ? 'COLOUR-SAFE' : 'STANDARD', about: on ? 'splits in blue, white, orange, and in words' : 'splits in purple, green, amber' }), setColourSafe);
   // (STATS only where the build has a backend to send them to)
-  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, viewRow, gasRow, steeringRow, assistRow, ...(touchScreen ? [sidesRow] : []), vibrationRow, shakeRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
+  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, styleRow, viewRow, gasRow, steeringRow, assistRow, ...(touchScreen ? [sidesRow] : []), vibrationRow, shakeRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
 }
 
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */

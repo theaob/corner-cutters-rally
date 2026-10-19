@@ -54,7 +54,7 @@ On gravel, snow and sand the car runs off-road tyres and slides; on tarmac it gr
 
 - every bend is graded by how tight it is, 6 (barely a lift) down to 1 (the slowest), with HAIRPIN for the tightest that turn right round;
 - LONG, TIGHTENS and OPENS where they apply, OVER JUMP for a jump, and FLYING FINISH at the end;
-- bends close together are linked (LEFT 4 › RIGHT 3), and a long run to the next note gets its distance called (· 300).
+- bends close together are linked (LEFT 4 › RIGHT 3; the card shows two, then › …, while the voice reads them all), and a long run to the next note gets its distance called (· 300).
 
 Each call comes far enough ahead to be ready for it (further ahead the faster you're going). It's shown on a card at the top of the screen (a big arrow and grade, the call in full under it) and read out where the device has a voice (the Web Speech API, at the sound's volume).
 
@@ -82,7 +82,10 @@ The driving (`src/engine/drive/`) works the same way on every device: you ask fo
 
 The driving settings:
 
-- **GAS:** MANUAL (a pedal) or AUTO (always on unless you brake). With AUTO the gas is on from before GO: an ordinary start, never a jump start or a launch.
+- **STYLE** (`src/f1/style.ts`): TOP-DOWN (the default) or SIM.
+  - **TOP-DOWN** is made for one thumb on a phone. The camera is high and turns with the road, looking well ahead of the car, which sits low on the screen, so you see two or three seconds of road before you reach it. The gas is always on: you steer, and brake when you need to. The car's top speed is 65% of SIM's and it pulls up to it more gently, so the bends come at a pace you can read. The roadside forgives: hits do about a third of the damage, small knocks none, and the car never rolls. Its stage times are kept apart from SIM's (a slower car), and the rivals' times come from a run in the same car, so they're fair either way. The camera button still tries the other views, for that stage.
+  - **SIM** is the stage as it was: your VIEW and GAS, the full-speed car, and hard trees.
+- **GAS** (SIM): MANUAL (a pedal) or AUTO (always on unless you brake). With AUTO the gas is on from before GO: an ordinary start, never a jump start or a launch.
 - **STEERING:** GENTLE, NORMAL or QUICK, for how fast and how far the wheel turns.
 - **ASSIST:** OFF, LIGHT or STRONG. A hand on the wheel steers toward where the road goes a little ahead, and back toward its middle. It gives way to you: the harder you steer, the less it does, and at full lock nothing. It never touches the gas or the brakes, and it lets go when reversing or turned away from the road.
 - **SIDES** (on a touch screen): STEER LEFT (the default: pedals right) or STEER RIGHT.
@@ -93,7 +96,8 @@ The driving settings:
 - SCREEN, on a device with a mouse or trackpad;
 - TEXT: NORMAL or LARGE;
 - COLOURS: STANDARD or COLOUR-SAFE, for the splits;
-- VIEW: the camera;
+- STYLE: TOP-DOWN or SIM (above);
+- VIEW: the camera (SIM's);
 - GAS, STEERING, ASSIST, and SIDES on a touch screen (above);
 - VIBRATION, SCREEN SHAKE, SOUND and MUSIC;
 - STATS, only when the build has a backend.
@@ -110,7 +114,7 @@ All are remembered.
 
 **Sound and music:** sound is synthesised with Web Audio (`src/engine/audio.ts`, `src/f1/sounds.ts`): the engine, tyre squeal, rough ground and gravel, hits and scrapes, rain, the countdown's beeps, and a fanfare at your flag. The theme plays at home and the stage's own track on the road (`public/music/`, `src/f1/music.ts`).
 
-**Cameras:** VIEW in the settings picks the camera, remembered (`src/f1/view.ts`): CHASE (low, behind the car; the default), ROAD (high, turns with the road ahead), HEADING (high, turns with the car), BONNET, CLASSIC (the HD-2D view, high, north up) and ISO (a fixed diagonal). Mid-stage, the camera button under PAUSE (top right on a phone) or C on the keys goes to the next view, named on the banner a moment. `&cam=` in the address still tries one out, until the view is changed in the game.
+**Cameras:** VIEW in the settings picks the camera, remembered (`src/f1/view.ts`): CHASE (low, behind the car; SIM's default), TOP (TOP-DOWN's: high, turns with the road, looking well ahead), ROAD (high, turns with the road ahead), HEADING (high, turns with the car), BONNET, CLASSIC (the HD-2D view, high, north up) and ISO (a fixed diagonal). Mid-stage, the camera button under PAUSE (top right on a phone) or C on the keys goes to the next view, named on the banner a moment. `&cam=` in the address still tries one out, until the view is changed in the game.
 
 **Fixed-step simulation:** the stage runs in steps of exactly 1/60 s, however fast or slow the screen draws (`src/engine/fixedStep.ts`), so a run comes out the same on any screen and in the headless tests.
 

@@ -170,6 +170,8 @@ export interface HandlingParams {
   landThreshold: number;
   /** share of top speed a car has lost by the time its health runs out (0 = damage never slows it) */
   damageSlow: number;
+  /** hits and slides never roll the car over */
+  noRolls?: boolean;
 }
 
 export const DEFAULT_HANDLING: HandlingParams = {
@@ -573,7 +575,7 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
   let damage = Math.max(0, hit.impact - p.crashThreshold) * p.crashDamage;
 
   // a roll: hit side-on hard, or sliding sideways into soft ground fast enough to dig in; over the way it was going
-  if (!car.rolling && !car.wrecked && !car.airborne) {
+  if (!car.rolling && !car.wrecked && !car.airborne && !p.noRolls) {
     const right = rightOf(car.heading);
     const across = hit.normal ? hit.normal.x * right.x + hit.normal.y * right.y : 0;
     const sideHit = hit.impact * Math.abs(across);

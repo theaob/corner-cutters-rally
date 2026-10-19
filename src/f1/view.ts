@@ -3,12 +3,13 @@
 
 import { save, saved } from '../engine/save';
 
-export type ViewId = 'chase' | 'road' | 'heading' | 'bonnet' | 'classic' | 'iso';
+export type ViewId = 'top' | 'chase' | 'road' | 'heading' | 'bonnet' | 'classic' | 'iso';
 /** The views, in the order the camera button goes through them. */
-export const VIEWS: ViewId[] = ['chase', 'road', 'heading', 'bonnet', 'classic', 'iso'];
+export const VIEWS: ViewId[] = ['chase', 'top', 'road', 'heading', 'bonnet', 'classic', 'iso'];
 
 /** What each view is, in a few words (the settings row's line under it). */
 export const VIEW_ABOUT: Record<ViewId, string> = {
+  top: 'high, the road well ahead',
   chase: 'low, behind the car',
   road: 'high, turns with the road',
   heading: 'high, turns with the car',

@@ -79,6 +79,11 @@ describe('the co-driver', () => {
     expect(spoken(call)).toBe('left four, into right three tightens, 400');
     expect(stepCaller(c, 410, 100)).toBeUndefined();
   });
+  it('shows a long chain cut short, so it fits a phone', () => {
+    const call = notes.slice(0, 2);
+    expect(shown(call, 2)).toBe('LEFT 4 › RIGHT 3 TIGHTENS · 400');
+    expect(shown(call, 1)).toBe('LEFT 4 › …');
+  });
   it('calls further ahead the faster you go', () => {
     expect(stepCaller(newCaller(notes), 1100 - 400, 300)?.[0].jump).toBe(undefined);
     const c = newCaller(notes.slice(2));
