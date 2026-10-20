@@ -37,11 +37,12 @@ describe('STYLE', () => {
     expect(driveSettings().gas).toBe('manual');
   });
 
-  it("gives TOP-DOWN a slower car, SIM the car as it was", () => {
+  it("gives TOP-DOWN a slower car that keeps more of its speed off the road, SIM the car as it was", () => {
     expect(rallyCar('sim')).toEqual(carClass('f1'));
     expect(rallyCar('topdown').topSpeed).toBeCloseTo(carClass('f1').topSpeed * TOP_DOWN.speed);
     expect(rallyCar('topdown').turnRate).toBe(carClass('f1').turnRate);
     expect(TOP_DOWN.zeroToTop).toBeGreaterThan(REFERENCE.zeroToTop);
+    expect(rallyCar('topdown').offRoad).toBeGreaterThan(carClass('f1').offRoad * 2);
   });
 
   it("softens TOP-DOWN's crashes and never rolls the car; leaves SIM's alone", () => {
@@ -62,7 +63,7 @@ describe('STYLE', () => {
 describe('TOP-DOWN on a stage', () => {
   it('can be driven to the finish unhurt, near the rivals, by a player who sees only what its camera shows and reacts late', () => {
     // a player on the keys (the gas always on): what they see is 0.15 s old, so they lead it by that much; they steer
-    // at the road 0.4 s ahead, and brake for what the camera shows of it (650 px ahead)
+    // at the road 0.4 s ahead, and brake for what the camera shows of it (300 px ahead: the CLASSIC view, the road running across a phone)
     const style = 'topdown';
     const cls = rallyCar(style);
     const H = styleHandling(handlingFor(NORMAL), style);
@@ -70,7 +71,7 @@ describe('TOP-DOWN on a stage', () => {
     const { track, grid } = c;
     const n = track.samples.length;
     const reference = referenceStage(track, grid, H, 'dry', c.slots[0], cls).time;
-    const SEE = 650;
+    const SEE = 300;
     const LATE = 0.15;
     const lag = Math.round(LATE * 60);
     let held = new Set<string>();
