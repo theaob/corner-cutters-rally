@@ -24,8 +24,8 @@ function ensure(): HTMLDivElement {
   return sheet;
 }
 
-/** A small outline of the circuit (its centreline, fitted to `size`). */
-function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
+/** A small outline of the circuit (its centreline, fitted to `size`; a stage's two ends left apart, not joined up). */
+export function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = size * 2;
   const x = c.getContext('2d');
@@ -39,7 +39,7 @@ function outline(layout: CircuitLayout, size: number): HTMLCanvasElement {
   x.lineJoin = 'round';
   x.beginPath();
   layout.points.forEach((p, i) => (i ? x.lineTo : x.moveTo).call(x, 8 + (p.x - minX) * k, 8 + (p.y - minY) * k));
-  x.closePath();
+  if (!layout.stage) x.closePath();
   x.stroke();
   Object.assign(c.style, { width: `${size}px`, height: `${size}px` });
   return c;
