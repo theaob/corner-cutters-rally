@@ -71,6 +71,9 @@ import { SCHEMES, liveryOf, type Scheme } from './crews';
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
+/** the TOP view: its zoom, its pitch (degrees down from level), and px it looks ahead of the car at top speed (half
+ * that standing), which puts the car low on the screen */
+const TOP_VIEW = { zoom: 0.7, pitch: 58, lead: 180 };
 
 /** How a stage is set up. */
 export interface StageOptions {
@@ -641,7 +644,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const camParam = new URLSearchParams(window.location.search).get('cam');
   let camTry: ViewId | undefined = isView(camParam) ? camParam : undefined;
   // (TOP-DOWN's own view, until the camera button picks another for the stage)
-  const camMode = (): ViewId => camTry ?? (style === 'topdown' ? 'top' : viewSetting());
+  const camMode = (): ViewId => camTry ?? (style === 'topdown' ? 'classic' : viewSetting());
   /** The next view (the deck's camera button, or C), named on the banner a moment, and remembered (TOP-DOWN: for the stage). */
   const cycleView = () => {
     const v = nextView(camMode());
@@ -660,7 +663,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   /** the way a turning camera looks (eased), radians */
   let camYaw: number | undefined;
   /** px the TOP-DOWN camera looks ahead of the car (eased) */
-  let topLead = TOP_DOWN.lead / 2;
+  let topLead = TOP_VIEW.lead / 2;
   const setFov = (fov: number) => {
     if (camera.fov === fov) return;
     camera.fov = fov;
@@ -966,13 +969,18 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       // (the debug hook's: the camera on a point of the map)
       target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
       focus.copy(target);
-    } else target.set(drawn.x + (c.vx / c.cls.topSpeed) * t.lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * t.lead);
+    } else {
+      // (TOP-DOWN looks further ahead)
+      const lead = style === 'topdown' ? TOP_DOWN.lead : t.lead;
+      target.set(drawn.x + (c.vx / c.cls.topSpeed) * lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * lead);
+    }
     focus.lerp(target, 1 - Math.exp(-dt * 6));
     const pitch = deg(LOOK.pitch);
     // (the rush of speed pulls the camera back a touch)
     const rushWant = running(me) ? rushOf(speedOf(me.car), me.car.cls.topSpeed) : 0;
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
-    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / t.zoom) * (1 + RUSH.pullBack * rushNow);
+    // (TOP-DOWN's pulled back further)
+    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (style === 'topdown' ? TOP_DOWN.zoom : t.zoom)) * (1 + RUSH.pullBack * rushNow);
     // (the chase camera, or another tried out with ?cam=: CAMERAS; held on a point of the map, the classic view)
     const mode = lookAt ? 'classic' : camMode();
     if (mode === 'classic') {
@@ -1000,9 +1008,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       } else if (mode === 'top') {
         // high, turned with the road, looking well ahead of the car (further the faster), so it sits low on the screen
         setFov(LOOK.fov);
-        const pp = deg(TOP_DOWN.pitch);
-        const d = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / TOP_DOWN.zoom) * (1 + RUSH.pullBack * rushNow);
-        const ahead = TOP_DOWN.lead * (0.5 + 0.5 * Math.min(1, speedOf(c) / c.cls.topSpeed));
+        const pp = deg(TOP_VIEW.pitch);
+        const d = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / TOP_VIEW.zoom) * (1 + RUSH.pullBack * rushNow);
+        const ahead = TOP_VIEW.lead * (0.5 + 0.5 * Math.min(1, speedOf(c) / c.cls.topSpeed));
         topLead += (ahead - topLead) * Math.min(1, dt * 2);
         const aim = { x: drawn.x + fx * topLead, y: drawn.z * 0.5, z: drawn.y + fz * topLead };
         camera.position.set(aim.x - fx * Math.cos(pp) * d, aim.y + Math.sin(pp) * d, aim.z - fz * Math.cos(pp) * d);
