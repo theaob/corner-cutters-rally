@@ -48,7 +48,7 @@ export function createPaceCard() {
   const arrow = document.createElementNS(SVG, 'svg');
   arrow.setAttribute('viewBox', '-50 -50 100 100');
   arrow.setAttribute('aria-hidden', 'true');
-  arrow.style.width = arrow.style.height = 'calc(34px * var(--ts, 1))';
+  arrow.style.width = arrow.style.height = 'calc(40px * var(--ts, 1))';
   const turned = document.createElementNS(SVG, 'g');
   const line = document.createElementNS(SVG, 'path');
   const head = document.createElementNS(SVG, 'polygon');
