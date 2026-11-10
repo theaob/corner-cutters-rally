@@ -63,7 +63,7 @@ import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
 import { aiStage, loadStageBests, rallyEvent, recordBest, recordStage, recordStageBest, referenceStage, saveRally, stageOrder, type Rally } from './rally';
-import { newCaller, paceNotes, stepCaller, type Caller } from './paceNotes';
+import { newCaller, paceNotes, screenFacing, stepCaller, type Caller } from './paceNotes';
 import { createPaceCard, renderStageResults } from './race/rallyView';
 import { formatTime as fmt } from './time';
 import { SCHEMES, liveryOf, type Scheme } from './crews';
@@ -912,7 +912,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const caller = stage?.caller ?? tutorCaller;
     if (caller && !done && race.phase === 'racing' && running(me)) {
       const call = stepCaller(caller, p.idx * track.spacing, speedOf(me.car));
-      if (call) paceCard.call(call, clock);
+      // (the card's arrow drawn the way the bend goes on the screen, in a view that doesn't turn with the car)
+      if (call) paceCard.call(call, clock, screenFacing(lookAt ? 'classic' : camMode()));
     }
     paceCard.update(clock, done);
     hud.setPosition(rallyRun ? `SS${rallyRun.stage + 1}/${rallyEvent(rallyRun.rally).stages.length}` : 'SHAKEDOWN');
