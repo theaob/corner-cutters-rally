@@ -287,8 +287,14 @@ const schemes = {
       const at = await steerSpot();
       const right = await hold(at, 0.6, 120, [at[0] + 60, at[1]]);
       check('TOP-DOWN: dragging right turns right', right.turn > 0.03, turned(right));
+      const driftShown = await page.evaluate(() => getComputedStyle(document.querySelector('.drive-pedal.drift')).display !== 'none');
+      check('TOP-DOWN: no DRIFT button', !driftShown, `DRIFT shown: ${driftShown}`);
       const stop = await hold(await centre('.drive-pedal.brake'), 0.3, 150);
       check('TOP-DOWN: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
+      // BRAKE is the whole other half: a thumb high up on it, well above the drawn zone, brakes too
+      const [px, py] = await centre('.drive-pedals');
+      const high = await hold([px, py - 60], 0.3, 150);
+      check('TOP-DOWN: anywhere on the other half brakes', high.to.speed < high.from.speed * 0.8, slowed(high));
       await shot('topdown');
     },
   },

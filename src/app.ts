@@ -295,7 +295,8 @@ async function showStage(id: number, stage: CircuitLayout, mode: Mode): Promise<
   }
   document.documentElement.classList.remove('menu');
   const fit = sizeScreen();
-  tuning ??= mountTuning(screen, 'f1', F1_TUNING);
+  // (TUNE, the developer's panel, only with ?debug: a player's stage drives on the defaults)
+  if (new URLSearchParams(location.search).has('debug')) tuning ??= mountTuning(screen, 'f1', F1_TUNING);
   const { stageOn } = await import('./f1/race');
   if (id !== routeId) return;
   const home = () => navigate(withStage(null));

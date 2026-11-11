@@ -6,7 +6,9 @@ import { ASSIST_SHARE, assisted, roadSteer } from '../src/engine/drive/assist';
 import { keysIntent } from '../src/engine/drive/keys';
 import { PAD, padIntent } from '../src/engine/drive/pad';
 import { DRAG, dragSteer, followAnchor } from '../src/engine/drive/touch';
-import { Driver, REVERSE_BELOW } from '../src/engine/drive/driver';
+import { Driver, REVERSE_BELOW, SLIDE } from '../src/engine/drive/driver';
+import { DEFAULT_HANDLING, speedOf, stepCar } from '../src/engine/driving';
+import type { Grid } from '../src/engine/sim';
 import { DRIVE_DEFAULTS, type DriveSettings } from '../src/engine/drive/settings';
 import { IDLE, type Intent } from '../src/engine/drive/intent';
 
@@ -168,5 +170,61 @@ describe('the driver', () => {
     back.sample();
     for (let k = 0; k < 20; k++) back.step(moving(150), 1 / 60, { dir: Math.PI, lateral: 0 });
     expect(back.wheelPos()).toBe(0);
+  });
+
+  it('TOP-DOWN: braking with the wheel turned hard slides the car (the handbrake), braking straight just brakes', () => {
+    const { d, src } = make({ style: 'topdown' });
+    src.touch = { ...IDLE, brake: 1 };
+    d.sample();
+    const straight = d.step(moving(200), 1 / 60);
+    expect(straight.brake).toBe(true);
+    expect(straight.handbrake).toBe(false);
+    expect(d.sliding()).toBe(false);
+    src.touch = { ...IDLE, brake: 1, steer: 1 };
+    d.sample();
+    for (let k = 0; k < 30; k++) d.step(moving(200), 1 / 60);
+    const hard = d.step(moving(200), 1 / 60);
+    expect(hard.handbrake).toBe(true);
+    expect(hard.brake).toBe(false);
+    expect(d.sliding()).toBe(true);
+    // (not crawling: there it's the brakes, and held once stopped, reverse)
+    expect(d.step(moving(f1.topSpeed * SLIDE.from * 0.5), 1 / 60).handbrake).toBe(false);
+    // (a gentle turn while braking is still just braking)
+    src.touch = { ...IDLE, brake: 1, steer: SLIDE.wheel / 2 };
+    d.sample();
+    for (let k = 0; k < 60; k++) d.step(moving(200), 1 / 60);
+    expect(d.step(moving(200), 1 / 60).brake).toBe(true);
+  });
+
+  it('SIM: braking while steering hard is only braking (DRIFT is its own button)', () => {
+    const { d, src } = make({ style: 'sim' });
+    src.touch = { ...IDLE, brake: 1, steer: 1 };
+    d.sample();
+    for (let k = 0; k < 30; k++) d.step(moving(200), 1 / 60);
+    const i = d.step(moving(200), 1 / 60);
+    expect(i.brake).toBe(true);
+    expect(i.handbrake).toBe(false);
+  });
+
+  it('TOP-DOWN: the slide swings the car round further than braking would, its nose ahead of where it is going', () => {
+    const run = (style: 'topdown' | 'sim') => {
+      const { d, src } = make({ style });
+      src.touch = { ...IDLE, brake: 1, steer: 1 };
+      d.sample();
+      const car = moving(f1.topSpeed * 0.8);
+      Object.assign(car, { x: 800, y: 800 });
+      const open: Grid = { width: 100, height: 100, tile: 16, solid: Array.from({ length: 10000 }, () => false) };
+      // (a fifth of a second: still going, before the brakes would stop it)
+      for (let k = 0; k < 12; k++) stepCar(car, d.step(car, 1 / 60), DEFAULT_HANDLING, 1 / 60, open);
+      // (how far the car's nose points round from the way it's actually going)
+      const slip = car.heading - Math.atan2(car.vx, -car.vy);
+      return { heading: car.heading, slip, speed: speedOf(car) };
+    };
+    const slid = run('topdown');
+    const braked = run('sim');
+    expect(slid.heading).toBeGreaterThan(braked.heading);
+    expect(slid.slip).toBeGreaterThan(braked.slip);
+    // (and it keeps more of its speed than full braking: a slide, not a stop)
+    expect(slid.speed).toBeGreaterThan(braked.speed);
   });
 });
