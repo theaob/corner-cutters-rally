@@ -169,7 +169,7 @@ Then add the repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`
 
 **Tested on Android:** `.github/workflows/android-e2e.yml` builds a debug APK on every push, installs it on an emulated Pixel 6 (Android 14) and runs `tools/android-e2e.mjs` on it. That script drives the shakedown with the phone's own touch input (the steering drag, the pedals, both SIDES and GAS on AUTO), reads the car's speed and heading back from the game, goes through the views with the camera button, and opens the settings. The phone's screenshots and `results.json` are the run's **android-e2e** download. With a phone on adb and a debug build installed, the same script runs locally (`npm install --no-save playwright-core && node tools/android-e2e.mjs out`).
 
-Locally (with the Android SDK and JDK 21): `npm run android:apk` builds `android/app/build/outputs/apk/release/app-release.apk`, and `npm run android:play` the Play AAB. `npm run android:art` redraws the launcher icons and splash screens (`tools/android-art.py`, needs Pillow).
+Locally (with the Android SDK and JDK 21): `npm run android:apk` builds `android/app/build/outputs/apk/release/app-release.apk`, and `npm run android:play` the Play AAB. `npm run android:art` redraws the game's icon, the gravel hairpin, into the launcher icons, the splash screens and the web icons in `public/` (`tools/android-art.py`, needs Pillow).
 
 ## YouTube Playables
 
