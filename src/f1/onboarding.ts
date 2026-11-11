@@ -4,9 +4,10 @@
 // for a bend, drifting, the co-driver's calls, and on to the finish. Each
 // prompt moves on once you've done it (or, for the ones that wait for a bend,
 // once you've been through one). TOP-DOWN's is shorter: the gas is always on and there's no DRIFT (braking with the
-// wheel turned hard slides the car), so it's go, a bend, the calls and the finish. Engine-free.
+// wheel turned hard slides the car), so it's go, a bend, the calls and the finish. With CONTROL on POINT you point the
+// way to go and the car slows for the bends itself, and the prompts say so. Engine-free.
 
-import type { DriveStyle, GasMode } from '../engine/drive/settings';
+import type { Control, DriveStyle, GasMode } from '../engine/drive/settings';
 
 /** The device you're driving with. */
 export type Device = 'touch' | 'keys' | 'pad';
@@ -16,9 +17,22 @@ export const STEPS: Step[] = ['go', 'faster', 'bend', 'drift', 'notes', 'lap', '
 /** The controls lap's steps in `style` (the last, 'done', isn't one to do). */
 export const stepsFor = (style: DriveStyle): Step[] => (style === 'topdown' ? ['go', 'bend', 'notes', 'lap', 'done'] : STEPS);
 
-/** What the prompt says for `step` on `device`, with GAS on MANUAL or AUTO, in `style` (src/engine/drive/settings.ts). */
-export function prompt(step: Step, device: Device, gas: GasMode = 'manual', style: DriveStyle = 'sim'): string {
+/** What the prompt says for `step` on `device`, with GAS on MANUAL or AUTO, in `style` with `control`
+ * (src/engine/drive/settings.ts). */
+export function prompt(step: Step, device: Device, gas: GasMode = 'manual', style: DriveStyle = 'sim', control: Control = 'wheel'): string {
   const auto = gas === 'auto';
+  if (style === 'topdown' && control === 'point') {
+    if (step === 'go') {
+      if (device === 'touch') return 'THE GAS IS ON · DRAG THE WAY YOU WANT TO GO';
+      if (device === 'keys') return 'THE GAS IS ON · THE ARROWS POINT THE WAY TO GO';
+      return 'THE GAS IS ON · THE LEFT STICK POINTS THE WAY TO GO';
+    }
+    if (step === 'bend') {
+      if (device === 'touch') return 'THE CAR SLOWS FOR BENDS ITSELF · HOLD BRAKE TO SLOW MORE';
+      if (device === 'keys') return 'THE CAR SLOWS FOR BENDS ITSELF · SPACE TO SLOW MORE';
+      return 'THE CAR SLOWS FOR BENDS ITSELF · LEFT TRIGGER TO SLOW MORE';
+    }
+  }
   if (style === 'topdown' && step === 'bend') {
     // (no DRIFT: the brake with the wheel turned hard slides the car)
     if (device === 'touch') return 'BRAKE BEFORE A BEND · BRAKE AND STEER HARD TO SLIDE';

@@ -2,13 +2,15 @@
 // the car does, one fixed step at a time. The steering goes through the wheel (steering.ts: its rate and its curve)
 // with the assist's hand on it (assist.ts); the gas, the brakes, and held on the brake once
 // stopped, reverse. In TOP-DOWN there's no handbrake to reach for: braking with the wheel turned hard slides the car
-// (SLIDE), the way DRIFT does.
+// (SLIDE), the way DRIFT does. With CONTROL on POINT (point.ts) you point the way to go instead of turning the wheel,
+// and the car slows for the road ahead on its own.
 
 import type { Car, DriveInput } from '../driving';
 import { assisted, type RoadAhead } from './assist';
 import { IDLE, active, type Intent } from './intent';
 import type { DriveSettings } from './settings';
 import { turnWheel, tyreTurn } from './steering';
+import { POINT, pulledAim, turnBetween, wayOf } from './point';
 
 export type Source = 'touch' | 'keys' | 'pad';
 
@@ -79,6 +81,7 @@ export class Driver {
     const s = this.settings();
     const i = this.intent();
     const forward = forwardSpeed(car);
+    if (s.style === 'topdown' && s.control === 'point') return this.pointStep(car, i, forward, road, s);
     // (the assist only going forwards, and only with the road roughly ahead)
     const near = road && forward > 20 && Math.abs(Math.atan2(Math.sin(road.dir - car.heading), Math.cos(road.dir - car.heading))) < ASSIST_GIVES_UP;
     this.wheel = turnWheel(this.wheel, assisted(i.steer, car.heading, near ? road : undefined, s.assist), dt, s.feel);
@@ -90,5 +93,26 @@ export class Driver {
     const turn = tyreTurn(this.wheel, Math.abs(forward) / car.cls.topSpeed, handbrake, s.feel);
     if (pressed && i.throttle < 0.1 && forward < REVERSE_BELOW) return { wheel: { turn, gas: 0, reverse: true }, handbrake };
     return { wheel: { turn, gas: pressed ? 0 : i.throttle, reverse: false }, brake: braking, handbrake };
+  }
+
+  /** CONTROL: POINT. The car steers for where you point (the road pulling your aim), or holds its course; the gas is
+   * on up to what the road ahead allows, the brakes on over it; BRAKE slows it, and braking aimed well off where it
+   * points slides it. */
+  private pointStep(car: Car, i: Intent, forward: number, road: RoadAhead | undefined, s: DriveSettings): DriveInput {
+    const near = road && forward > 20 && Math.abs(turnBetween(car.heading, road.dir)) < ASSIST_GIVES_UP;
+    const pointing = !!i.point && (i.point.x !== 0 || i.point.y !== 0);
+    const aim = pointing ? pulledAim(wayOf(i.point!.x, i.point!.y), near ? road : undefined, s.assist) : car.heading;
+    const off = turnBetween(car.heading, aim);
+    // (for drawing: how hard it's turning)
+    this.wheel = Math.max(-1, Math.min(1, off / POINT.slide));
+    const pressed = i.brake > BRAKE_ON || i.handbrake;
+    if (pressed && forward < REVERSE_BELOW && !pointing) {
+      this.slid = false;
+      return { wheel: { turn: 0, gas: 0, reverse: true }, handbrake: false };
+    }
+    this.slid = pressed && Math.abs(off) >= POINT.slide && forward >= car.cls.topSpeed * SLIDE.from;
+    const safe = road?.safe ?? Infinity;
+    const braking = (pressed && !this.slid) || forward > safe + POINT.brakeOver;
+    return { steer: { x: Math.sin(aim), y: -Math.cos(aim) }, limit: safe, brake: braking, handbrake: this.slid };
   }
 }

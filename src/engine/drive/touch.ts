@@ -12,10 +12,14 @@
 //
 // In TOP-DOWN there are no pedals, just BRAKE: the whole of the other thumb's half (braking with the wheel turned hard
 // slides the car: driver.ts). Once you've steered, the wheel fades back out of the picture.
+//
+// With CONTROL on POINT (TOP-DOWN's, point.ts) the steering thumb points instead: drag from where it lands the way you
+// want the car to go on the screen. A ring under the thumb shows the way. Past the ring's edge, the middle follows the
+// thumb, so pointing a new way answers at once.
 
 import { vibrate } from '../haptics';
 import type { Intent } from './intent';
-import type { DriveStyle, GasMode, SteerSide } from './settings';
+import type { Control, DriveStyle, GasMode, SteerSide } from './settings';
 
 /** How the steering drag reads: px a thumb goes across for full lock, and px of wobble ignored round where it landed. */
 export const DRAG = { full: 64, dead: 4 };
@@ -34,6 +38,20 @@ export function followAnchor(anchor: number, x: number, full = DRAG.full): numbe
   return anchor;
 }
 
+/** POINT: px a thumb goes from where it landed before it points (a wobble ignored), and px the ring reaches (past it,
+ * the middle follows the thumb). */
+export const POINT_DRAG = { dead: 9, reach: 46 };
+
+/** POINT: the way a thumb at (x, y) points from `anchor` (screen px, y down), none inside the dead zone; and where the
+ * anchor goes as the thumb passes the ring's reach. */
+export function dragPoint(anchor: { x: number; y: number }, x: number, y: number, dead = POINT_DRAG.dead, reach = POINT_DRAG.reach): { point?: { x: number; y: number }; anchor: { x: number; y: number } } {
+  const dx = x - anchor.x;
+  const dy = y - anchor.y;
+  const d = Math.hypot(dx, dy);
+  const next = d > reach ? { x: x - (dx / d) * reach, y: y - (dy / d) * reach } : anchor;
+  return { point: d > dead ? { x: dx / d, y: dy / d } : undefined, anchor: next };
+}
+
 type Pedal = 'gas' | 'brake' | 'drift';
 /** px round each pedal still counted as on it (a thumb rolling between them, or a little off) */
 const PEDAL_SLOP = 14;
@@ -50,11 +68,15 @@ export class TouchDriving {
   private readonly steerZone: HTMLElement;
   private readonly wheel: HTMLElement;
   private readonly knob: HTMLElement;
+  private readonly hint: HTMLElement;
   private readonly pedalZone: HTMLElement;
   private readonly pedals: Record<Pedal, HTMLElement>;
   /** the steering thumb: its pointer, and where across the zone the middle is (px, client) */
-  private steering?: { id: number; anchor: number };
+  private steering?: { id: number; anchor: number; spot: { x: number; y: number } };
   private steer = 0;
+  /** POINT: the way the thumb points on the screen (none: not pointing) */
+  private point?: { x: number; y: number };
+  private control: Control = 'wheel';
   /** the pedal each thumb on the pedals is on */
   private readonly onPedal = new Map<number, Pedal | undefined>();
   private gas: GasMode = 'manual';
@@ -69,7 +91,8 @@ export class TouchDriving {
     this.wheel.append(el('span', 'drive-wheel-arrow left', '◀'), el('span', 'drive-wheel-arrow right', '▶'));
     this.knob = el('span', 'drive-wheel-knob');
     this.wheel.append(this.knob);
-    this.steerZone.append(this.wheel, el('span', 'drive-hint', 'DRAG TO STEER'));
+    this.hint = el('span', 'drive-hint', 'DRAG TO STEER');
+    this.steerZone.append(this.wheel, this.hint);
     this.pedalZone = el('div', 'drive-pedals');
     this.pedals = { drift: el('div', 'drive-pedal drift', 'DRIFT'), brake: el('div', 'drive-pedal brake', 'BRAKE'), gas: el('div', 'drive-pedal gas', 'GAS') };
     this.pedalZone.append(this.pedals.drift, this.pedals.brake, this.pedals.gas);
@@ -79,13 +102,18 @@ export class TouchDriving {
     this.bindPedals();
   }
 
-  /** SIDES, GAS and STYLE from the settings. */
-  setOptions(side: SteerSide, gas: GasMode, style: DriveStyle = 'sim'): void {
+  /** SIDES, GAS, STYLE and CONTROL from the settings. */
+  setOptions(side: SteerSide, gas: GasMode, style: DriveStyle = 'sim', control: Control = 'wheel'): void {
     this.el.dataset.side = side;
     this.el.dataset.gas = gas;
     this.el.dataset.style = style;
     this.gas = gas;
     this.brakeZone = style === 'topdown';
+    const next = style === 'topdown' ? control : 'wheel';
+    if (next !== this.control) this.endSteering();
+    this.control = next;
+    this.el.dataset.control = next;
+    this.hint.textContent = next === 'point' ? 'DRAG THE WAY TO GO' : 'DRAG TO STEER';
   }
 
   /** What the thumbs ask for now. */
@@ -96,11 +124,13 @@ export class TouchDriving {
       throttle: this.gas === 'manual' && on.has('gas') ? 1 : 0,
       brake: on.has('brake') ? 1 : 0,
       handbrake: on.has('drift'),
+      ...(this.point && { point: { ...this.point } }),
     };
   }
 
-  /** Draw the wheel where the steering is (−1…1). */
+  /** Draw the wheel where the steering is (−1…1). (POINT: the ring shows where the thumb points, as it moves.) */
   showWheel(pos: number): void {
+    if (this.control === 'point') return;
     const travel = (this.wheel.clientWidth - this.knob.offsetWidth) / 2;
     this.knob.style.transform = `translateX(${(pos * travel).toFixed(1)}px)`;
   }
@@ -122,8 +152,10 @@ export class TouchDriving {
     zone.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       if (this.steering) return;
-      this.steering = { id: e.pointerId, anchor: e.clientX };
+      this.steering = { id: e.pointerId, anchor: e.clientX, spot: { x: e.clientX, y: e.clientY } };
       this.steer = 0;
+      this.point = undefined;
+      this.knob.style.transform = '';
       const r = zone.getBoundingClientRect();
       // (the wheel comes to the thumb)
       this.wheel.style.left = `${e.clientX - r.left}px`;
@@ -138,6 +170,21 @@ export class TouchDriving {
     zone.addEventListener('pointermove', (e) => {
       const s = this.steering;
       if (!s || s.id !== e.pointerId) return;
+      if (this.control === 'point') {
+        const was = s.spot;
+        const d = dragPoint(s.spot, e.clientX, e.clientY);
+        s.spot = d.anchor;
+        this.point = d.point;
+        // (the ring follows the thumb past its reach; the knob shows the way it points)
+        if (d.anchor !== was) {
+          this.wheel.style.left = `${parseFloat(this.wheel.style.left) + d.anchor.x - was.x}px`;
+          this.wheel.style.top = `${parseFloat(this.wheel.style.top) + d.anchor.y - was.y}px`;
+        }
+        const k = Math.min(POINT_DRAG.reach, Math.hypot(e.clientX - d.anchor.x, e.clientY - d.anchor.y));
+        this.knob.style.transform = d.point ? `translate(${(d.point.x * k).toFixed(1)}px, ${(d.point.y * k).toFixed(1)}px)` : '';
+        if (d.point) this.el.classList.add('steered');
+        return;
+      }
       s.anchor = followAnchor(s.anchor, e.clientX);
       this.steer = dragSteer(e.clientX - s.anchor);
       // (steered once: the wheel can fade)
@@ -154,6 +201,8 @@ export class TouchDriving {
   private endSteering(): void {
     this.steering = undefined;
     this.steer = 0;
+    this.point = undefined;
+    if (this.control === 'point') this.knob.style.transform = '';
     this.steerZone.classList.remove('pressed');
     this.wheel.style.left = '';
     this.wheel.style.top = '';

@@ -1,5 +1,7 @@
 // Driving on a keyboard: ← → (A, D) steer, ↑ (W) is the gas, ↓ (S) the brake, Shift or X the handbrake. A key is all
 // or nothing; the steering wheel (steering.ts) turns toward it at its own rate, so a tap is a nudge.
+// With CONTROL on POINT (TOP-DOWN's: point.ts) the arrows (WASD) point the way to go on the screen, two together the
+// way between, and Space, Shift or X brakes.
 
 import { IDLE, type Intent } from './intent';
 
@@ -9,13 +11,20 @@ export const DRIVE_KEYS = {
   gas: ['ArrowUp', 'KeyW'],
   brake: ['ArrowDown', 'KeyS'],
   handbrake: ['ShiftLeft', 'ShiftRight', 'KeyX'],
+  /** POINT's brake */
+  pointBrake: ['Space', 'ShiftLeft', 'ShiftRight', 'KeyX'],
 };
 
 const any = (held: ReadonlySet<string>, codes: string[]) => codes.some((c) => held.has(c));
 
-/** What the keys held (their codes) ask for. */
-export function keysIntent(held: ReadonlySet<string>): Intent {
+/** What the keys held (their codes) ask for; `point`: with CONTROL on POINT. */
+export function keysIntent(held: ReadonlySet<string>, point = false): Intent {
   if (!held.size) return IDLE;
+  if (point) {
+    const x = (any(held, DRIVE_KEYS.right) ? 1 : 0) - (any(held, DRIVE_KEYS.left) ? 1 : 0);
+    const y = (any(held, DRIVE_KEYS.brake) ? 1 : 0) - (any(held, DRIVE_KEYS.gas) ? 1 : 0);
+    return { steer: 0, throttle: 0, brake: any(held, DRIVE_KEYS.pointBrake) ? 1 : 0, handbrake: false, ...((x || y) && { point: { x, y } }) };
+  }
   return {
     steer: (any(held, DRIVE_KEYS.right) ? 1 : 0) - (any(held, DRIVE_KEYS.left) ? 1 : 0),
     throttle: any(held, DRIVE_KEYS.gas) ? 1 : 0,
@@ -40,8 +49,8 @@ export class KeyDriving {
     win.addEventListener('blur', this.blur);
   }
 
-  intent(): Intent {
-    return keysIntent(this.held);
+  intent(point = false): Intent {
+    return keysIntent(this.held, point);
   }
 
   release(): void {

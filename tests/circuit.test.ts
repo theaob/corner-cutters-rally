@@ -138,7 +138,7 @@ describe.each(EXPECT)('the $id stage', ({ id, time }) => {
 
   it('can be driven on the keyboard, through the steering wheel (src/engine/drive/), unhurt', () => {
     let held = new Set<string>();
-    const driver = new Driver({ keys: () => keysIntent(held), pad: () => undefined }, () => ({ ...DRIVE_DEFAULTS, assist: 'off' }));
+    const driver = new Driver({ keys: () => keysIntent(held), pad: () => undefined }, () => ({ ...DRIVE_DEFAULTS, assist: 'off', control: 'wheel' }));
     const start = circuit.slots[0];
     const car = newCar(f1, start.x, start.y, start.heading);
     let p = newProgress(startIdx(track));

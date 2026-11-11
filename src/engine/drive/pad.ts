@@ -1,6 +1,6 @@
 // Driving on a gamepad (the standard layout): the left stick steers, the right trigger is the gas, the left trigger
 // the brake, A or RB the handbrake. The stick has a dead zone round the middle and a gentle curve past it, for fine
-// corrections at speed.
+// corrections at speed. With CONTROL on POINT (point.ts) the stick points the way to go on the screen instead.
 
 import type { Intent } from './intent';
 
@@ -11,6 +11,8 @@ type PadState = { buttons: readonly { pressed: boolean; value: number }[]; axes:
 /** What a gamepad asks for. */
 export function padIntent(pad: PadState): Intent {
   const x = pad.axes[0] ?? 0;
+  const y = pad.axes[1] ?? 0;
+  const pointing = Math.hypot(x, y) > PAD.dead * 2;
   const out = Math.max(0, Math.min(1, (Math.abs(x) - PAD.dead) / (1 - PAD.dead)));
   const trigger = (i: number) => {
     const v = pad.buttons[i]?.value ?? 0;
@@ -21,6 +23,7 @@ export function padIntent(pad: PadState): Intent {
     throttle: trigger(7),
     brake: trigger(6),
     handbrake: !!(pad.buttons[0]?.pressed || pad.buttons[5]?.pressed),
+    ...(pointing && { point: { x, y } }),
   };
 }
 

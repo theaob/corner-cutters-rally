@@ -7,6 +7,7 @@
 import { REFERENCE, carClass, type CarClass, type HandlingParams } from '../engine/driving';
 import type { DriveStyle } from '../engine/drive/settings';
 import { HD2D_VIEW } from '../engine/look';
+import { lineCornerSpeed, type Track } from './racing';
 
 export const TOP_DOWN = {
   /** the car's top speed against SIM's (the rivals' times come from a run in the same car, so they scale with it) */
@@ -135,3 +136,38 @@ export function styleHandling(h: HandlingParams, style: DriveStyle): HandlingPar
 
 /** The key a stage's best time is kept under: TOP-DOWN's times are their own (a slower car). */
 export const bestKey = (stageId: string, style: DriveStyle) => (style === 'sim' ? stageId : `${stageId}@topdown`);
+
+/**
+ * CONTROL: POINT's own speed: the car slows for the road ahead without being asked. Each bend is taken at `share` of
+ * what the car can turn through along the road's middle (not the racing line, which is wider and quicker: you're
+ * near the middle, the road pulling you there), braked for at `brake` of the car's full braking, looking `reach` px
+ * ahead (more than the hardest stop from top speed needs).
+ */
+export const AUTO_SPEED = { share: 0.92, brake: 0.75, reach: 700, smooth: 2 };
+
+/** px/s the car can be going at each of `track`'s samples and still take the road ahead (CONTROL: POINT), its tyres
+ * gripping `grip` as well as new (worn, or on the wrong surface: less, and slower round the bends). */
+export function autoSpeed(track: Track, cls: CarClass, h: HandlingParams): (idx: number, grip?: number) => number {
+  const n = track.samples.length;
+  const corner = lineCornerSpeed(cls, h, AUTO_SPEED.share);
+  const at = (k: number) => track.samples[track.open ? Math.max(0, Math.min(n - 1, k)) : ((k % n) + n) % n];
+  // (each sample's bend: the tightest of its neighbours', so a kink in the road's curve doesn't slip through)
+  const own = track.samples.map((_, k) => {
+    let c = 0;
+    for (let j = -AUTO_SPEED.smooth; j <= AUTO_SPEED.smooth; j++) c = Math.max(c, Math.abs(at(k + j).curve));
+    return corner(c);
+  });
+  const decel = (cls.topSpeed / cls.brakeTime) * AUTO_SPEED.brake;
+  const steps = Math.ceil(AUTO_SPEED.reach / track.spacing);
+  return (idx, grip = 1) => {
+    let safe = cls.topSpeed;
+    for (let k = 0; k <= steps; k++) {
+      const j = idx + k;
+      if (track.open && j >= n) break;
+      const v = own[((j % n) + n) % n] * Math.min(1, grip);
+      if (v >= safe) continue;
+      safe = Math.min(safe, Math.sqrt(v * v + 2 * decel * k * track.spacing));
+    }
+    return safe;
+  };
+}

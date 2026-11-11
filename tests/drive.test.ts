@@ -102,7 +102,7 @@ describe('the driver', () => {
   const f1 = carClass('f1');
   const make = (settings: Partial<DriveSettings> = {}) => {
     const src: { touch: Intent; keys: Intent; pad: Intent | undefined } = { touch: IDLE, keys: IDLE, pad: undefined };
-    const d = new Driver({ touch: () => src.touch, keys: () => src.keys, pad: () => src.pad }, () => ({ ...DRIVE_DEFAULTS, assist: 'off', ...settings }));
+    const d = new Driver({ touch: () => src.touch, keys: () => src.keys, pad: () => src.pad }, () => ({ ...DRIVE_DEFAULTS, assist: 'off', control: 'wheel', ...settings }));
     return { d, src };
   };
   const moving = (speed: number) => {
