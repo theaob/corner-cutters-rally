@@ -24,7 +24,7 @@ import { readPad } from '../engine/drive/pad';
 import { driveSettings } from '../engine/drive/settings';
 import { TouchDriving } from '../engine/drive/touch';
 import { isView, nextView, setView, viewSetting, type ViewId } from './view';
-import { TOP_DOWN, bestKey, rallyCar, styleHandling } from './style';
+import { SIGHT, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
@@ -141,6 +141,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const governor = new QualityGovernor();
   let viewW = fit.width;
   let viewH = fit.height;
+  let desktop = fit.desktop;
   let sizeKey = '';
   const applySize = () => {
     const q = QUALITY_LEVELS[governor.level];
@@ -158,6 +159,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     placeHud(f.desktop);
     viewW = f.width;
     viewH = f.height;
+    desktop = f.desktop;
     camera.aspect = viewW / f.height;
     // (without this the camera keeps its first shape, and a wider screen stretches the picture)
     camera.updateProjectionMatrix();
@@ -664,6 +666,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   let camYaw: number | undefined;
   /** px the TOP-DOWN camera looks ahead of the car (eased) */
   let topLead = TOP_VIEW.lead / 2;
+  /** the way TOP-DOWN's camera frames the road for (radians, eased; style.ts: SIGHT) */
+  let sightWay: number | undefined;
   const setFov = (fov: number) => {
     if (camera.fov === fov) return;
     camera.fov = fov;
@@ -966,13 +970,19 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     // camera: follow your car, looking ahead along its motion
     const c = me.car;
     const drawn = pose(c, you, alpha);
+    // (TOP-DOWN's framing, for the way the car's going, eased: style.ts)
+    const moving = speedOf(c) > 30;
+    const way = moving ? Math.atan2(c.vx, -c.vy) : c.heading;
+    // (snapped to it after a restart)
+    sightWay = sightWay === undefined || !before ? way : lerpAngle(sightWay, way, 1 - Math.exp(-dt / SIGHT.ease));
+    const framing = topDownFraming(Math.sin(sightWay), -Math.cos(sightWay), { width: viewW, height: viewH, desktop }, c.cls.topSpeed);
     if (lookAt) {
       // (the debug hook's: the camera on a point of the map)
       target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
       focus.copy(target);
     } else {
-      // (TOP-DOWN looks further ahead)
-      const lead = style === 'topdown' ? TOP_DOWN.lead : t.lead;
+      // (TOP-DOWN looks further ahead: further still, and pulled back, with the road running across or down the screen)
+      const lead = style === 'topdown' ? framing.lead : t.lead;
       target.set(drawn.x + (c.vx / c.cls.topSpeed) * lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * lead);
     }
     focus.lerp(target, 1 - Math.exp(-dt * 6));
@@ -981,7 +991,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const rushWant = running(me) ? rushOf(speedOf(me.car), me.car.cls.topSpeed) : 0;
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
     // (TOP-DOWN's pulled back further)
-    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (style === 'topdown' ? TOP_DOWN.zoom : t.zoom)) * (1 + RUSH.pullBack * rushNow);
+    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (style === 'topdown' ? framing.zoom : t.zoom)) * (1 + RUSH.pullBack * rushNow);
     // (the chase camera, or another tried out with ?cam=: CAMERAS; held on a point of the map, the classic view)
     const mode = lookAt ? 'classic' : camMode();
     if (mode === 'classic') {
