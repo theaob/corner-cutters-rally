@@ -1,6 +1,6 @@
 // The settings rows shared by the menu's SETTINGS screen and the pause screen:
 // the screen's shape (SCREEN: HANDHELD or WIDE, where the device can switch), the text's size (TEXT) and the
-// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the driving's STYLE (TOP-DOWN or SIM) and its CONTROL (TOP-DOWN's: POINT or WHEEL), the camera (VIEW), the driving (GAS, STEERING, ASSIST, and on a touch screen SIDES: src/engine/drive/settings.ts), vibration, screen shake, the grid walk
+// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the driving's STYLE (TOP-DOWN or SIM) the camera (VIEW), the driving (GAS, STEERING, ASSIST, and on a touch screen SIDES: src/engine/drive/settings.ts), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
 // as it changes. Difficulty is the menu's alone (not changed mid-race). They're shown in three groups, DRIVING,
 // SCREEN and SOUND (settingsList), and VIEW and GAS only when STYLE is SIM: TOP-DOWN has its own view and the gas
@@ -11,7 +11,7 @@ import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
 import { musicVolume, setMusicVolume } from '../engine/music';
 import { optionRow } from './menu';
 import { setShake, shakeOn } from './shake';
-import { CONTROLS, DRIVE_STYLES, GAS_MODES, STEER_SIDES, savedDriveSettings, setDriveSetting } from '../engine/drive/settings';
+import { DRIVE_STYLES, GAS_MODES, STEER_SIDES, savedDriveSettings, setDriveSetting } from '../engine/drive/settings';
 import { STEER_FEELS } from '../engine/drive/steering';
 import { ASSIST_LEVELS } from '../engine/drive/assist';
 import { VIEWS, VIEW_ABOUT, setView, viewSetting } from './view';
@@ -44,7 +44,7 @@ export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
 
 /** Each row's group, by its label (a row not listed goes last, under no heading). */
 export const ROW_GROUP: Record<string, SettingsGroup> = {
-  DIFFICULTY: 'DRIVING', STYLE: 'DRIVING', CONTROL: 'DRIVING', VIEW: 'DRIVING', GAS: 'DRIVING', STEERING: 'DRIVING', ASSIST: 'DRIVING', SIDES: 'DRIVING', VIBRATION: 'DRIVING',
+  DIFFICULTY: 'DRIVING', STYLE: 'DRIVING', VIEW: 'DRIVING', GAS: 'DRIVING', STEERING: 'DRIVING', ASSIST: 'DRIVING', SIDES: 'DRIVING', VIBRATION: 'DRIVING',
   SCREEN: 'SCREEN', TEXT: 'SCREEN', COLOURS: 'SCREEN', 'SCREEN SHAKE': 'SCREEN',
   SOUND: 'SOUND', MUSIC: 'SOUND',
 };
@@ -84,19 +84,10 @@ export function settingsRows(): SettingsRow[] {
   // the driving (src/engine/drive/)
   const ds = savedDriveSettings();
   const gasRow = optionRow('GAS', GAS_MODES, ds.gas, (g) => ({ name: g.toUpperCase(), about: g === 'auto' ? 'always on: you steer and brake' : 'yours: hold the gas pedal (SIM)' }), (g) => setDriveSetting('gas', g));
-  const controlRow = optionRow('CONTROL', CONTROLS, ds.control, (c) => ({
-    name: c.toUpperCase(),
-    about: c === 'point' ? 'drag the way to go · the car slows for bends' : 'drag across to turn · you brake for bends',
-  }), (c) => {
-    setDriveSetting('control', c);
-    simOnly(savedDriveSettings().style);
-  });
-  // (VIEW and GAS only for SIM, CONTROL only for TOP-DOWN, STEERING (the wheel's) wherever the wheel steers: shown or
-  // hidden as STYLE and CONTROL change)
+  // (VIEW, GAS, STEERING and SIDES only for SIM: TOP-DOWN has its own view, the gas always on, and one thumb that
+  // points anywhere across the screen; shown or hidden as STYLE changes)
   const simOnly = (st: string) => {
-    for (const r of [viewRow, gasRow]) r.el.style.display = st === 'sim' ? '' : 'none';
-    controlRow.el.style.display = st === 'sim' ? 'none' : '';
-    steeringRow.el.style.display = st === 'sim' || savedDriveSettings().control === 'wheel' ? '' : 'none';
+    for (const r of [viewRow, gasRow, steeringRow, sidesRow]) r.el.style.display = st === 'sim' ? '' : 'none';
   };
   const styleRow = optionRow('STYLE', DRIVE_STYLES, ds.style, (st) => ({
     name: st === 'topdown' ? 'TOP-DOWN' : 'SIM',
@@ -109,12 +100,12 @@ export function settingsRows(): SettingsRow[] {
     name: f.toUpperCase(),
     about: f === 'gentle' ? 'slower and softer, for fine lines' : f === 'quick' ? 'sharper, for the hairpins' : 'the wheel as set up',
   }), (f) => setDriveSetting('feel', f));
-  simOnly(ds.style);
   const assistRow = optionRow('ASSIST', ASSIST_LEVELS, ds.assist, (a) => ({
     name: a.toUpperCase(),
     about: a === 'off' ? 'all your own steering' : a === 'strong' ? 'a firm hand keeps you on the road' : 'a light hand toward the road',
   }), (a) => setDriveSetting('assist', a));
   const sidesRow = optionRow('SIDES', STEER_SIDES, ds.side, (side) => ({ name: side === 'left' ? 'STEER LEFT' : 'STEER RIGHT', about: side === 'left' ? 'left thumb steers · pedals right' : 'right thumb steers · pedals left' }), (side) => setDriveSetting('side', side));
+  simOnly(ds.style);
   const touchScreen = isTouchScreen();
   const vibrationRow = optionRow('VIBRATION', [true, false], vibrationOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, grass, kerbs' : 'no buzzing' }), (on) => {
     setVibration(on);
@@ -135,7 +126,7 @@ export function settingsRows(): SettingsRow[] {
   // (STATS only where the build has a backend to send them to)
   // (each with its label, for its group: STATS, where the build has a backend, under no heading at the end)
   const rows: [SettingsRow, string][] = ([
-    [styleRow, 'STYLE'], [controlRow, 'CONTROL'], [viewRow, 'VIEW'], [gasRow, 'GAS'], [steeringRow, 'STEERING'], [assistRow, 'ASSIST'], [touchScreen && sidesRow, 'SIDES'],
+    [styleRow, 'STYLE'], [viewRow, 'VIEW'], [gasRow, 'GAS'], [steeringRow, 'STEERING'], [assistRow, 'ASSIST'], [touchScreen && sidesRow, 'SIDES'],
     [vibrationRow, 'VIBRATION'], [screenRow, 'SCREEN'], [textRow, 'TEXT'], [coloursRow, 'COLOURS'], [shakeRow, 'SCREEN SHAKE'],
     [soundRow, 'SOUND'], [musicRow, 'MUSIC'], [online() && statsRow, 'STATS'],
   ] as [SettingsRow | false | undefined, string][]).filter((r): r is [SettingsRow, string] => !!r[0]);

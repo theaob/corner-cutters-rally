@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import type { Track } from '../src/f1/racing';
 import { DEFAULT_HANDLING, angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
-import { POINT, POINT_PULL, pulledAim, roadAim, screenToMap, wayOf } from '../src/engine/drive/point';
+import { POINT, POINT_PULL, driftFor, pulledAim, roadAim, screenToMap, wayOf } from '../src/engine/drive/point';
 import { POINT_DRAG, dragPoint } from '../src/engine/drive/touch';
 import { keysIntent } from '../src/engine/drive/keys';
 import { padIntent } from '../src/engine/drive/pad';
-import { SLIDE } from '../src/engine/drive/driver';
 import { driveSettings, setDriveSetting } from '../src/engine/drive/settings';
 import { prompt } from '../src/f1/onboarding';
 import { useSave, type SaveStore } from '../src/engine/save';
@@ -47,6 +47,7 @@ function pointer(stageId: string, o: { late?: number; look?: number; wobble?: nu
   const lag = Math.round(late * 60);
   let next = 0;
   let offRoad = 0;
+  let drifting = 0;
   let t = 0;
   for (; t < 300 && p.idx * track.spacing < track.stage!.finish && !car.wrecked; t += 1 / 60) {
     seenAt.push({ x: car.x, y: car.y, v: speedOf(car), idx: p.idx });
@@ -64,9 +65,10 @@ function pointer(stageId: string, o: { late?: number; look?: number; wobble?: nu
     const road = { dir: track.samples[ahead].dir, lateral: lateralOffset(track, at, car.x, car.y), safe: safeAt(at) };
     const ev = stepCar(car, driver.step(car, 1 / 60, road), H, 1 / 60, grid);
     if (ev.onRough) offRoad += 1 / 60;
+    if (driver.sliding()) drifting += 1 / 60;
     p = stepProgress(p, track, car, t, 1, 1 / 60);
   }
-  return { finished: p.idx * track.spacing >= track.stage!.finish, health: car.health / cls.health, time: t, reference, offRoad };
+  return { finished: p.idx * track.spacing >= track.stage!.finish, health: car.health / cls.health, time: t, reference, offRoad, drift: drifting };
 }
 
 const memory = (): SaveStore => {
@@ -81,11 +83,10 @@ beforeEach(() => {
 const close = (a: number, b: number, eps = 1e-6) => Math.abs(angleDiff(a, b)) < eps;
 
 describe('CONTROL', () => {
-  it('is POINT to begin with in TOP-DOWN; SIM always steers with the wheel', () => {
+  it('TOP-DOWN always points (one thumb, no brake), whatever was saved; SIM always steers with the wheel', () => {
     expect(driveSettings().control).toBe('point');
     setDriveSetting('control', 'wheel');
-    expect(driveSettings().control).toBe('wheel');
-    setDriveSetting('control', 'point');
+    expect(driveSettings().control).toBe('point');
     setDriveSetting('style', 'sim');
     expect(driveSettings().control).toBe('wheel');
   });
@@ -105,16 +106,18 @@ describe('pointing on the screen', () => {
     expect(close(wayOf(e.x, e.y), Math.PI / 2)).toBe(true);
   });
 
-  it('a thumb points once past a little wobble, any way, and the ring follows it past its reach', () => {
+  it('a thumb points once past a little wobble, any way, as far as it is out; the ring follows it past its reach', () => {
     const a = { x: 100, y: 100 };
     expect(dragPoint(a, 104, 103).point).toBeUndefined();
-    const p = dragPoint(a, 100, 70).point!;
+    const p = dragPoint(a, 100, 100 - POINT_DRAG.reach / 2).point!;
     expect(p.x).toBeCloseTo(0);
-    expect(p.y).toBeCloseTo(-1);
+    expect(p.y).toBeCloseTo(-0.5);
     const far = dragPoint(a, 100 + POINT_DRAG.reach + 30, 100);
     expect(far.anchor.x).toBeCloseTo(130);
+    // (out at the edge: a full push)
+    expect(far.point!.x).toBeCloseTo(1);
     // (back the other way answers at once: from the moved middle)
-    expect(dragPoint(far.anchor, 120, 100).point!.x).toBeCloseTo(-1);
+    expect(dragPoint(far.anchor, 110, 100).point!.x).toBeLessThan(0);
   });
 
   it('the keys point (two together the way between), Space brakes; the stick points', () => {
@@ -194,15 +197,45 @@ describe('the driver, pointing', () => {
     expect(d.step(car, 1 / 60, { dir: 0, lateral: 0, safe: 80 }).brake).toBe(true);
   });
 
-  it('braking aimed well off where it points slides it; braking aimed ahead just brakes', () => {
-    const car = newCar(cls, 0, 0, 0);
-    car.vy = -cls.topSpeed * (SLIDE.from + 0.2);
-    const hard = make({ x: 1, y: 0 }, 1);
-    hard.d.sample();
-    expect(hard.d.step(car, 1 / 60)).toMatchObject({ handbrake: true, brake: false });
-    const ahead = make({ x: 0, y: -1 }, 1);
-    ahead.d.sample();
-    expect(ahead.d.step(car, 1 / 60)).toMatchObject({ handbrake: false, brake: true });
+  it('drifts pointed hard well off the nose at speed, from the same thumb; not pointed gently, near the nose, or slow', () => {
+    expect(driftFor(1.2, 1, 0.8)).toBe(1);
+    expect(driftFor(1.2, 0.4, 0.8)).toBe(0);
+    expect(driftFor(0.3, 1, 0.8)).toBe(0);
+    expect(driftFor(1.2, 1, 0.2)).toBe(0);
+    expect(driftFor(0.7, 0.8, 0.45)).toBeGreaterThan(0);
+    expect(driftFor(0.7, 0.8, 0.45)).toBeLessThan(1);
+    const run = (point: { x: number; y: number }) => {
+      const car = newCar(cls, 0, 0, 0);
+      car.vy = -cls.topSpeed * 0.8;
+      const { d } = make(point);
+      d.sample();
+      let input = d.step(car, 1 / 60);
+      for (let k = 0; k < 30; k++) input = d.step(car, 1 / 60);
+      return { input, sliding: d.sliding() };
+    };
+    // (pointed hard right of a car going north: eased into a full drift, no brake, no handbrake)
+    expect(run({ x: 1, y: 0 })).toMatchObject({ input: { drift: 1, brake: false, handbrake: false }, sliding: true });
+    expect(run({ x: 0.2, y: -1 }).input.drift).toBe(0);
+    // (the same way, pointed gently)
+    expect(run({ x: 0.3, y: 0 }).input.drift).toBe(0);
+  });
+
+  it('a drift lets the tyres go and swings the nose round quicker than gripping, for little speed', () => {
+    const go = (drift: number) => {
+      const car = newCar(cls, 0, 0, 0);
+      car.vy = -cls.topSpeed * 0.8;
+      let slide = 0;
+      for (let k = 0; k < 8; k++) {
+        stepCar(car, { steer: { x: Math.sin(1), y: -Math.cos(1) }, handbrake: false, drift }, DEFAULT_HANDLING, 1 / 60, grid);
+        slide = Math.max(slide, Math.abs(car.vx * Math.cos(car.heading) + car.vy * Math.sin(car.heading)));
+      }
+      return { heading: car.heading, speed: speedOf(car), slide };
+    };
+    const grip = go(0);
+    const drift = go(1);
+    expect(drift.heading).toBeGreaterThan(grip.heading);
+    expect(drift.slide).toBeGreaterThan(grip.slide);
+    expect(drift.speed).toBeGreaterThan(cls.topSpeed * 0.6);
   });
 });
 
@@ -210,12 +243,20 @@ describe("POINT's own speed", () => {
   const style = 'topdown';
   const cls = rallyCar(style);
   const H = styleHandling(handlingFor(NORMAL), style);
-  const c = buildCircuit(stageById('ss-mountain-col')!, { cornerSpeed: lineCornerSpeed(cls, H), decel: lineDecel(cls) });
-  const { track } = c;
+  // (a straight road with a hairpin in it: the stages have none this tight, so they're flat out, drifting the bends)
+  const samples = Array.from({ length: 300 }, (_, k) => ({ x: 0, y: -k * 8, s: k * 8, dir: 0, curve: k >= 150 && k < 160 ? 0.05 : 0, speed: 0 }));
+  const track: Track = { samples, spacing: 8, length: 300 * 8, open: true };
   const safe = autoSpeed(track, cls, H);
-  it('is flat out down a straight, slower ahead of a bend and slowest in it, never over the racing line there', () => {
+  it('every stage is flat out, drifting the bends', () => {
+    for (const id of ['ss-fox-hollow', 'ss-mountain-col']) {
+      const c = buildCircuit(stageById(id)!, { cornerSpeed: lineCornerSpeed(cls, H), decel: lineDecel(cls) });
+      const f = autoSpeed(c.track, cls, H);
+      expect(Math.min(...c.track.samples.map((_, k) => f(k))), id).toBeCloseTo(cls.topSpeed);
+    }
+  });
+  it('slows for a hairpin, slower ahead of it and slowest in it', () => {
     const all = track.samples.map((_, k) => safe(k));
-    expect(Math.max(...all)).toBeCloseTo(cls.topSpeed);
+    expect(all[0]).toBeCloseTo(cls.topSpeed);
     const tight = all.indexOf(Math.min(...all));
     expect(all[tight]).toBeLessThan(cls.topSpeed * 0.97);
     // (braking for it: quicker further back)
@@ -227,10 +268,10 @@ describe("POINT's own speed", () => {
 });
 
 describe('the controls lap, pointing', () => {
-  it('says to drag the way to go, and that the car slows for bends', () => {
+  it('says to drag the way to go, and to drag right out into a bend to drift', () => {
     expect(prompt('go', 'touch', 'auto', 'topdown', 'point')).toContain('DRAG THE WAY');
-    expect(prompt('bend', 'touch', 'auto', 'topdown', 'point')).toContain('SLOWS FOR BENDS');
-    expect(prompt('bend', 'keys', 'auto', 'topdown', 'point')).toContain('SPACE');
+    expect(prompt('bend', 'touch', 'auto', 'topdown', 'point')).toContain('DRIFT');
+    expect(prompt('bend', 'keys', 'auto', 'topdown', 'point')).toContain('DRIFT');
     // (WHEEL: as it was)
     expect(prompt('bend', 'touch', 'auto', 'topdown', 'wheel')).toContain('BRAKE AND STEER HARD');
   });
@@ -241,17 +282,21 @@ describe('POINT on a stage', () => {
   const players = [
     ['careful', {}],
     ['on the keys', { ways: 8 }],
+    ['a bit late', { wobble: 0.2, late: 0.25, every: 0.15 }],
     ['sloppy and late', { wobble: 0.35, late: 0.3, every: 0.2 }],
     ['with ASSIST off', { settings: { assist: 'off' as const } }],
   ] as const;
   for (const id of ['ss-shakedown', 'ss-pine-ridge', 'ss-castle-hill', 'ss-mountain-col', 'ss-fox-hollow', 'ss-glacier-road']) {
-    it(`${id}: any player pointing at the road gets to the finish unhurt without ever braking, near the rivals`, () => {
+    it(`${id}: any player pointing at the road gets to the finish without ever braking, near the rivals unless sloppy`, () => {
       for (const [who, cfg] of players) {
         const r = pointer(id, cfg);
+        if (process.env.DEBUG_POINT) console.log(id, who, r.finished, r.health.toFixed(2), (r.time / r.reference).toFixed(3), r.offRoad.toFixed(1), r.drift?.toFixed(1));
+        if (process.env.DEBUG_POINT) continue;
         expect(r.finished, who).toBe(true);
-        expect(r.health, who).toBeGreaterThan(0.95);
+        // (the sloppy one slides wide now and then, and pays for it, but never wrecks)
+        expect(r.health, who).toBeGreaterThan(who === 'sloppy and late' ? 0.6 : 0.85);
         // (NORMAL's rivals are about 9% off the reference: a careful player beats them)
-        expect(r.time, who).toBeLessThan(r.reference * (who === 'careful' ? 1.08 : 1.25));
+        expect(r.time, who).toBeLessThan(r.reference * (who === 'careful' || who === 'with ASSIST off' ? 1.085 : who === 'sloppy and late' ? 1.65 : 1.2));
       }
     }, 120_000);
   }

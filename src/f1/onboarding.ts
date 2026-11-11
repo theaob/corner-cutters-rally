@@ -5,7 +5,7 @@
 // prompt moves on once you've done it (or, for the ones that wait for a bend,
 // once you've been through one). TOP-DOWN's is shorter: the gas is always on and there's no DRIFT (braking with the
 // wheel turned hard slides the car), so it's go, a bend, the calls and the finish. With CONTROL on POINT you point the
-// way to go and the car slows for the bends itself, and the prompts say so. Engine-free.
+// way to go, and drift by pointing hard into a bend, and the prompts say so. Engine-free.
 
 import type { Control, DriveStyle, GasMode } from '../engine/drive/settings';
 
@@ -28,9 +28,9 @@ export function prompt(step: Step, device: Device, gas: GasMode = 'manual', styl
       return 'THE GAS IS ON · THE LEFT STICK POINTS THE WAY TO GO';
     }
     if (step === 'bend') {
-      if (device === 'touch') return 'THE CAR SLOWS FOR BENDS ITSELF · HOLD BRAKE TO SLOW MORE';
-      if (device === 'keys') return 'THE CAR SLOWS FOR BENDS ITSELF · SPACE TO SLOW MORE';
-      return 'THE CAR SLOWS FOR BENDS ITSELF · LEFT TRIGGER TO SLOW MORE';
+      if (device === 'touch') return 'DRAG RIGHT OUT INTO A BEND TO DRIFT ROUND IT';
+      if (device === 'keys') return 'POINT HARD INTO A BEND TO DRIFT ROUND IT';
+      return 'PUSH THE STICK HARD INTO A BEND TO DRIFT ROUND IT';
     }
   }
   if (style === 'topdown' && step === 'bend') {

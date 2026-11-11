@@ -1430,6 +1430,24 @@
           radial-gradient(circle, transparent 0 21px, rgba(143, 139, 184, 0.28) 21px 22px, transparent 22px),
           rgba(27, 26, 41, 0.55);
       }
+      /* pushed out to the ring's edge: the drift's push (src/engine/drive/point.ts) */
+      .drive[data-control='point'] .drive-wheel.pushed {
+        border-color: #f2c14e;
+      }
+      /* TOP-DOWN: no brake, nothing but the one thumb; it can land anywhere across the lower screen */
+      .drive[data-style='topdown'] .drive-pedals {
+        display: none;
+      }
+      .drive[data-style='topdown'] .drive-steer,
+      .drive[data-style='topdown'][data-side='right'] .drive-steer {
+        left: 0;
+        right: 0;
+        width: auto;
+      }
+      /* TOP-DOWN keeps its own view: no camera button */
+      html.topdown #deck .view-btn {
+        display: none !important;
+      }
       .drive[data-control='point'] .drive-wheel-arrow {
         display: none;
       }

@@ -10,7 +10,7 @@ import { assisted, type RoadAhead } from './assist';
 import { IDLE, active, type Intent } from './intent';
 import type { DriveSettings } from './settings';
 import { turnWheel, tyreTurn } from './steering';
-import { POINT, pulledAim, turnBetween, wayOf } from './point';
+import { POINT, driftFor, pulledAim, turnBetween, wayOf } from './point';
 
 export type Source = 'touch' | 'keys' | 'pad';
 
@@ -31,6 +31,8 @@ export class Driver {
   private now: Intent = IDLE;
   private last: Source | undefined;
   private slid = false;
+  /** POINT: the drift now (0…1, eased) */
+  private drift = 0;
 
   constructor(
     private readonly read: { touch?: () => Intent; keys: () => Intent; pad: () => Intent | undefined },
@@ -61,7 +63,7 @@ export class Driver {
     return { ...i, throttle: i.brake > BRAKE_ON ? 0 : 1 };
   }
 
-  /** Whether the latest step slid the car (TOP-DOWN: braking with the wheel turned hard). */
+  /** Whether the latest step slid the car (TOP-DOWN: braking with the wheel turned hard; POINT: a drift). */
   sliding(): boolean {
     return this.slid;
   }
@@ -74,6 +76,7 @@ export class Driver {
   /** Straight ahead again (a restart). */
   reset(): void {
     this.wheel = 0;
+    this.drift = 0;
   }
 
   /** One fixed step (`dt` s) for your car: the wheel turned, and the car's input. `road`: for the assist. */
@@ -81,7 +84,7 @@ export class Driver {
     const s = this.settings();
     const i = this.intent();
     const forward = forwardSpeed(car);
-    if (s.style === 'topdown' && s.control === 'point') return this.pointStep(car, i, forward, road, s);
+    if (s.style === 'topdown' && s.control === 'point') return this.pointStep(car, i, forward, road, s, dt);
     // (the assist only going forwards, and only with the road roughly ahead)
     const near = road && forward > 20 && Math.abs(Math.atan2(Math.sin(road.dir - car.heading), Math.cos(road.dir - car.heading))) < ASSIST_GIVES_UP;
     this.wheel = turnWheel(this.wheel, assisted(i.steer, car.heading, near ? road : undefined, s.assist), dt, s.feel);
@@ -96,23 +99,29 @@ export class Driver {
   }
 
   /** CONTROL: POINT. The car steers for where you point (the road pulling your aim), or holds its course; the gas is
-   * on up to what the road ahead allows, the brakes on over it; BRAKE slows it, and braking aimed well off where it
-   * points slides it. */
-  private pointStep(car: Car, i: Intent, forward: number, road: RoadAhead | undefined, s: DriveSettings): DriveInput {
+   * on up to what the road ahead allows, the brakes on over it. Pointed hard (the thumb out at the ring's edge) well off
+   * where the car's nose is, at speed, it drifts: the tail steps out and the nose comes round quick, all from the one
+   * thumb. The brake (keys, a pad) slows it more. */
+  private pointStep(car: Car, i: Intent, forward: number, road: RoadAhead | undefined, s: DriveSettings, dt: number): DriveInput {
     const near = road && forward > 20 && Math.abs(turnBetween(car.heading, road.dir)) < ASSIST_GIVES_UP;
     const pointing = !!i.point && (i.point.x !== 0 || i.point.y !== 0);
     const aim = pointing ? pulledAim(wayOf(i.point!.x, i.point!.y), near ? road : undefined, s.assist) : car.heading;
     const off = turnBetween(car.heading, aim);
     // (for drawing: how hard it's turning)
-    this.wheel = Math.max(-1, Math.min(1, off / POINT.slide));
+    this.wheel = Math.max(-1, Math.min(1, off / POINT.driftFull));
     const pressed = i.brake > BRAKE_ON || i.handbrake;
     if (pressed && forward < REVERSE_BELOW && !pointing) {
+      this.drift = 0;
       this.slid = false;
       return { wheel: { turn: 0, gas: 0, reverse: true }, handbrake: false };
     }
-    this.slid = pressed && Math.abs(off) >= POINT.slide && forward >= car.cls.topSpeed * SLIDE.from;
+    // the drift: how far off the nose you point, how hard you push, how fast you're going; eased in and out
+    const want = pointing ? driftFor(Math.abs(off), Math.hypot(i.point!.x, i.point!.y), forward / car.cls.topSpeed) : 0;
+    const rate = want > this.drift ? POINT.driftIn : POINT.driftOut;
+    this.drift += Math.max(-rate * dt, Math.min(rate * dt, want - this.drift));
+    this.slid = this.drift > POINT.slidingAt;
     const safe = road?.safe ?? Infinity;
-    const braking = (pressed && !this.slid) || forward > safe + POINT.brakeOver;
-    return { steer: { x: Math.sin(aim), y: -Math.cos(aim) }, limit: safe, brake: braking, handbrake: this.slid };
+    const braking = pressed || forward > safe + POINT.brakeOver;
+    return { steer: { x: Math.sin(aim), y: -Math.cos(aim) }, limit: safe, brake: braking, handbrake: false, drift: this.drift };
   }
 }
