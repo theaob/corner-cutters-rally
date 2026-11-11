@@ -1,6 +1,7 @@
 // The touch controls and the views, tried on Android: the app (a debug build, its WebView open to DevTools) on an
 // emulator or a phone over adb, driven down the shakedown with the phone's own touch input (src/engine/drive/touch.ts:
-// the steering drag and the pedals, with GAS on MANUAL and AUTO, TOP-DOWN's gas always on, and steering on either side)
+// the steering drag and the pedals, with GAS on MANUAL and AUTO, TOP-DOWN's one thumb (pointing, drifting, no pedals),
+// and steering on either side)
 // (`input motionevent`: a real finger down, moved, lifted), and the car's speed and heading read back from the game's
 // debug hook. Run by .github/workflows/android-e2e.yml; locally, with a device on adb and the app installed:
 //   npm install --no-save playwright-core && node tools/android-e2e.mjs out-dir
@@ -284,17 +285,32 @@ const schemes = {
       await game(2);
       const a = await me();
       check('TOP-DOWN: goes by itself', a.speed > 15, `speed ${fmt(a.speed)}`);
+      // one thumb, anywhere: no pedals at all, no camera button (CLASSIC only)
+      const pedalsShown = await page.evaluate(() => getComputedStyle(document.querySelector('.drive-pedals')).display !== 'none');
+      check('TOP-DOWN: no brake area (no pedals at all)', !pedalsShown, `pedals shown: ${pedalsShown}`);
+      const camShown = await page.evaluate(() => { const b = document.querySelector('#deck .view-btn'); return !!b && getComputedStyle(b).display !== 'none'; });
+      check('TOP-DOWN: no camera button (CLASSIC only)', !camShown, `camera button shown: ${camShown}`);
+      // (pointing: the car's going east along the opening straight; up the screen is north, down is south)
       const at = await steerSpot();
-      const right = await hold(at, 0.6, 120, [at[0] + 60, at[1]]);
-      check('TOP-DOWN: dragging right turns right', right.turn > 0.03, turned(right));
+      const upward = await hold(at, 0.6, 120, [at[0], at[1] - 40]);
+      check('TOP-DOWN: dragging up points the car up the screen', upward.turn < -0.03, turned(upward));
+      const downward = await hold(at, 0.6, 120, [at[0], at[1] + 40]);
+      check('TOP-DOWN: dragging down points it down the screen', downward.turn > 0.03, turned(downward));
       const driftShown = await page.evaluate(() => getComputedStyle(document.querySelector('.drive-pedal.drift')).display !== 'none');
       check('TOP-DOWN: no DRIFT button', !driftShown, `DRIFT shown: ${driftShown}`);
-      const stop = await hold(await centre('.drive-pedal.brake'), 0.3, 150);
-      check('TOP-DOWN: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
-      // BRAKE is the whole other half: a thumb high up on it, well above the drawn zone, brakes too
-      const [px, py] = await centre('.drive-pedals');
-      const high = await hold([px, py - 60], 0.3, 150);
-      check('TOP-DOWN: anywhere on the other half brakes', high.to.speed < high.from.speed * 0.8, slowed(high));
+      // a drag right out (past the ring's edge) well off the nose, at speed: the tail steps out
+      await placeCar(300);
+      await down(at);
+      await move([at[0], at[1] - 90]);
+      let slip = 0;
+      const t0 = (await me()).clock;
+      while ((await me()).clock - t0 < 0.4) {
+        const m = await me();
+        if (m.speed > 60) slip = Math.max(slip, Math.abs(turnOf(m.heading, Math.atan2(m.vx, -m.vy))));
+        await sleep(30);
+      }
+      await up([at[0], at[1] - 90]);
+      check('TOP-DOWN: a hard drag into a turn drifts (the car slides)', slip > 0.12, `slip ${fmt(slip)} rad`);
       await shot('topdown');
     },
   },
