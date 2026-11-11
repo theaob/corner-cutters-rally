@@ -1,6 +1,8 @@
 // The banner over a stage once it's GO: the most urgent message just now
-// (your finish or out, the wrong way, GO!, an announcement, the controls lap's
-// prompt). Engine-free.
+// (your finish or out, the wrong way, GO!, an announcement); and the controls
+// lap's prompt, in a slot of its own under it (race/hud.ts). Engine-free.
+
+import { COLOR } from '../theme';
 
 export interface BannerState {
   /** your car's wrecked, or out */
@@ -8,6 +10,8 @@ export interface BannerState {
   /** your stage is over, and where you finished on it (undefined: you didn't) */
   done: boolean;
   finishedPlace?: number;
+  /** a finish without a hit (and no time added): a clean stage */
+  clean?: boolean;
   resultsUp: boolean;
   /** s you've been going the wrong way */
   wrongWay: number;
@@ -19,16 +23,23 @@ export interface BannerState {
   learn?: { text: string; last: boolean };
 }
 
-/** The banner's text and colour. */
+/** The banner's text and colour. At the finish, an announcement first (a stage best), then the finish itself. */
 export function bannerMessage(s: BannerState): [string, string] {
-  return s.out ? ['OUT OF THE STAGE', '#d8323c']
-    : s.done && s.finishedPlace !== undefined && !s.resultsUp ? [`FINISHED · P${s.finishedPlace}`, s.finishedPlace <= 3 ? '#f2c14e' : '#f4f4f8']
+  const finished = s.done && s.finishedPlace !== undefined && !s.resultsUp;
+  return s.out ? ['OUT OF THE STAGE', COLOR.red]
+    : finished && s.clock < s.notice.until ? [s.notice.text, s.notice.color]
+    : finished && s.clean ? [`CLEAN STAGE · P${s.finishedPlace}`, COLOR.teal]
+    : finished ? [`FINISHED · P${s.finishedPlace}`, s.finishedPlace! <= 3 ? COLOR.gold : COLOR.white]
     : s.done ? ['', '']
-    : s.wrongWay > 1 ? ['WRONG WAY', '#d8323c']
-    : s.clock < 1.2 && !s.learn ? ['GO!', '#5fe0d0']
+    : s.wrongWay > 1 ? ['WRONG WAY', COLOR.red]
+    : s.clock < 1.2 && !s.learn ? ['GO!', COLOR.teal]
     : s.clock < s.notice.until ? [s.notice.text, s.notice.color]
-    : s.learn ? [s.learn.text, s.learn.last ? '#f2c14e' : '#f4f4f8']
     : ['', ''];
+}
+
+/** The controls lap's prompt in its own slot (none once you're out of the stage), and its colour: the last in gold. */
+export function lessonMessage(s: Pick<BannerState, 'out' | 'learn'>): [string, string] {
+  return !s.learn || s.out ? ['', ''] : [s.learn.text, s.learn.last ? COLOR.gold : COLOR.white];
 }
 
 /**

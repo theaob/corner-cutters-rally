@@ -1,6 +1,6 @@
 // The rally's screen: the game's home. With no rally under way: your car's
-// paint (CAR), the rallies to pick from (each one's surface, its stages and
-// your best there), and SETTINGS. With one under way: where you stand (the
+// paint (CAR), the rallies to pick from (each a card: its surface's colour down
+// its side, its stages and your best there), and SETTINGS. With one under way: where you stand (the
 // standings after the stages run so far), the stage up next and your car's
 // state (repaired at the service park), and START SS…; once it's over, the
 // final standings (a trophy and confetti for a win). Touch, or keys: up/down
@@ -20,6 +20,7 @@ import {
 } from '../rally';
 import { reportOpen } from '../report';
 import { confetti, trophy } from './celebrate';
+import { COLOR, SURFACE_COLOR } from '../theme';
 
 export type RallyAction = 'stage' | 'abandon' | 'settings' | { start: RallyEvent; scheme: Scheme };
 
@@ -48,6 +49,42 @@ function standingsTable(r: Rally): HTMLTableElement {
     table.append(row);
   });
   return table;
+}
+
+/** A dark panel holding `children` (small text over the forest backdrop is hard to read without one). */
+function panel(...children: HTMLElement[]): HTMLElement {
+  const d = document.createElement('div');
+  d.className = 'info-panel';
+  d.append(...children);
+  return d;
+}
+
+/** Rally `e` as a card on `b` (its button): its name and surface, its surface's colour down the side, its stages, and your best finish there. */
+export function rallyCard(e: RallyEvent, bestPlace: number | undefined, b: HTMLButtonElement): HTMLButtonElement {
+  b.classList.add('rally-card');
+  b.style.setProperty('--surface', SURFACE_COLOR[e.surface]);
+  const head = document.createElement('div');
+  head.className = 'rally-head';
+  const name = document.createElement('strong');
+  name.textContent = e.name;
+  const surface = document.createElement('span');
+  surface.className = 'surface';
+  surface.textContent = e.surface;
+  head.append(name, surface);
+  const facts = document.createElement('div');
+  facts.className = 'rally-facts';
+  const stages = document.createElement('span');
+  stages.textContent = `${e.stages.length} STAGES`;
+  const best = document.createElement('span');
+  best.textContent = bestPlace ? `BEST: ${ordinal(bestPlace)}` : 'NOT RUN YET';
+  Object.assign(best.style, { color: bestPlace === 1 ? 'var(--gold)' : bestPlace ? 'var(--text)' : 'var(--muted)' });
+  facts.append(stages, best);
+  const about = document.createElement('span');
+  about.textContent = e.about.toUpperCase();
+  Object.assign(about.style, { fontSize: 'calc(9px * var(--ts, 1))' });
+  b.replaceChildren(head, facts, about);
+  b.setAttribute('aria-label', `${e.name}, ${e.surface}, ${e.stages.length} stages${bestPlace ? `, best ${ordinal(bestPlace)}` : ''}`);
+  return b;
 }
 
 /**
@@ -86,19 +123,13 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
     if (!rally) {
       // a new rally: your car's paint, then the rallies to pick from
       title.textContent = 'CORNER CUTTERS RALLY';
-      screen.append(line('STAGE BY STAGE AGAINST THE CLOCK, THE CO-DRIVER CALLING THE BENDS: THE LEAST TIME OVERALL WINS', 'var(--accent-b)'));
+      screen.append(panel(line('STAGE BY STAGE AGAINST THE CLOCK, THE CO-DRIVER CALLING THE BENDS: THE LEAST TIME OVERALL WINS', 'var(--accent-b)')));
       const car = optionRow('CAR', SCHEMES, scheme, (s) => ({ name: s.name, about: 'your paint · #1 on the roof', colors: [s.body, s.trim, ...(s.accent ? [s.accent] : [])] }));
       places.push({ el: car.el, step: car.step });
       screen.append(car.el);
       const bests = loadBests();
       for (const e of RALLIES) {
-        const best = bests[e.id];
-        const b = button(`${e.name} · ${e.surface}`, () => finish({ start: e, scheme: car.value() }));
-        const sub = document.createElement('span');
-        sub.textContent = `${e.stages.length} STAGES · ${e.about.toUpperCase()}${best ? ` · BEST: ${ordinal(best.place)}` : ''}`;
-        Object.assign(sub.style, { display: 'block', fontSize: '9px', color: best?.place === 1 ? 'var(--gold)' : 'var(--muted)', marginTop: '3px' });
-        b.append(sub);
-        screen.append(b);
+        screen.append(rallyCard(e, bests[e.id]?.place, button('', () => finish({ start: e, scheme: car.value() }))));
       }
     } else {
       const e = rallyEvent(rally);
@@ -112,23 +143,25 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
           screen.append(cup);
           requestAnimationFrame(() => confetti(host));
         }
-        screen.append(
+        screen.append(panel(
           line(place === 1 ? 'RALLY WINNER!' : `YOU FINISHED ${ordinal(place)}`, place === 1 ? 'var(--gold)' : 'var(--text)'),
           line(`${e.surface} · ${e.stages.length} STAGES · FINAL STANDINGS`),
           standingsTable(rally),
-        );
+        ));
         screen.append(button('NEW RALLY ▶', () => finish('abandon'), true));
       } else {
         const next = e.stages[k];
         const layout = layoutById(next.layout);
         const health = Math.round(rally.health * 100);
-        screen.append(
+        const info = panel(
           line(`SS${k + 1} OF ${e.stages.length} · ${layout?.name.toUpperCase() ?? ''}`, 'var(--gold)'),
           line(`${(layout?.about ?? '').toUpperCase()} · ${weatherById(next.weather)?.name ?? ''}`, 'var(--accent-b)'),
-          line(`YOUR CAR: ${health}%${health < 100 ? ' · DAMAGED' : ''}${k > 0 && serviceAfter(rally, k - 1) ? ' · FRESH FROM SERVICE' : ''}`, health < 60 ? '#d8323c' : 'var(--text)'),
+          line(`YOUR CAR: ${health}%${health < 100 ? ' · DAMAGED' : ''}${k > 0 && serviceAfter(rally, k - 1) ? ' · FRESH FROM SERVICE' : ''}`, health < 60 ? COLOR.red : 'var(--text)'),
         );
-        if (k > 0) screen.append(line(`STANDINGS AFTER SS${k}: YOU'RE ${ordinal(yourPlace(rally))}`), standingsTable(rally));
-        else screen.append(line('THE CO-DRIVER CALLS EVERY BEND: ◀ 1 THE SLOWEST … 6 ▶ BARELY A LIFT'));
+        if (k > 0) info.append(line(`STANDINGS AFTER SS${k}: YOU'RE ${ordinal(yourPlace(rally))}`), standingsTable(rally));
+        else info.append(line('THE CO-DRIVER CALLS EVERY BEND: ◀ 1 THE SLOWEST … 6 ▶ BARELY A LIFT'));
+        info.style.borderLeft = `6px solid ${SURFACE_COLOR[e.surface]}`;
+        screen.append(info);
         screen.append(button(`START SS${k + 1} ▶`, () => finish('stage'), true));
         screen.append(button('RETIRE FROM THE RALLY', () => finish('abandon')));
       }

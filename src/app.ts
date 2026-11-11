@@ -21,6 +21,7 @@ import { showStill } from './f1/screens/backdropStill';
 import { showSplash } from './f1/screens/splash';
 import { useLayoutSwitch } from './f1/settingsRows';
 import { applyText } from './f1/access';
+import { applyTheme } from './f1/theme';
 import { watchCrashes } from './f1/crashes';
 import { hintToast } from './f1/screens/celebrate';
 import { listenForBack, pressBack } from './engine/backButton';
@@ -43,6 +44,8 @@ useStore('ccr:');
 useSave(CC_SAVE);
 // (TEXT: LARGE in the settings, from the start)
 applyText();
+// (the interface's colours, from the one theme file, as the stylesheet's variables)
+applyTheme();
 
 // The layout: every device starts in the handheld one. The player can switch
 // to the desktop layout (a wide screen with the deck laid over it as a HUD)

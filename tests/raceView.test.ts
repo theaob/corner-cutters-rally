@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { deckLabels, type DeckState } from '../src/f1/race/deckLabels';
-import { bannerMessage, evenLines, type BannerState } from '../src/f1/race/banner';
-import { blocks, readoutRows, readoutText, tyreText } from '../src/f1/race/readout';
+import { bannerMessage, evenLines, lessonMessage, type BannerState } from '../src/f1/race/banner';
+import { blocks, gapValue, readoutRows, readoutText, topDownReadout, tyreText } from '../src/f1/race/readout';
 import { ICON_ART } from '../src/f1/race/icons';
 
 const deck = (s: Partial<DeckState> = {}): DeckState => ({
@@ -48,9 +48,19 @@ describe('the banner', () => {
     expect(bannerMessage(banner({ wrongWay: 0.5 }))[0]).toBe('');
     expect(bannerMessage(banner({ notice: { text: 'SPLIT 1', color: '#5fe0d0', until: 31 } }))).toEqual(['SPLIT 1', '#5fe0d0']);
   });
-  it("on the controls lap: its prompt (the last in gold), and no GO! over it", () => {
-    expect(bannerMessage(banner({ clock: 0.5, learn: { text: 'STEER', last: false } }))).toEqual(['STEER', '#f4f4f8']);
-    expect(bannerMessage(banner({ learn: { text: 'WELL DONE', last: true } }))).toEqual(['WELL DONE', '#f2c14e']);
+  it("on the controls lap: its prompt in a slot of its own (the last in gold), off the banner, and no GO!", () => {
+    expect(bannerMessage(banner({ clock: 0.5, learn: { text: 'STEER', last: false } }))).toEqual(['', '']);
+    expect(lessonMessage(banner({ clock: 0.5, learn: { text: 'STEER', last: false } }))).toEqual(['STEER', '#f4f4f8']);
+    expect(lessonMessage(banner({ learn: { text: 'WELL DONE', last: true } }))).toEqual(['WELL DONE', '#f2c14e']);
+    // (none out of the stage, nor off the controls lap)
+    expect(lessonMessage(banner({ out: true, learn: { text: 'STEER', last: false } }))).toEqual(['', '']);
+    expect(lessonMessage(banner())).toEqual(['', '']);
+  });
+  it('at the finish: a stage best first, then a clean stage (no hit) as its own banner', () => {
+    const best = { text: 'STAGE BEST 1:05.00', color: '#b36bff', until: 31 };
+    expect(bannerMessage(banner({ done: true, finishedPlace: 4, clean: true, notice: best }))[0]).toBe('STAGE BEST 1:05.00');
+    expect(bannerMessage(banner({ done: true, finishedPlace: 4, clean: true }))).toEqual(['CLEAN STAGE · P4', '#5fe0d0']);
+    expect(bannerMessage(banner({ done: true, finishedPlace: 4, clean: false }))[0]).toBe('FINISHED · P4');
   });
   it('splits a long message over two lines, at its dot or evenly', () => {
     expect(evenLines('FINISHED · P2')).toBe('FINISHED\nP2');
@@ -71,6 +81,17 @@ describe('the readout', () => {
     expect(tyreText('SFT', 0.8, true)).toBe('TYRE SFT ■□□□□ 20%\nWORN\n');
     expect(tyreText('SFT', 0.8, false)).toBe('TYRE SFT ■□□□□\nWORN\n');
     expect(tyreText('MED', 0, false)).toBe('TYRE MED ■■■■■\n');
+  });
+});
+
+describe("TOP-DOWN's readout", () => {
+  it('the clock, the gap at the last split and the car: no best, no tyres', () => {
+    expect(topDownReadout({ time: 12.5, splits: true, health: 0.5, wrecked: false })).toBe('TIME 0:12.50\nGAP  –\nCAR  ■■■□□\n');
+    expect(topDownReadout({ time: 30, gap: -0.42, splits: true, health: 1, wrecked: false })).toContain('GAP  −0.42');
+    expect(gapValue(1.1)).toBe('+1.10');
+    // (no splits on the controls lap: no GAP)
+    expect(topDownReadout({ splits: false, health: 1, wrecked: false })).not.toContain('GAP');
+    expect(readoutRows(topDownReadout({ time: 1, gap: 0.5, splits: true, health: 1, wrecked: false }))[1]).toEqual({ icon: 'flag', label: 'GAP', value: '+0.50' });
   });
 });
 

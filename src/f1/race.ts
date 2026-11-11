@@ -43,7 +43,7 @@ import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } fr
 import { RaceSounds, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
 import { menuButton } from './menu';
-import { settingsRows, versionLine } from './settingsRows';
+import { nextShown, settingsList, settingsRows, versionLine } from './settingsRows';
 import { LAUNCH, kickOf, newLaunch, stepLaunch } from './launch';
 import { setAudioPaused } from '../engine/audio';
 import { musicPlaying, playMusic } from '../engine/music';
@@ -53,10 +53,10 @@ import { createCircuitScene } from './circuitScene';
 import { createHud } from './race/hud';
 import { kmOf, track as noteStat } from './metrics';
 import { drawCars, type CarLook } from './race/drawCars';
-import { readoutText, tyreText } from './race/readout';
+import { readoutText, topDownReadout, tyreText } from './race/readout';
 import { paintRows } from './race/readoutView';
-import { bannerMessage, evenLines } from './race/banner';
-import { motionReduced, splitColor } from './access';
+import { bannerMessage, evenLines, lessonMessage } from './race/banner';
+import { gapColor, motionReduced, splitColor } from './access';
 import { deckLabels as labelsFor } from './race/deckLabels';
 import { createFlagOverlay, createRain, createStreaks } from './race/screenFx';
 import { F1_TUNING } from './tuning';
@@ -68,6 +68,7 @@ import { newCaller, paceNotes, screenFacing, stepCaller, type Caller } from './p
 import { createPaceCard, renderStageResults } from './race/rallyView';
 import { formatTime as fmt } from './time';
 import { SCHEMES, liveryOf, type Scheme } from './crews';
+import { COLOR } from './theme';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const deg = THREE.MathUtils.degToRad;
@@ -170,7 +171,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
 
   // ---------------------------------------------------------------- overlays
   const {
-    readout, mainLines, tyreLine, banner, results, crewCard, weatherTag, pauseScreen, pauseTitle, pauseButton, place: layHud,
+    readout, mainLines, tyreLine, cardSlot, banner, lesson, progress, setProgressMarks, setProgress, results, crewCard, weatherTag, pauseScreen,
+    pauseTitle, pauseButton, place: layHud,
   } = createHud(scheme, difficulty);
   weatherTag.textContent = weather.name;
   // the rush of speed, the rain, and your chequered flag, drawn over the picture (race/screenFx.ts)
@@ -205,10 +207,11 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     }
     bannerShown = { text, drawn: banner.textContent };
   };
-  host.append(paceCard.el, streaks.el, rain.el, readout, banner, results, crewCard, pauseScreen, flagOverlay.el);
+  cardSlot.append(paceCard.el);
+  host.append(cardSlot, streaks.el, rain.el, readout, progress, banner, lesson, results, crewCard, pauseScreen, flagOverlay.el);
   placeHud = (desktop) => {
     phoneHud = !desktop;
-    layHud(desktop, host);
+    layHud(desktop, host, mode === 'tutorial');
   };
   placeHud(fit.desktop);
 
@@ -219,6 +222,13 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   /** your stage is over (finished, or out) and the results are coming */
   let done = false;
   const you = 0;
+  /** TOP-DOWN on a rally's stage: a bar across the top for how far along you are (hud.ts), in place of KM TO GO */
+  const progressBar = () => style === 'topdown' && !!rallyRun;
+  /** The readout's panel lit up in `color` a moment (a split: ahead or behind). */
+  const flashReadout = (color: string) => {
+    if (calm || typeof readout.animate !== 'function') return;
+    readout.animate([{ boxShadow: `0 0 0 2px ${color}`, background: `color-mix(in srgb, ${color} 35%, rgba(21,20,31,.75))` }, { boxShadow: '0 0 0 2px transparent' }], { duration: 1600, easing: 'ease-out' });
+  };
   /** a message over the stage for a few seconds (a split, a penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
   const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
@@ -289,7 +299,11 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
    */
   let stage: {
     caller: Caller; reference: { time: number; splits: number[] }; leader: number; rivals: (number | undefined)[]; sector: number;
-    result?: { at: number; time?: number; place: number; shown: boolean };
+    /** s behind the stage's quickest crew at the last split (less than 0: ahead); none before the first */
+    gap?: number;
+    /** your car's health on the line, and whether it's been hit since (a clean stage: no hit, no time added) */
+    startHealth: number;
+    result?: { at: number; time?: number; place: number; shown: boolean; clean?: boolean };
   } | undefined;
   /** the co-driver on the controls lap too */
   let tutorCaller: Caller | undefined;
@@ -364,9 +378,13 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const reference = (stageReference ??= referenceStage(track, grid, HANDLING, sessionWeather(), slot, f1));
     const rivals = aiStage(rallyRun.rally, rallyRun.stage, reference.time, difficulty).times;
     const leader = Math.min(...rivals.filter((x): x is number => x !== undefined));
-    stage = { caller: newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at))), reference, leader, rivals, sector: 0 };
+    stage = {
+      caller: newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at))), reference, leader, rivals, sector: 0, startHealth: race.entrants[you].car.health,
+    };
+    // (TOP-DOWN: how far along the stage, a bar across the top with the splits on it, in place of KM TO GO)
+    if (progressBar()) setProgressMarks(stageSplits(track).map((m) => m / finishAt));
     const k = rallyRun.stage;
-    announce(`SS${k + 1} OF ${rallyEvent(rallyRun.rally).stages.length} · ${layout.name.toUpperCase()}`, '#f2c14e', 3);
+    announce(`SS${k + 1} OF ${rallyEvent(rallyRun.rally).stages.length} · ${layout.name.toUpperCase()}`, COLOR.gold, 3);
   };
   /** The controls lap: you on the shakedown, off at once, a prompt at a time for the controls. */
   const startTutorial = () => {
@@ -401,12 +419,15 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       const ref = stage.reference;
       const share = (time: number) => (time * (ref.splits[k] ?? now)) / ref.time;
       const delta = now - share(stage.leader);
-      announce(`SPLIT ${k + 1} · ${fmt(now)} · ${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(2)} · P${placeAt(now, share)}`, delta < 0 ? splitColor('record') : splitColor('worse'), 2.5);
+      stage.gap = delta;
+      announce(`SPLIT ${k + 1} · ${fmt(now)} · ${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(2)} · P${placeAt(now, share)}`, gapColor(delta < 0), 2.5);
+      // (the readout flashes green or red with it)
+      flashReadout(gapColor(delta < 0));
     }
     const out = me.car.wrecked || !!p.retired;
     if (along < finishAt && !out) return;
     const time = out ? undefined : race.clock + p.penalty;
-    stage.result = { at: race.clock, time, place: 0, shown: false };
+    stage.result = { at: race.clock, time, place: 0, shown: false, clean: !out && p.penalty === 0 && me.car.health >= stage.startHealth - 1e-6 };
     done = true;
     paceCard.hush();
     noteDriven();
@@ -424,7 +445,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     if (kept.best) {
       best = time;
       if (kept.had !== undefined) {
-        announce(`STAGE BEST ${fmt(time)} · −${(kept.had - time).toFixed(2)}`, splitColor('record'), 3);
+        announce(`STAGE BEST ${fmt(time)} · −${(kept.had - time).toFixed(2)}`, splitColor('record'), 1.8);
         sounds.record();
       }
     }
@@ -507,12 +528,12 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   // changes; tapped and swiped, or up/down and left/right on the deck, A, START or B back to the pause screen
   const pauseSettings = document.createElement('div');
   pauseSettings.className = 'circuit-menu pause-settings';
-  Object.assign(pauseSettings.style, { zIndex: '5', display: 'none', justifyContent: 'center', background: '#000' });
+  Object.assign(pauseSettings.style, { zIndex: '5', display: 'none', justifyContent: 'safe center', background: 'rgba(14,13,22,.9)' });
   const settingsTitle = document.createElement('h2');
   settingsTitle.textContent = 'SETTINGS';
   const pauseRows = settingsRows();
   const settingsDone = menuButton('DONE', () => openPauseSettings(false));
-  pauseSettings.append(settingsTitle, ...pauseRows.map((r) => r.el), settingsDone, versionLine());
+  pauseSettings.append(settingsTitle, ...settingsList(pauseRows), settingsDone, versionLine());
   host.append(pauseSettings);
   /** the settings are up, and the row the deck is on (the last place is DONE) */
   let pauseSettingsOn = false;
@@ -546,17 +567,17 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     pauseButton('EXIT', () => askExit(true)),
   ];
   const exitLine = document.createElement('div');
-  Object.assign(exitLine.style, { color: '#9d9ab8', font: 'calc(11px * var(--ts, 1)) Silkscreen, monospace', textAlign: 'center', margin: '-4px 16px 6px', textWrap: 'balance' });
+  Object.assign(exitLine.style, { color: COLOR.muted, font: 'calc(11px * var(--ts, 1)) Silkscreen, monospace', textAlign: 'center', margin: '-4px 16px 6px', textWrap: 'balance' });
   const stayButton = pauseButton('STAY', () => askExit(false));
   const leaveButton = pauseButton('EXIT', () => onQuit());
-  Object.assign(leaveButton.style, { borderColor: '#d8323c', color: '#ff6b6b' });
+  Object.assign(leaveButton.style, { borderColor: COLOR.red, color: COLOR.redText });
   const exitParts = [exitLine, stayButton, leaveButton];
   /** EXIT pressed: asked once more (the button the deck's on: 0 STAY, 1 EXIT) */
   let asking = false;
   let exitFocus = 0;
   const showExitFocus = () => {
-    stayButton.style.boxShadow = exitFocus === 0 ? '0 0 0 2px #5fe0d0' : '';
-    leaveButton.style.boxShadow = exitFocus === 1 ? '0 0 0 2px #ff6b6b' : '';
+    stayButton.style.boxShadow = exitFocus === 0 ? `0 0 0 2px ${COLOR.teal}` : '';
+    leaveButton.style.boxShadow = exitFocus === 1 ? `0 0 0 2px ${COLOR.redText}` : '';
   };
   /** What leaving loses, said under the question. */
   const exitCost = () => (session === 'tutorial' ? 'ON TO THE RALLIES' : done ? 'BACK TO THE RALLY' : "THE STAGE WON'T COUNT");
@@ -660,7 +681,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     camTry = undefined;
     if (style === 'topdown') camTry = v;
     else setView(v);
-    announce(`VIEW · ${v.toUpperCase()}`, '#f4f4f8', 1.2);
+    announce(`VIEW · ${v.toUpperCase()}`, COLOR.white, 1.2);
   };
   const viewButton = document.querySelector<HTMLElement>('#deck [data-view]');
   const onViewButton = (e: PointerEvent) => {
@@ -700,9 +721,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     if (pauseSettingsOn) {
       const [up, down, left, right, a, b, start] = (['up', 'down', 'left', 'right', 'a', 'b', 'start'] as const).map(pressed);
       pressed('select');
-      const places = pauseRows.length + 1;
       if (up || down) {
-        pauseFocus = (pauseFocus + (down ? 1 : -1) + places) % places;
+        // (past the rows hidden just now: VIEW and GAS in TOP-DOWN)
+        pauseFocus = nextShown([...pauseRows.map((r) => r.el), settingsDone], pauseFocus, down ? 1 : -1);
         showPauseFocus();
       }
       const row = pauseRows[pauseFocus];
@@ -787,12 +808,12 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       const verdict = stepLaunch(launch, race.phase === 'lights' && race.clock >= 0, race.phase === 'racing' ? race.clock : undefined, gas);
       if (verdict === 'jump') {
         race.entrants[you].progress.penalty += LAUNCH.jumpPenalty;
-        announce(`JUMP START · +${LAUNCH.jumpPenalty} S`, '#d8323c', 3);
+        announce(`JUMP START · +${LAUNCH.jumpPenalty} S`, COLOR.red, 3);
       } else if (verdict && verdict !== 'slow') {
         const kick = kickOf(verdict);
         car.vx += Math.sin(car.heading) * kick;
         car.vy -= Math.cos(car.heading) * kick;
-        announce(`${verdict === 'great' ? 'GREAT' : 'GOOD'} LAUNCH · ${launch.reaction!.toFixed(2)} S`, verdict === 'great' ? '#b36bff' : '#5fe0d0', 2);
+        announce(`${verdict === 'great' ? 'GREAT' : 'GOOD'} LAUNCH · ${launch.reaction!.toFixed(2)} S`, verdict === 'great' ? '#b36bff' : COLOR.teal, 2);
       }
     }
     const healthBefore = race.entrants[you].car.health;
@@ -857,7 +878,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
         before = undefined;
         driver.reset();
         if (session === 'rally') p.penalty += RESCUE.cost;
-        announce(session === 'rally' ? `BACK ON THE ROAD · +${RESCUE.cost} S` : 'BACK ON THE ROAD', '#f2c14e', 2);
+        announce(session === 'rally' ? `BACK ON THE ROAD · +${RESCUE.cost} S` : 'BACK ON THE ROAD', COLOR.gold, 2);
       }
     }
     // your car's vibration: crashes, landings, rough ground, kerbs
@@ -891,7 +912,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     for (const e of raceEvents) {
       if (e.kind === 'lights-out') sounds.go();
       else if (e.kind === 'roll' && e.who === you) {
-        announce('ROLLED IT!', '#d8323c', 2);
+        announce('ROLLED IT!', COLOR.red, 2);
         sounds.hit(0.8);
       }
       // a big crash tears the bumper off (the car keeps going, if it can); a wreck loses a wheel or two as well
@@ -904,8 +925,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
           const lost = Math.random() < 0.5 ? [first] : [first, (first + 1 + Math.floor(Math.random() * 3)) % 4];
           for (const k of lost) debris.tear(wheels[k], race.clock, e.vx, e.vy, power, onItsSide);
         }
-      } else if (e.kind === 'rain') announce(e.on ? 'RAIN · THE ROAD IS GETTING WET' : 'THE RAIN HAS STOPPED', '#8fb8e8', 2.5);
-      else if (e.kind === 'track' && race.clock >= notice.until) announce(`ROAD ${e.condition.toUpperCase()} · ${COMPOUNDS[tyreFor(e.condition, race.track.dirt)].name.toUpperCase()}`, '#8fb8e8', 2);
+      } else if (e.kind === 'rain') announce(e.on ? 'RAIN · THE ROAD IS GETTING WET' : 'THE RAIN HAS STOPPED', COLOR.sky, 2.5);
+      else if (e.kind === 'track' && race.clock >= notice.until) announce(`ROAD ${e.condition.toUpperCase()} · ${COMPOUNDS[tyreFor(e.condition, race.track.dirt)].name.toUpperCase()}`, COLOR.sky, 2);
     }
     // your car (race/drawCars.ts)
     drawCars({ race, looks, events: cars, track, grid, skids, particles, pose: (i) => pose(race.entrants[i].car, i, alpha), dt });
@@ -940,10 +961,15 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       if (call) paceCard.call(call, clock, screenFacing(lookAt ? 'classic' : camMode()));
     }
     paceCard.update(clock, done);
-    hud.setPosition(rallyRun ? `SS${rallyRun.stage + 1}/${rallyEvent(rallyRun.rally).stages.length}` : 'SHAKEDOWN');
+    const bar = progressBar();
+    hud.setPosition(bar ? '' : rallyRun ? `SS${rallyRun.stage + 1}/${rallyEvent(rallyRun.rally).stages.length}` : 'SHAKEDOWN');
     hud.setLap(learn ? `${Math.min(lapSteps.length - 1, lapSteps.indexOf(learn.o.step) + 1)}/${lapSteps.length - 1}`
       : stage?.result ? (stage.result.time === undefined ? 'DNF' : `P${stage.result.place}`)
-      : race.phase === 'lights' ? 'ON THE LINE' : `${Math.max(0, kmOf(finishAt - p.idx * track.spacing)).toFixed(1)} KM TO GO`);
+      : race.phase === 'lights' ? 'ON THE LINE'
+      // (with the bar up, the stage's number; without it, the km to go)
+      : bar && rallyRun ? `SS${rallyRun.stage + 1} OF ${rallyEvent(rallyRun.rally).stages.length}`
+      : `${Math.max(0, kmOf(finishAt - p.idx * track.spacing)).toFixed(1)} KM TO GO`);
+    if (bar) setProgress((p.idx * track.spacing) / finishAt);
     // the banner: the countdown, GO!, then the most urgent message
     crewCard.style.opacity = race.phase === 'lights' ? '1' : '0';
     if (race.phase === 'lights') {
@@ -956,23 +982,40 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       banner.textContent = left <= COUNTDOWN ? String(left) : '';
       // (and the start clock beside the line, its lights going out with it)
       world.setStartClock(left <= COUNTDOWN ? left : null);
-      banner.style.color = left <= 1 ? '#f2c14e' : '#f4f4f8';
+      banner.style.color = left <= 1 ? COLOR.gold : COLOR.white;
       // (big: the one thing to watch on the line)
       banner.style.fontSize = 'calc(64px * var(--ts, 1))';
     } else {
       banner.style.fontSize = '';
-      const [text, color] = bannerMessage({
-        out: me.car.wrecked || !!p.retired, done, finishedPlace: stage?.result?.place || undefined, resultsUp: results.style.display === 'block',
+      const state = {
+        out: me.car.wrecked || !!p.retired, done, finishedPlace: stage?.result?.place || undefined, clean: stage?.result?.clean, resultsUp: results.style.display === 'block',
         wrongWay: p.wrongWay, clock, notice,
         learn: learn && { text: prompt(learn.o.step, device(), driveSettings().gas, style), last: learn.o.step === 'done' },
-      });
+      };
+      const [text, color] = bannerMessage(state);
       showBanner(text);
       banner.style.color = color;
+      // (the controls lap's prompt in its own slot, over the driving it's about)
+      const [said, tone] = lessonMessage(state);
+      if (lesson.dataset.text !== said) {
+        lesson.dataset.text = said;
+        // (a phrase a line, at its ' · ': race/banner.ts)
+        lesson.replaceChildren(...evenLines(said).split('\n').map((row) => Object.assign(document.createElement('div'), { textContent: row })));
+      }
+      lesson.style.display = said && !paused ? 'block' : 'none';
+      lesson.style.color = tone;
     }
     const stageTime = stage?.result ? stage.result.time : race.phase === 'racing' && !done ? clock : undefined;
-    paintRows(mainLines, readoutText({ time: stageTime, best, health: me.car.health / me.car.cls.health, wrecked: me.car.wrecked }));
-    paintRows(tyreLine, tyreText(COMPOUNDS[me.tyres.compound].short, me.tyres.wear, !phoneHud));
-    tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
+    const health = me.car.health / me.car.cls.health;
+    if (style === 'topdown') {
+      // (TOP-DOWN's: the clock, the gap at the last split, your car; no tyres: you never pick them)
+      paintRows(mainLines, topDownReadout({ time: stageTime, gap: stage?.gap, splits: !!stage, health, wrecked: me.car.wrecked }));
+      paintRows(tyreLine, '');
+    } else {
+      paintRows(mainLines, readoutText({ time: stageTime, best, health, wrecked: me.car.wrecked }));
+      paintRows(tyreLine, tyreText(COMPOUNDS[me.tyres.compound].short, me.tyres.wear, !phoneHud));
+      tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
+    }
 
     particles.update(dt);
     debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);
@@ -1108,7 +1151,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     renderer.forceContextLoss();
     renderer.domElement.remove();
     offBack();
-    for (const el of [paceCard.el, streaks.el, rain.el, readout, banner, results, crewCard, pauseScreen, pauseSettings, flagOverlay.el]) el.remove();
+    for (const el of [cardSlot, streaks.el, rain.el, readout, progress, banner, lesson, results, crewCard, pauseScreen, pauseSettings, flagOverlay.el]) el.remove();
     deckEl?.classList.remove('results-up');
     deckEl?.classList.remove('driving');
     touchDrive?.dispose();

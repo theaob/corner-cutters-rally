@@ -51,3 +51,22 @@ export function splitColor(mark: SplitMark, safe = colourSafe()): string {
 export function splitWord(mark: SplitMark, safe = colourSafe()): string {
   return safe ? { record: ' · RECORD', better: ' · BEST', worse: '' }[mark] : '';
 }
+
+/** How a bend's grade reads at a glance: tight (a 1, a 2, a hairpin), medium (3 and 4) or fast (5 and 6). */
+export type GradeBand = 'tight' | 'medium' | 'fast';
+export function gradeBand(grade: number | 'hairpin'): GradeBand {
+  return grade === 'hairpin' || grade <= 2 ? 'tight' : grade <= 4 ? 'medium' : 'fast';
+}
+/**
+ * A bend's colour on the co-driver's card (and the roadside boards to come), by its band: red, amber, green; colour-safe,
+ * the splits' orange, white and blue (red and green are the pair red-green colour blindness runs together).
+ */
+export function gradeColor(grade: number | 'hairpin', safe = colourSafe()): string {
+  const band = gradeBand(grade);
+  return (safe ? { tight: '#e69f00', medium: '#f4f2fa', fast: '#56b4e9' } : { tight: '#ff5a4e', medium: '#f2c14e', fast: '#6ad86a' })[band];
+}
+
+/** A split's gap flashed in its colour: ahead green, behind red; colour-safe, blue and orange. */
+export function gapColor(ahead: boolean, safe = colourSafe()): string {
+  return safe ? (ahead ? '#56b4e9' : '#e69f00') : ahead ? '#6ad86a' : '#ff5a4e';
+}
