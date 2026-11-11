@@ -6,8 +6,32 @@
 import { soundVolume } from '../../engine/audio';
 import { formatTime as fmt } from '../time';
 import { crewName, gapText, rallyEvent, stageOrder, standings, type Rally } from '../rally';
-import { shown, spoken, type PaceNote } from '../paceNotes';
+import { cardArrow, shown, spoken, type PaceNote } from '../paceNotes';
 import { style } from './dom';
+
+const SVG = 'http://www.w3.org/2000/svg';
+
+/**
+ * The card's arrow, pointing up and sweeping `sweep` degrees round (right positive), in a box from -50 to 50 each way:
+ * its line (an SVG path) and its head (a polygon's points). A shaft, then an arc, then the head at the arc's end along it.
+ */
+export function arrowShape(sweep: number): { line: string; head: string } {
+  const R = 17;
+  const y0 = 4;
+  const side = Math.sign(sweep) || 1;
+  const phi = (Math.abs(sweep) * Math.PI) / 180;
+  const f = (v: number) => Math.round(v * 10) / 10;
+  // (round from the shaft's top, the centre to its side: the way it's going at φ is (sin φ, -cos φ), mirrored for a left)
+  const end = { x: side * R * (1 - Math.cos(phi)), y: y0 - R * Math.sin(phi) };
+  const dir = { x: side * Math.sin(phi), y: -Math.cos(phi) };
+  const tip = { x: end.x + dir.x * 13, y: end.y + dir.y * 13 };
+  const across = { x: -dir.y * 11, y: dir.x * 11 };
+  const large = phi > Math.PI ? 1 : 0;
+  return {
+    line: `M0 40 L0 ${y0} A${R} ${R} 0 ${large} ${side > 0 ? 1 : 0} ${f(end.x)} ${f(end.y)}`,
+    head: [tip, { x: end.x + across.x, y: end.y + across.y }, { x: end.x - across.x, y: end.y - across.y }].map((q) => `${f(q.x)},${f(q.y)}`).join(' '),
+  };
+}
 
 /** The co-driver's card, over the top of the picture. */
 export function createPaceCard() {
@@ -19,7 +43,23 @@ export function createPaceCard() {
     pointerEvents: 'none', whiteSpace: 'nowrap', textShadow: '0 2px 0 #1b1b26',
   });
   const big = document.createElement('div');
-  style(big, { font: 'calc(28px * var(--ts, 1)) Silkscreen, monospace', color: '#f2c14e', lineHeight: '1' });
+  style(big, { font: 'calc(28px * var(--ts, 1)) Silkscreen, monospace', color: '#f2c14e', lineHeight: '1', display: 'flex', alignItems: 'center', gap: '6px' });
+  // the bend's arrow, drawn on the screen the way the road goes in the picture
+  const arrow = document.createElementNS(SVG, 'svg');
+  arrow.setAttribute('viewBox', '-50 -50 100 100');
+  arrow.setAttribute('aria-hidden', 'true');
+  arrow.style.width = arrow.style.height = 'calc(40px * var(--ts, 1))';
+  const turned = document.createElementNS(SVG, 'g');
+  const line = document.createElementNS(SVG, 'path');
+  const head = document.createElementNS(SVG, 'polygon');
+  line.setAttribute('fill', 'none');
+  line.setAttribute('stroke', 'currentColor');
+  line.setAttribute('stroke-width', '10');
+  line.setAttribute('stroke-linecap', 'round');
+  head.setAttribute('fill', 'currentColor');
+  turned.append(line, head);
+  arrow.append(turned);
+  const grade = document.createElement('span');
   const words = document.createElement('div');
   el.append(big, words);
   let until = 0;
@@ -27,10 +67,24 @@ export function createPaceCard() {
   const voice = typeof speechSynthesis !== 'undefined' ? speechSynthesis : undefined;
   return {
     el,
-    /** Show and say `call` (the notes in it), for a couple of seconds from `now` (s). */
-    call(call: PaceNote[], now: number) {
+    /**
+     * Show and say `call` (the notes in it), for a couple of seconds from `now` (s). `facing`: the way the picture faces,
+     * for a view that stays put (paceNotes' screenFacing), so the arrow points where the bend goes on the screen.
+     */
+    call(call: PaceNote[], now: number, facing?: number) {
       const first = call[0];
-      big.textContent = first.finish ? '▣ FINISH ▣' : first.jump ? '▲ JUMP ▲' : first.grade === 'hairpin' ? (first.dir === 'left' ? '◀◀ HP' : 'HP ▶▶') : first.dir === 'left' ? `◀ ${first.grade}` : `${first.grade} ▶`;
+      if (first.finish || first.jump) big.replaceChildren(first.finish ? '▣ FINISH ▣' : '▲ JUMP ▲');
+      else {
+        const { rotate, sweep } = cardArrow(first, facing);
+        const shape = arrowShape(sweep);
+        line.setAttribute('d', shape.line);
+        head.setAttribute('points', shape.head);
+        turned.setAttribute('transform', `rotate(${Math.round(rotate)})`);
+        arrow.dataset.rotate = String(Math.round(rotate));
+        grade.textContent = first.grade === 'hairpin' ? 'HP' : String(first.grade);
+        // (the arrow on the side the bend goes, from the driver's seat, as the voice says it)
+        big.replaceChildren(...(first.dir === 'left' ? [arrow, grade] : [grade, arrow]));
+      }
       words.textContent = shown(call, 2);
       el.style.display = 'flex';
       until = now + 2.4;

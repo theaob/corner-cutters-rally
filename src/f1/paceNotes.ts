@@ -55,6 +55,9 @@ export interface PaceNote {
   into?: boolean;
   /** px on to the next note, when it's worth calling (rounded) */
   gap?: number;
+  /** a bend: the road's direction where it begins (radians, 0 north, clockwise), and how far it turns (radians, right positive) */
+  heading?: number;
+  turn?: number;
 }
 
 const DEG = 180 / Math.PI;
@@ -117,7 +120,7 @@ export function paceNotes(track: Track, jumps: number[] = []): PaceNote[] {
     if (arc >= NOTES.long.arc && degrees >= NOTES.long.turn) mods.push('LONG');
     if (grade !== 'hairpin' && peak[1] >= peak[0] * NOTES.tightens) mods.push('TIGHTENS');
     else if (grade !== 'hairpin' && peak[0] >= peak[1] * NOTES.tightens) mods.push('OPENS');
-    notes.push({ at: r.from * spacing, end: r.to * spacing, dir: turn > 0 ? 'right' : 'left', grade, mods });
+    notes.push({ at: r.from * spacing, end: r.to * spacing, dir: turn > 0 ? 'right' : 'left', grade, mods, heading: samples[r.from].dir, turn });
   }
   for (const at of jumps) notes.push({ at, end: at, jump: true, mods: [] });
   // a rally's stage: its bends from the start line to the flying finish, and the finish itself
@@ -157,12 +160,45 @@ export function spoken(notes: PaceNote[]): string {
   return said.join(', into ') + (last?.gap ? `, ${last.gap}` : '');
 }
 
-/** A call as it's shown: 'LEFT 4 › RIGHT 3', with the distance after the last ('· 300'); past `most` notes, the rest
- * as '› …' (a long chain runs off a phone's screen, and the road ahead shows the rest). */
+/** A grade as the card names it: '2', or HAIRPIN. */
+const gradeText = (g: Grade) => (g === 'hairpin' ? 'HAIRPIN' : String(g));
+
+/**
+ * A call as it's shown: 'LEFT 4 › RIGHT 3', with the distance after the last ('· 300'). A chain of more than `most`
+ * notes is shown as how long it is and the tightest bend in it ('4 BENDS · TIGHTEST 2'): it fits a phone's screen, and
+ * says what the cut-short chain never did, how much is coming and how slow it gets.
+ */
 export function shown(notes: PaceNote[], most = Infinity): string {
-  if (notes.length > most) return notes.slice(0, most).map(noteText).join(' › ') + ' › …';
   const last = notes[notes.length - 1];
+  const bends = notes.filter((n) => n.dir && n.grade !== undefined);
+  if (notes.length > most && bends.length >= 2) {
+    const tightest = bends.map((n) => n.grade!).reduce((a, b) => (a === 'hairpin' || (b !== 'hairpin' && a <= b) ? a : b));
+    const extra = [notes.some((n) => n.jump) && 'JUMP', notes.some((n) => n.finish) && 'FINISH'].filter(Boolean);
+    return [`${bends.length} BENDS`, `TIGHTEST ${gradeText(tightest)}`, ...extra].join(' · ');
+  }
+  if (notes.length > most) return notes.slice(0, most).map(noteText).join(' › ') + ' › …';
   return notes.map(noteText).join(' › ') + (last?.gap ? ` · ${last.gap}` : '');
+}
+
+/** The way a view's picture faces (radians, as a road's direction: 0 north), when it stays put: CLASSIC, north up, and
+ * ISO's fixed diagonal. A view that turns with the car or the road (undefined) has the road ahead running up the screen. */
+export function screenFacing(view: string): number | undefined {
+  if (view === 'classic') return 0;
+  if (view === 'iso') return -Math.PI / 4;
+  return undefined;
+}
+
+/** The card's arrow for a bend, on the screen: degrees it's turned from pointing up (clockwise), and degrees it sweeps
+ * round (right positive: never less than a third of a right angle, so a fast bend still reads as one, nor more than a
+ * U-turn). In a view that faces `facing` the arrow turns with the road, so it points where the bend goes in the picture;
+ * in one that turns with the car it points up the screen, the way the road ahead runs. */
+export function cardArrow(note: PaceNote, facing: number | undefined): { rotate: number; sweep: number } {
+  const rad = (v: number) => (v * 180) / Math.PI;
+  const turned = facing === undefined || note.heading === undefined ? 0 : rad(note.heading - facing);
+  const rotate = ((((turned + 180) % 360) + 360) % 360) - 180;
+  const want = note.turn === undefined ? (note.grade === 'hairpin' ? 180 : 90) : Math.abs(rad(note.turn));
+  const size = Math.min(180, Math.max(30, note.grade === 'hairpin' ? Math.max(160, want) : want));
+  return { rotate, sweep: note.dir === 'left' ? -size : size };
 }
 
 /** The co-driver through a stage: the next note to call. */
