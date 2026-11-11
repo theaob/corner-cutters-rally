@@ -531,18 +531,23 @@
       .live-backdrop ~ .circuit-menu {
         background: linear-gradient(rgba(14, 13, 22, 0.05), rgba(14, 13, 22, 0.15) 18%, rgba(14, 13, 22, 0.7) 30%, rgba(14, 13, 22, 0.8));
       }
-      /* (the settings over home's backdrop, dimmed well enough to read; in a stage's pause, over the stage) */
+      /* (the settings on black, for reading, as in Corner Cutters: home's backdrop hidden; the list and each page
+         centred top to bottom) */
       .circuit-menu.settings-view,
       .live-backdrop ~ .circuit-menu.settings-view {
-        background: rgba(14, 13, 22, 0.86);
+        background: #000;
+        justify-content: safe center;
       }
-      /* the settings' groups: DRIVING, SCREEN, SOUND (src/f1/settingsRows.ts) */
-      .circuit-menu .settings-group {
-        margin: 8px 2px -2px;
-        font: calc(11px * var(--ts, 1)) var(--pixel);
-        font-weight: 400;
-        letter-spacing: 2px;
-        color: var(--accent-b);
+      /* BACK at the foot of the settings: filled, so it reads as the way out and not as another row or page */
+      .circuit-menu .menu-button.settings-done {
+        margin-top: 10px;
+        border-color: var(--gold);
+        background: var(--gold);
+        color: #1b1b26;
+      }
+      .circuit-menu .menu-button.settings-done.focused {
+        box-shadow: 0 0 0 2px var(--accent-b);
+        color: #1b1b26;
       }
       /* home's small text on a dark panel, readable over the forest (src/f1/screens/rally.ts) */
       .circuit-menu .info-panel {
@@ -553,32 +558,77 @@
         border-radius: 10px;
         background: rgba(14, 13, 22, 0.82);
       }
-      /* a rally to pick: a card, its surface's colour down its side (src/f1/screens/rally.ts) */
-      .circuit-menu .rally-card {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 4px;
-        text-align: left;
-        border-left: 6px solid var(--surface, var(--gold));
-        background: rgba(21, 20, 31, 0.9);
-      }
-      .circuit-menu .rally-card .rally-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
+      /* home's rallies, as Corner Cutters' menu lays out its modes: a grid of square tiles, an icon over its name
+         (src/f1/menuTiles.ts, src/f1/screens/rally.ts) */
+      .circuit-menu .menu-tiles {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
         gap: 8px;
       }
-      .circuit-menu .rally-card .surface {
-        font-size: calc(10px * var(--ts, 1));
-        letter-spacing: 1px;
+      .circuit-menu .menu-button.menu-tile {
+        display: flex;
+        aspect-ratio: 1.15;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 0;
+        padding: 6px 4px;
+        text-align: center;
+      }
+      .circuit-menu .menu-tile .tile-icon {
+        width: 34%;
+        max-width: 64px;
+        height: auto;
+        flex: none;
+        color: var(--gold);
+      }
+      /* (a rally's icon in its surface's colour) */
+      .circuit-menu .rally-tile .tile-icon {
         color: var(--surface, var(--gold));
       }
-      .circuit-menu .rally-card .rally-facts {
+      .circuit-menu .menu-tile strong {
+        font-size: calc(min(11px, 2.8vw) * var(--ts, 1));
+        line-height: 1.3;
+        text-wrap: balance;
+        overflow-wrap: anywhere;
+      }
+      /* (under a rally's name: its stages and your best there, quiet) */
+      .circuit-menu .menu-tile .tile-sub {
+        font-size: calc(min(9px, 2.3vw) * var(--ts, 1));
+        letter-spacing: 1px;
+        color: var(--muted);
+      }
+      .circuit-menu .menu-tile .tile-sub span {
+        font-size: inherit;
+        letter-spacing: inherit;
+      }
+      .circuit-menu .menu-button.menu-tile.focused .tile-icon,
+      .circuit-menu .menu-button.menu-tile.focused strong {
+        color: var(--accent-b);
+      }
+      /* SETTINGS: a row of its own under the rallies, apart from them */
+      .circuit-menu .menu-utility {
         display: flex;
-        justify-content: space-between;
         gap: 8px;
-        font-size: calc(10px * var(--ts, 1));
-        color: var(--text);
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--key-edge);
+      }
+      .circuit-menu .menu-utility .menu-button {
+        flex: 1;
+      }
+      /* (smaller than the rallies' tiles: a row, the icon beside its name) */
+      .circuit-menu .menu-utility .menu-button.menu-tile {
+        aspect-ratio: auto;
+        flex-direction: row;
+        gap: 8px;
+        min-height: 44px;
+        padding: 6px 8px;
+      }
+      .circuit-menu .menu-utility .menu-tile .tile-icon {
+        width: 22px;
+        max-width: none;
       }
       /* the trophy cabinet: the titles won, the medal tally, each circuit's medals */
       .circuit-menu .cabinet {
@@ -807,22 +857,6 @@
         color: var(--muted);
         opacity: 0.7;
         user-select: text;
-      }
-      /* the privacy policy and terms, under the version line */
-      .circuit-menu .legal-line {
-        margin: 0;
-        width: 100%;
-        text-align: center;
-        font: calc(9px * var(--ts, 1)) var(--pixel);
-        letter-spacing: 1px;
-        color: var(--muted);
-        opacity: 0.7;
-      }
-      .circuit-menu .legal-line a {
-        display: inline-block;
-        padding: 6px 4px;
-        color: inherit;
-        text-decoration: underline;
       }
       .circuit-menu .option-row.focused {
         border-style: solid;

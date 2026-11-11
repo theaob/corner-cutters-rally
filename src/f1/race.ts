@@ -44,8 +44,7 @@ import { newRumble, rumble } from './rumble';
 import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } from './shake';
 import { RaceSounds, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
-import { menuButton } from './menu';
-import { nextShown, settingsList, settingsRows, versionLine } from './settingsRows';
+import { settingsPages, settingsRows } from './settingsRows';
 import { LAUNCH, kickOf, newLaunch, stepLaunch } from './launch';
 import { setAudioPaused } from '../engine/audio';
 import { musicPlaying, playMusic } from '../engine/music';
@@ -543,27 +542,16 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   // vibration on or off, from the pause screen (and remembered)
   const rumbleState = newRumble();
   // the settings, from the pause screen: the menu's (but difficulty, not changed mid-stage), each remembered as it
-  // changes; tapped and swiped, or up/down and left/right on the deck, A, START or B back to the pause screen
+  // changes; tapped and swiped, or up/down and left/right on the deck and A; B (or BACK) up a level, and from the list back to the pause screen
   const pauseSettings = document.createElement('div');
   pauseSettings.className = 'circuit-menu pause-settings';
   Object.assign(pauseSettings.style, { zIndex: '5', display: 'none', justifyContent: 'safe center', background: 'rgba(14,13,22,.9)' });
-  const settingsTitle = document.createElement('h2');
-  settingsTitle.textContent = 'SETTINGS';
-  const pauseRows = settingsRows();
-  const settingsDone = menuButton('DONE', () => openPauseSettings(false));
-  pauseSettings.append(settingsTitle, ...settingsList(pauseRows), settingsDone, versionLine());
-  host.append(pauseSettings);
-  /** the settings are up, and the row the deck is on (the last place is DONE) */
+  /** the settings are up */
   let pauseSettingsOn = false;
-  let pauseFocus = 0;
-  const showPauseFocus = () => {
-    pauseRows.forEach((r, k) => r.el.classList.toggle('focused', k === pauseFocus));
-    settingsDone.classList.toggle('focused', pauseFocus === pauseRows.length);
-  };
-  pauseRows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
-    pauseFocus = k;
-    showPauseFocus();
-  }));
+  // (laid out as the menu's are: a list of pages, CONTROLS, GAME, SOUND, ACCESSIBILITY, each its rows: settingsRows.ts)
+  const pausePages = settingsPages(settingsRows(), () => openPauseSettings(false));
+  pauseSettings.append(...pausePages.els);
+  host.append(pauseSettings);
   function openPauseSettings(on: boolean) {
     if (on === pauseSettingsOn) return;
     menuPick();
@@ -571,8 +559,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     pauseSettings.style.display = on ? 'flex' : 'none';
     // (the pause screen's buttons out of the way under it)
     pauseScreen.style.visibility = on ? 'hidden' : '';
-    pauseFocus = 0;
-    showPauseFocus();
+    pausePages.reset();
   }
   // the pause screen's buttons, and in their place once EXIT is pressed, the question: leave? (STAY first)
   const pauseMain = [
@@ -615,7 +602,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   // the phone's back button: the pause screen's settings closed, the pause screen resumed, the stage paused; once it's
   // over, on (a stage's results up: on to the rally, as with A)
   const offBack = onBack(() => {
-    if (pauseSettingsOn) openPauseSettings(false);
+    if (pauseSettingsOn) pausePages.back();
     else if (asking) askExit(false);
     else if (paused) setPaused(false);
     else if (!done) setPaused(true);
@@ -740,14 +727,10 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     if (pauseSettingsOn) {
       const [up, down, left, right, a, b, start] = (['up', 'down', 'left', 'right', 'a', 'b', 'start'] as const).map(pressed);
       pressed('select');
-      if (up || down) {
-        // (past the rows hidden just now: VIEW and GAS in TOP-DOWN)
-        pauseFocus = nextShown([...pauseRows.map((r) => r.el), settingsDone], pauseFocus, down ? 1 : -1);
-        showPauseFocus();
-      }
-      const row = pauseRows[pauseFocus];
-      if (row && (left || right)) row.step(right ? 1 : -1);
-      if (a || b || start) openPauseSettings(false);
+      if (up || down) pausePages.move(down ? 1 : -1);
+      if (left || right) pausePages.step(right ? 1 : -1);
+      if (b) pausePages.back();
+      else if (a || start) pausePages.pick();
       requestAnimationFrame(tick);
       return;
     }

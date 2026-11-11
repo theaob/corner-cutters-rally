@@ -2,14 +2,18 @@
 // the screen's shape (SCREEN: HANDHELD or WIDE, where the device can switch), the text's size (TEXT) and the
 // colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the driving's STYLE (TOP-DOWN or SIM) the camera (VIEW), the driving (GAS, STEERING, ASSIST, and on a touch screen SIDES: src/engine/drive/settings.ts), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
-// as it changes. Difficulty is the menu's alone (not changed mid-race). They're shown in three groups, DRIVING,
-// SCREEN and SOUND (settingsList), and VIEW and GAS only when STYLE is SIM: TOP-DOWN has its own view and the gas
-// always on, so there they'd do nothing.
+// as it changes, and PRIVACY and TERMS, opened with a tap. Difficulty is the menu's alone (not changed mid-race).
+// They're laid out as Corner Cutters lays out its settings: a list of pages, CONTROLS, GAME, SOUND and ACCESSIBILITY
+// (settingsPages), each page its rows and BACK; and VIEW and GAS only when STYLE is SIM: TOP-DOWN has its own view and
+// the gas always on, so there they'd do nothing.
 
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
 import { musicVolume, setMusicVolume } from '../engine/music';
-import { optionRow } from './menu';
+import { menuButton, optionRow } from './menu';
+import { menuPick, menuTick } from './sounds';
+import { YOUTUBE } from '../engine/host';
+import { PRIVACY_URL, TERMS_URL } from './legal';
 import { setShake, shakeOn } from './shake';
 import { DRIVE_STYLES, GAS_MODES, STEER_SIDES, savedDriveSettings, setDriveSetting } from '../engine/drive/settings';
 import { STEER_FEELS } from '../engine/drive/steering';
@@ -36,46 +40,61 @@ export function useLayoutSwitch(s: LayoutSwitch): void {
 const nearest = (v: number) => VOLUMES.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
 const volumeName = (v: number) => ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.indexOf(v as (typeof VOLUMES)[number])];
 
-export type SettingsRow = ReturnType<typeof optionRow<unknown>> & { group?: SettingsGroup };
-
-/** The settings' groups, in order. */
-export const SETTINGS_GROUPS = ['DRIVING', 'SCREEN', 'SOUND'] as const;
-export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
-
-/** Each row's group, by its label (a row not listed goes last, under no heading). */
-export const ROW_GROUP: Record<string, SettingsGroup> = {
-  DIFFICULTY: 'DRIVING', STYLE: 'DRIVING', VIEW: 'DRIVING', GAS: 'DRIVING', STEERING: 'DRIVING', ASSIST: 'DRIVING', SIDES: 'DRIVING', VIBRATION: 'DRIVING',
-  SCREEN: 'SCREEN', TEXT: 'SCREEN', COLOURS: 'SCREEN', 'SCREEN SHAKE': 'SCREEN',
-  SOUND: 'SOUND', MUSIC: 'SOUND',
+/** A row of the settings: an option row, or a row that does something when picked (PRIVACY, TERMS: actionRow). */
+export type SettingsRow = Omit<ReturnType<typeof optionRow<unknown>>, 'el'> & {
+  el: HTMLElement;
+  /** its page (settingsPages) */
+  section?: SettingsSection;
+  /** shown just now (VIEW, GAS, STEERING and SIDES only in SIM); shown if unsaid */
+  shown?: () => boolean;
+  /** A or START on the row (a link): what it does besides stepping */
+  activate?: () => void;
 };
 
-/** `rows` in their groups, each group under its heading: the elements to show, in order. */
-export function settingsList(rows: { el: HTMLElement; group?: SettingsGroup }[]): HTMLElement[] {
-  const out: HTMLElement[] = [];
-  for (const g of SETTINGS_GROUPS) {
-    const mine = rows.filter((r) => r.group === g);
-    if (!mine.length) continue;
-    const h = document.createElement('h3');
-    h.className = 'settings-group';
-    h.textContent = g;
-    out.push(h, ...mine.map((r) => r.el));
-  }
-  out.push(...rows.filter((r) => !r.group).map((r) => r.el));
-  return out;
+/** The settings' pages, as in Corner Cutters: CONTROLS (how you drive), GAME (how it plays), SOUND and ACCESSIBILITY. */
+export const SETTINGS_SECTIONS = ['controls', 'game', 'sound', 'access'] as const;
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+export const SECTION_NAME: Record<SettingsSection, string> = { controls: 'CONTROLS', game: 'GAME', sound: 'SOUND', access: 'ACCESSIBILITY' };
+
+/** Each row's page, by its label. */
+export const ROW_SECTION: Record<string, SettingsSection> = {
+  STYLE: 'controls', VIEW: 'controls', GAS: 'controls', STEERING: 'controls', ASSIST: 'controls', SIDES: 'controls', VIBRATION: 'controls',
+  DIFFICULTY: 'game', SCREEN: 'game', STATS: 'game', PRIVACY: 'game', TERMS: 'game',
+  SOUND: 'sound', MUSIC: 'sound',
+  TEXT: 'access', COLOURS: 'access', 'SCREEN SHAKE': 'access',
+};
+
+/** Put the row on its page (by its label: ROW_SECTION). */
+export function sectioned<T extends { el: HTMLElement }>(row: T, label: string): T & { section?: SettingsSection } {
+  return Object.assign(row, { section: ROW_SECTION[label] });
 }
 
-/** The next of `els` shown (not hidden: VIEW and GAS in TOP-DOWN) from `from`, `by` 1 or -1, round the ends. */
-export function nextShown(els: HTMLElement[], from: number, by: 1 | -1): number {
-  for (let k = 1; k <= els.length; k++) {
-    const i = (((from + by * k) % els.length) + els.length) % els.length;
-    if (els[i].style.display !== 'none') return i;
-  }
-  return from;
+/** A row that does something when it's picked (a tap, or A): `label` on the left, `value` on the right, `about` under it. Nothing to step. */
+export function actionRow(label: string, value: string, about: string, run: () => void): SettingsRow {
+  const el = document.createElement('button');
+  el.className = 'option-row';
+  const name = Object.assign(document.createElement('b'), { textContent: label });
+  const right = document.createElement('div');
+  right.className = 'value';
+  const line = document.createElement('div');
+  line.className = 'line';
+  line.append(Object.assign(document.createElement('strong'), { textContent: value }));
+  right.append(line, Object.assign(document.createElement('span'), { textContent: about }));
+  el.append(name, right);
+  // (on the press's release, not 'click': in a cross-origin frame on a phone a tap's click can go astray)
+  let armed = false;
+  el.addEventListener('pointerdown', () => (armed = true));
+  el.addEventListener('pointerleave', () => (armed = false));
+  el.addEventListener('pointerup', () => {
+    if (armed) run();
+    armed = false;
+  });
+  return { el, step: () => {}, value: () => undefined, refresh: () => {}, activate: run };
 }
 
-/** Put each row in its group (by its label: ROW_GROUP). */
-export function grouped<T extends { el: HTMLElement }>(row: T, label: string): T & { group?: SettingsGroup } {
-  return Object.assign(row, { group: ROW_GROUP[label] });
+/** Open a page outside the game (a new tab on the web; the phone's own browser in the app). */
+function openPage(url: string): void {
+  window.open(url, '_blank', 'noopener');
 }
 
 /** The rows, read from the save as they are now. */
@@ -86,15 +105,14 @@ export function settingsRows(): SettingsRow[] {
   const gasRow = optionRow('GAS', GAS_MODES, ds.gas, (g) => ({ name: g.toUpperCase(), about: g === 'auto' ? 'always on: you steer and brake' : 'yours: hold the gas pedal (SIM)' }), (g) => setDriveSetting('gas', g));
   // (VIEW, GAS, STEERING and SIDES only for SIM: TOP-DOWN has its own view, the gas always on, and one thumb that
   // points anywhere across the screen; shown or hidden as STYLE changes)
-  const simOnly = (st: string) => {
-    for (const r of [viewRow, gasRow, steeringRow, sidesRow]) r.el.style.display = st === 'sim' ? '' : 'none';
-  };
+  let style = ds.style;
+  const simOnly = () => style === 'sim';
   const styleRow = optionRow('STYLE', DRIVE_STYLES, ds.style, (st) => ({
     name: st === 'topdown' ? 'TOP-DOWN' : 'SIM',
     about: st === 'topdown' ? 'high view · gas always on · soft roadside' : 'your VIEW and GAS · full speed · hard trees',
   }), (st) => {
     setDriveSetting('style', st);
-    simOnly(st);
+    style = st;
   });
   const steeringRow = optionRow('STEERING', STEER_FEELS, ds.feel, (f) => ({
     name: f.toUpperCase(),
@@ -105,7 +123,6 @@ export function settingsRows(): SettingsRow[] {
     about: a === 'off' ? 'all your own steering' : a === 'strong' ? 'a firm hand keeps you on the road' : 'a light hand toward the road',
   }), (a) => setDriveSetting('assist', a));
   const sidesRow = optionRow('SIDES', STEER_SIDES, ds.side, (side) => ({ name: side === 'left' ? 'STEER LEFT' : 'STEER RIGHT', about: side === 'left' ? 'left thumb steers · pedals right' : 'right thumb steers · pedals left' }), (side) => setDriveSetting('side', side));
-  simOnly(ds.style);
   const touchScreen = isTouchScreen();
   const vibrationRow = optionRow('VIBRATION', [true, false], vibrationOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, grass, kerbs' : 'no buzzing' }), (on) => {
     setVibration(on);
@@ -123,14 +140,117 @@ export function settingsRows(): SettingsRow[] {
     : undefined;
   const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
   const coloursRow = optionRow('COLOURS', [false, true], colourSafe(), (on) => ({ name: on ? 'COLOUR-SAFE' : 'STANDARD', about: on ? 'splits in blue, white, orange, and in words' : 'splits in purple, green, amber' }), setColourSafe);
-  // (STATS only where the build has a backend to send them to)
-  // (each with its label, for its group: STATS, where the build has a backend, under no heading at the end)
+  // PRIVACY and TERMS: the pages, one tap away (legal.ts; not on YouTube)
+  const privacyRow = actionRow('PRIVACY', 'OPEN', 'what the game keeps, and what it sends', () => openPage(PRIVACY_URL));
+  const termsRow = actionRow('TERMS', 'OPEN', 'the rules of playing', () => openPage(TERMS_URL));
+  // (each with its label, for its page; STATS only where the build has a backend to send them to)
   const rows: [SettingsRow, string][] = ([
     [styleRow, 'STYLE'], [viewRow, 'VIEW'], [gasRow, 'GAS'], [steeringRow, 'STEERING'], [assistRow, 'ASSIST'], [touchScreen && sidesRow, 'SIDES'],
-    [vibrationRow, 'VIBRATION'], [screenRow, 'SCREEN'], [textRow, 'TEXT'], [coloursRow, 'COLOURS'], [shakeRow, 'SCREEN SHAKE'],
-    [soundRow, 'SOUND'], [musicRow, 'MUSIC'], [online() && statsRow, 'STATS'],
+    [vibrationRow, 'VIBRATION'], [screenRow, 'SCREEN'], [online() && statsRow, 'STATS'], [!YOUTUBE && privacyRow, 'PRIVACY'], [!YOUTUBE && termsRow, 'TERMS'],
+    [soundRow, 'SOUND'], [musicRow, 'MUSIC'],
+    [textRow, 'TEXT'], [coloursRow, 'COLOURS'], [shakeRow, 'SCREEN SHAKE'],
   ] as [SettingsRow | false | undefined, string][]).filter((r): r is [SettingsRow, string] => !!r[0]);
-  return rows.map(([r, label]) => grouped(r, label)) as SettingsRow[];
+  // (VIEW, GAS, STEERING and SIDES only in SIM)
+  for (const r of [viewRow, gasRow, steeringRow, sidesRow] as SettingsRow[]) r.shown = simOnly;
+  return rows.map(([r, label]) => sectioned(r, label));
+}
+
+/** The places up/down moves between on a page: the rows shown, then BACK (`rows.length`). */
+export function pagePlaces(rows: { shown?: () => boolean }[]): number[] {
+  return [...rows.flatMap((r, k) => (r.shown?.() ?? true ? [k] : [])), rows.length];
+}
+
+/**
+ * The settings as pages, as in Corner Cutters: a list (CONTROLS, GAME, SOUND, ACCESSIBILITY, then BACK and the
+ * version), and a page of rows under each (and BACK). One for the menu's screen and one for the pause screen's; they
+ * share how it is moved (up/down, left/right, A, B) and drawn. `onDone` is called when the list is left.
+ */
+export function settingsPages(rows: SettingsRow[], onDone: () => void) {
+  let page: SettingsSection | undefined;
+  let focus = 0;
+  const sections = SETTINGS_SECTIONS.filter((s) => rows.some((r) => r.section === s));
+  const onPage = (s: SettingsSection) => rows.filter((r) => r.section === s);
+  const title = document.createElement('h2');
+  const open = (s: SettingsSection) => {
+    menuPick();
+    page = s;
+    focus = 0;
+    render();
+  };
+  const back = () => {
+    if (page) {
+      menuPick();
+      focus = sections.indexOf(page);
+      page = undefined;
+      render();
+    } else onDone();
+  };
+  const links = sections.map((s) => menuButton(SECTION_NAME[s], () => open(s)));
+  const end = menuButton('◀ BACK', back);
+  end.classList.add('settings-done');
+  const version = versionLine();
+  const els: HTMLElement[] = [title, ...links, ...rows.map((r) => r.el), end, version];
+  /** where up/down goes: the list's links, or the page's rows shown (by their place in onPage), then BACK */
+  const places = () => (page ? pagePlaces(onPage(page)) : [...links.keys(), links.length]);
+  const render = () => {
+    title.textContent = page ? SECTION_NAME[page] : 'SETTINGS';
+    links.forEach((b, k) => {
+      b.style.display = page ? 'none' : '';
+      b.classList.toggle('focused', !page && focus === k);
+    });
+    const mine = page ? onPage(page) : [];
+    for (const r of rows) {
+      const k = mine.indexOf(r);
+      r.el.style.display = k >= 0 && (r.shown?.() ?? true) ? '' : 'none';
+      r.el.classList.toggle('focused', k >= 0 && focus === k);
+    }
+    const count = page ? mine.length : links.length;
+    end.classList.toggle('focused', focus === count);
+    version.style.display = page ? 'none' : '';
+  };
+  // a tap on a row focuses it, and a change shows or hides the rows it governs (STYLE: VIEW and GAS)
+  for (const r of rows) {
+    r.el.addEventListener('pointerdown', () => {
+      if (!page) return;
+      focus = onPage(page).indexOf(r);
+      render();
+    });
+    r.el.addEventListener('pointerup', () => render());
+  }
+  render();
+  return {
+    els,
+    /** back to the list, as the page was first opened */
+    reset() {
+      page = undefined;
+      focus = 0;
+      render();
+    },
+    /** up (-1) or down (1), past the rows hidden just now */
+    move(d: 1 | -1) {
+      const p = places();
+      const at = Math.max(0, p.indexOf(focus));
+      focus = p[(at + d + p.length) % p.length];
+      menuTick();
+      render();
+    },
+    /** left (-1) or right (1) on a row */
+    step(d: number) {
+      if (!page) return;
+      onPage(page)[focus]?.step(d);
+      render();
+    },
+    /** A or START: opens a page from the list, follows a link row, or goes back from BACK */
+    pick() {
+      if (!page && focus < links.length) open(sections[focus]);
+      else if (page && onPage(page)[focus]) onPage(page)[focus].activate?.();
+      else back();
+    },
+    /** B or the phone's back button: up a level, and out of the settings from the list */
+    back,
+    /** the page open (undefined: the list) */
+    open: () => page,
+  };
 }
 
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */

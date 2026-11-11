@@ -8,12 +8,10 @@ import type { Button } from '../engine/controls';
 import { onBack } from '../engine/backButton';
 import { holdTouches } from '../engine/deck';
 import type { Services } from '../engine/services';
-import { YOUTUBE } from '../engine/host';
 import { menuPick, menuTick } from './sounds';
 import { DIFFICULTIES, type Difficulty } from './difficulty';
-import { grouped, nextShown, settingsList, settingsRows as settingsRowsNow, versionLine } from './settingsRows';
-import { openReport, reportOpen } from './report';
-import { legalLine } from './legal';
+import { sectioned, settingsPages, settingsRows as settingsRowsNow } from './settingsRows';
+import { reportOpen } from './report';
 
 /** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
 const SWIPE = 28;
@@ -156,19 +154,22 @@ export function ownTabButton(): HTMLButtonElement {
 }
 
 /**
- * The settings screen in `host`: DIFFICULTY, then the rows the pause screen has too (each remembered as it changes:
- * settingsRows.ts), DONE, and REPORT (a report of the screen as it is; not on YouTube), the version, and the privacy policy
- * and terms (legal.ts; not on YouTube). Resolves with the difficulty
- * picked once DONE (or B, or the phone's back button).
+ * The settings screen in `host`, laid out as Corner Cutters lays out its own: the game's name, then a list of pages
+ * (CONTROLS, GAME, SOUND, ACCESSIBILITY), BACK and the version; each page its rows (DIFFICULTY first on GAME, then the
+ * rows the pause screen has too, each remembered as it changes: settingsRows.ts) and BACK. On black, for reading. A
+ * report is made from the REPORT in the top corner, as on every menu screen. Resolves with the difficulty picked once
+ * the list's BACK (or B, or the phone's back button) leaves it.
  */
 export function showSettings(host: HTMLElement, services: Services, difficulty: Difficulty, closed?: AbortSignal): Promise<Difficulty> {
   const { controls, hud } = services;
   const screen = document.createElement('div');
   screen.className = 'circuit-menu settings-view';
-  const title = document.createElement('h2');
-  title.textContent = 'SETTINGS';
-  const difficultyRow = grouped(optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about })), 'DIFFICULTY');
-  const rows = [difficultyRow, ...settingsRowsNow()];
+  const name = document.createElement('h1');
+  name.textContent = 'CORNER CUTTERS RALLY';
+  const difficultyRow = sectioned(optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about })), 'DIFFICULTY');
+  const rows = [...settingsRowsNow()];
+  // (DIFFICULTY first on GAME)
+  rows.splice(Math.max(0, rows.findIndex((r) => r.section === 'game')), 0, difficultyRow);
   return new Promise((resolve) => {
     let done = false;
     const finish = () => {
@@ -179,19 +180,9 @@ export function showSettings(host: HTMLElement, services: Services, difficulty: 
       screen.remove();
       resolve(difficultyRow.value());
     };
-    const offBack = onBack(() => (finish(), true));
-    const doneButton = menuButton('DONE', finish);
-    const reportButton = menuButton('REPORT', () => void openReport({ mode: 'settings' }, [], () => menuPick()));
-    const places: HTMLElement[] = [...rows.map((r) => r.el), doneButton, ...(YOUTUBE ? [] : [reportButton])];
-    // (the rows in their groups, under their headings: settingsRows.ts)
-    screen.append(title, ...settingsList(rows), ...places.slice(rows.length), versionLine(), ...(YOUTUBE ? [] : [legalLine()]));
-    let focus = 0;
-    const show = () => places.forEach((el, k) => el.classList.toggle('focused', k === focus));
-    rows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
-      focus = k;
-      show();
-    }));
-    show();
+    const pages = settingsPages(rows, finish);
+    const offBack = onBack(() => (pages.back(), true));
+    screen.append(name, ...pages.els);
     holdTouches(screen);
     host.append(screen);
     hud.setPosition('');
@@ -213,18 +204,10 @@ export function showSettings(host: HTMLElement, services: Services, difficulty: 
     const tick = () => {
       if (done) return;
       const [down, up, left, right, a, b, start] = (['down', 'up', 'left', 'right', 'a', 'b', 'start'] as const).map((k) => pressed(k) && !reportOpen());
-      const move = (down ? 1 : 0) - (up ? 1 : 0);
-      if (move) {
-        // (past the rows hidden just now: VIEW and GAS in TOP-DOWN)
-        focus = nextShown(places, focus, move > 0 ? 1 : -1);
-        menuTick();
-        show();
-      }
-      const row = rows[focus];
-      if (row && (left || right)) row.step(right ? 1 : -1);
-      if (b) finish();
-      else if ((a || start) && places[focus] === reportButton) void openReport({ mode: 'settings' }, [], () => menuPick());
-      else if (a || start) finish();
+      if (down || up) pages.move(down ? 1 : -1);
+      if (left || right) pages.step(right ? 1 : -1);
+      if (b) pages.back();
+      else if (a || start) pages.pick();
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);

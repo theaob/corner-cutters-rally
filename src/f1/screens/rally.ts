@@ -1,10 +1,12 @@
 // The rally's screen: the game's home. With no rally under way: your car's
-// paint (CAR), the rallies to pick from (each a card: its surface's colour down
-// its side, its stages and your best there), and SETTINGS. With one under way: where you stand (the
+// paint (CAR), the rallies to pick from (a grid of tiles, as Corner Cutters' menu
+// lays out its modes: each its surface's icon over its name, its stages and your
+// best there), and SETTINGS in a row of its own under them. With one under way: where you stand (the
 // standings after the stages run so far), the stage up next and your car's
 // state (repaired at the service park), and START SS…; once it's over, the
 // final standings (a trophy and confetti for a win). Touch, or keys: up/down
-// moves, left/right changes CAR, A or START picks.
+// moves (a row in the rallies' grid), left/right changes CAR (and moves across
+// the grid), A or START picks.
 
 import type { Button } from '../../engine/controls';
 import { holdTouches } from '../../engine/deck';
@@ -19,6 +21,7 @@ import {
   RALLIES, crewName, crewScheme, gapText, loadBests, nextStage, rallyEvent, rallyOver, serviceAfter, standings, yourPlace, type Rally, type RallyEvent,
 } from '../rally';
 import { reportOpen } from '../report';
+import { gridStep, makeTile } from '../menuTiles';
 import { confetti, trophy } from './celebrate';
 import { COLOR, SURFACE_COLOR } from '../theme';
 
@@ -59,31 +62,21 @@ function panel(...children: HTMLElement[]): HTMLElement {
   return d;
 }
 
-/** Rally `e` as a card on `b` (its button): its name and surface, its surface's colour down the side, its stages, and your best finish there. */
-export function rallyCard(e: RallyEvent, bestPlace: number | undefined, b: HTMLButtonElement): HTMLButtonElement {
-  b.classList.add('rally-card');
+/**
+ * Rally `e` as a tile on `b` (its button), as Corner Cutters' modes are on its menu: its surface's icon (in its
+ * surface's colour) over its name, and under that its stages and your best finish there; the rest for a screen reader
+ * and a long press.
+ */
+export function rallyTile(e: RallyEvent, bestPlace: number | undefined, b: HTMLButtonElement): HTMLButtonElement {
+  b.classList.add('rally-tile');
   b.style.setProperty('--surface', SURFACE_COLOR[e.surface]);
-  const head = document.createElement('div');
-  head.className = 'rally-head';
-  const name = document.createElement('strong');
-  name.textContent = e.name;
-  const surface = document.createElement('span');
-  surface.className = 'surface';
-  surface.textContent = e.surface;
-  head.append(name, surface);
-  const facts = document.createElement('div');
-  facts.className = 'rally-facts';
-  const stages = document.createElement('span');
-  stages.textContent = `${e.stages.length} STAGES`;
+  const facts = document.createElement('span');
+  facts.className = 'tile-sub';
   const best = document.createElement('span');
-  best.textContent = bestPlace ? `BEST: ${ordinal(bestPlace)}` : 'NOT RUN YET';
-  Object.assign(best.style, { color: bestPlace === 1 ? 'var(--gold)' : bestPlace ? 'var(--text)' : 'var(--muted)' });
-  facts.append(stages, best);
-  const about = document.createElement('span');
-  about.textContent = e.about.toUpperCase();
-  Object.assign(about.style, { fontSize: 'calc(9px * var(--ts, 1))' });
-  b.replaceChildren(head, facts, about);
-  b.setAttribute('aria-label', `${e.name}, ${e.surface}, ${e.stages.length} stages${bestPlace ? `, best ${ordinal(bestPlace)}` : ''}`);
+  best.textContent = bestPlace ? `BEST ${ordinal(bestPlace)}` : 'NOT RUN YET';
+  if (bestPlace === 1) best.style.color = 'var(--gold)';
+  facts.append(`${e.stages.length} STAGES · `, best);
+  makeTile(b, e.surface, e.name, `${e.surface} · ${e.about}${bestPlace ? ` · best ${ordinal(bestPlace)}` : ''}`, facts);
   return b;
 }
 
@@ -112,8 +105,9 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
       screen.remove();
       resolve(a);
     };
-    /** the places up/down moves through: each picked with A, and a row also changed with left/right */
-    const places: { el: HTMLElement; pick?: () => void; step?: (by: number) => void }[] = [];
+    /** the places up/down moves through: each picked with A, and a row also changed with left/right; a rally's tile
+     * also moved between with left/right, and up/down a row of the grid (`tile`: its place in the grid) */
+    const places: { el: HTMLElement; pick?: () => void; step?: (by: number) => void; tile?: number }[] = [];
     const button = (text: string, pick: () => void, main = false) => {
       const b = menuButton(text, pick);
       if (main) b.classList.add('race-button');
@@ -127,10 +121,15 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
       const car = optionRow('CAR', SCHEMES, scheme, (s) => ({ name: s.name, about: 'your paint · #1 on the roof', colors: [s.body, s.trim, ...(s.accent ? [s.accent] : [])] }));
       places.push({ el: car.el, step: car.step });
       screen.append(car.el);
+      // (the rallies a grid of square tiles, as Corner Cutters' modes are)
       const bests = loadBests();
-      for (const e of RALLIES) {
-        screen.append(rallyCard(e, bests[e.id]?.place, button('', () => finish({ start: e, scheme: car.value() }))));
-      }
+      const grid = document.createElement('div');
+      grid.className = 'menu-tiles';
+      RALLIES.forEach((e, k) => {
+        grid.append(rallyTile(e, bests[e.id]?.place, button('', () => finish({ start: e, scheme: car.value() }))));
+        places[places.length - 1].tile = k;
+      });
+      screen.append(grid);
     } else {
       const e = rallyEvent(rally);
       title.textContent = e.name;
@@ -166,7 +165,13 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
         screen.append(button('RETIRE FROM THE RALLY', () => finish('abandon')));
       }
     }
-    screen.append(button('SETTINGS', () => finish('settings')));
+    // (SETTINGS in a row of its own, set apart under the rest: not a rally itself)
+    const utility = document.createElement('div');
+    utility.className = 'menu-utility';
+    const settings = button('', () => finish('settings'));
+    makeTile(settings, 'settings', 'SETTINGS', 'controls, the game, sound and accessibility');
+    utility.append(settings);
+    screen.append(utility);
     // (framed in another page, as on itch.io, where the browser may hold it to 30 fps: a way to a tab of its own)
     if (framed()) screen.append(ownTabButton());
     holdTouches(screen);
@@ -194,13 +199,23 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
       if (done) return;
       const [down, up, left, right, a, start] = (['down', 'up', 'left', 'right', 'a', 'start'] as const).map((k) => pressed(k) && !reportOpen());
       const move = (down ? 1 : 0) - (up ? 1 : 0);
-      if (move) {
+      const here = places[focus];
+      const tiles = places.filter((p) => p.tile !== undefined);
+      if (here.tile !== undefined && (move || left || right)) {
+        // (in the rallies' grid: a neighbour, a row up or down, or out of the grid off its top or bottom)
+        const to = gridStep(here.tile, (right ? 1 : 0) - (left ? 1 : 0), move, tiles.length);
+        const first = places.indexOf(tiles[0]);
+        focus = (to >= 0 ? first + to : move < 0 ? first - 1 : first + tiles.length) % places.length;
+        if (focus < 0) focus += places.length;
+        menuTick();
+        show();
+      } else if (move) {
         focus = (focus + move + places.length) % places.length;
         menuTick();
         show();
       }
+      if ((left || right) && here.step) here.step(right ? 1 : -1);
       const at = places[focus];
-      if ((left || right) && at.step) at.step(right ? 1 : -1);
       if ((a || start) && at.pick) at.pick();
       requestAnimationFrame(tick);
     };

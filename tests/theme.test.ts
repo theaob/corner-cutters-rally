@@ -59,22 +59,22 @@ describe('the calls without a voice', () => {
   });
 });
 
-describe('the settings in groups', () => {
-  it('DRIVING, SCREEN and SOUND, every row but STATS in one', async () => {
-    const { ROW_GROUP, SETTINGS_GROUPS } = await import('../src/f1/settingsRows');
-    expect(SETTINGS_GROUPS).toEqual(['DRIVING', 'SCREEN', 'SOUND']);
-    for (const label of ['DIFFICULTY', 'STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES', 'VIBRATION', 'SCREEN', 'TEXT', 'COLOURS', 'SCREEN SHAKE', 'SOUND', 'MUSIC']) {
-      expect(ROW_GROUP[label], label).toBeDefined();
+describe('the settings in pages, as in Corner Cutters', () => {
+  it('CONTROLS, GAME, SOUND and ACCESSIBILITY, every row on one', async () => {
+    const { ROW_SECTION, SETTINGS_SECTIONS, SECTION_NAME } = await import('../src/f1/settingsRows');
+    expect(SETTINGS_SECTIONS.map((s) => SECTION_NAME[s])).toEqual(['CONTROLS', 'GAME', 'SOUND', 'ACCESSIBILITY']);
+    for (const label of ['DIFFICULTY', 'STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES', 'VIBRATION', 'SCREEN', 'TEXT', 'COLOURS', 'SCREEN SHAKE', 'SOUND', 'MUSIC', 'STATS', 'PRIVACY', 'TERMS']) {
+      expect(ROW_SECTION[label], label).toBeDefined();
     }
-    expect(ROW_GROUP.STATS).toBeUndefined();
+    expect(ROW_SECTION.STYLE).toBe('controls');
+    expect(ROW_SECTION.DIFFICULTY).toBe('game');
+    expect(ROW_SECTION.COLOURS).toBe('access');
   });
-  it('up and down step past the hidden rows (VIEW and GAS in TOP-DOWN), round the ends', async () => {
-    const { nextShown } = await import('../src/f1/settingsRows');
-    const els = ['', 'none', 'none', '', ''].map((display) => ({ style: { display } }) as unknown as HTMLElement);
-    expect(nextShown(els, 0, 1)).toBe(3);
-    expect(nextShown(els, 3, -1)).toBe(0);
-    expect(nextShown(els, 0, -1)).toBe(4);
-    expect(nextShown(els, 4, 1)).toBe(0);
+  it("a page's places are its rows shown (not VIEW and GAS in TOP-DOWN), then BACK", async () => {
+    const { pagePlaces } = await import('../src/f1/settingsRows');
+    const rows = [{}, { shown: () => false }, { shown: () => false }, { shown: () => true }, {}];
+    expect(pagePlaces(rows)).toEqual([0, 3, 4, 5]);
+    expect(pagePlaces([])).toEqual([0]);
   });
 });
 
