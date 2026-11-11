@@ -288,7 +288,16 @@ export interface DriveInput {
    * (0…1), or reverse. Braking is `brake`, drifting is `handbrake`, as ever.
    */
   wheel?: { turn: number; gas: number; reverse: boolean };
+  /**
+   * A power slide (0 none … 1 full), on the gas, for one-thumb driving: the tyres let go sideways (down to `DRIFT.grip`
+   * of their grip), the nose comes round quicker (up to `DRIFT.turn`), and the slide scrubs off only a little speed,
+   * unlike the handbrake's.
+   */
+  drift?: number;
 }
+
+/** A power slide at full (DriveInput.drift). */
+export const DRIFT = { grip: 0.4, turn: 1.5, scrub: 70 };
 
 export interface StepEvents {
   /** damage taken this step from hitting something */
@@ -463,6 +472,7 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
   const handbrake = driven && input.handbrake;
   const braking = driven && input.brake === true;
   const wheel = driven ? input.wheel : undefined;
+  const drift = driven && !handbrake ? Math.max(0, Math.min(1, input.drift ?? 0)) : 0;
 
   if (!grounded) {
     // keep fwd and side as they are
@@ -497,7 +507,7 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
       diff = angleDiff(target, car.heading);
     }
     const turnScale = Math.min(1, Math.max(0.35, Math.abs(fwd) / (top * 0.3)));
-    const turn = cls.turnRate * (car.tyreGrip ?? 1) * dt * turnScale * (handbrake ? p.handbrakeTurn : 1);
+    const turn = cls.turnRate * (car.tyreGrip ?? 1) * dt * turnScale * (handbrake ? p.handbrakeTurn : 1) * (1 + (DRIFT.turn - 1) * drift);
     const next = car.heading + Math.max(-turn, Math.min(turn, diff));
     // a long body can't swing its nose or tail into a wall
     if (!bodyBlocked(grid, car, next) || bodyBlocked(grid, car, car.heading)) car.heading = next;
@@ -526,6 +536,7 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
   const nr = rightOf(car.heading);
   if (grounded) {
     if (handbrake) fwd = toward(fwd, 0, brake * 0.5);
+    if (drift) fwd = toward(fwd, 0, DRIFT.scrub * drift);
     if (braking) fwd = toward(fwd, 0, brake);
     if (tumbling) fwd = toward(fwd, 0, IMPACT.rollDrag);
     // slopes: gravity along the slope works against (or with) the engine, so how steep a
@@ -540,7 +551,7 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
     // a little overspeed is allowed rolling downhill; rolling back off a slope can beat reversing speed
     fwd = Math.max(-cls.topSpeed * 0.6, Math.min(cls.topSpeed * 1.25, fwd));
 
-    const gripShare = (0.5 + 0.5 * rough) * (handbrake ? p.handbrakeGrip : 1) * (car.wrecked ? 1.5 : 1) * (tumbling ? 0.4 : 1);
+    const gripShare = (0.5 + 0.5 * rough) * (handbrake ? p.handbrakeGrip : 1) * (1 - (1 - DRIFT.grip) * drift) * (car.wrecked ? 1.5 : 1) * (tumbling ? 0.4 : 1);
     const grip = cls.grip * (car.tyreGrip ?? 1) * gripShare;
     // the slide fades as the tyres bite, but they can only push so hard sideways
     const bite = side * (1 - Math.exp(-grip * dt));

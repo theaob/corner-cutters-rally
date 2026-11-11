@@ -505,7 +505,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
         /** your car: where, which way, how fast (px/s) */
         me: () => {
           const c = race.entrants[you].car;
-          return { x: c.x, y: c.y, heading: c.heading, speed: Math.hypot(c.vx, c.vy) };
+          return { x: c.x, y: c.y, heading: c.heading, speed: Math.hypot(c.vx, c.vy), vx: c.vx, vy: c.vy };
         },
         /** a rally's stage: its notes, the reference run, the rivals' times, the next note to call, the card's call, and its result */
         stage: () => stage && { notes: stage.caller.notes.length, next: stage.caller.next, reference: stage.reference, leader: stage.leader, card: paceCard.el.style.display === 'flex' ? paceCard.el.textContent : undefined, result: stage.result },
@@ -691,14 +691,15 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
    */
   const camParam = new URLSearchParams(window.location.search).get('cam');
   let camTry: ViewId | undefined = isView(camParam) ? camParam : undefined;
-  // (TOP-DOWN's own view, until the camera button picks another for the stage)
-  const camMode = (): ViewId => camTry ?? (style === 'topdown' ? 'classic' : viewSetting());
-  /** The next view (the deck's camera button, or C), named on the banner a moment, and remembered (TOP-DOWN: for the stage). */
+  // (TOP-DOWN: CLASSIC, always; no camera button, index.html)
+  const camMode = (): ViewId => (style === 'topdown' ? 'classic' : camTry ?? viewSetting());
+  document.documentElement.classList.toggle('topdown', style === 'topdown');
+  /** The next view (the deck's camera button, or C), named on the banner a moment, and remembered (SIM only). */
   const cycleView = () => {
+    if (style === 'topdown') return;
     const v = nextView(camMode());
     camTry = undefined;
-    if (style === 'topdown') camTry = v;
-    else setView(v);
+    setView(v);
     announce(`VIEW · ${v.toUpperCase()}`, COLOR.white, 1.2);
   };
   const viewButton = document.querySelector<HTMLElement>('#deck [data-view]');
@@ -1174,7 +1175,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     deckEl?.classList.remove('driving');
     touchDrive?.dispose();
     keyDrive.dispose();
-    document.documentElement.classList.remove('results-up', 'paused', 'dirt');
+    document.documentElement.classList.remove('results-up', 'paused', 'dirt', 'topdown');
     delete (window as { __cc?: unknown }).__cc;
   };
   return { resize, dispose };

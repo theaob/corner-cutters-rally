@@ -1,19 +1,19 @@
 // STYLE in the settings (src/engine/drive/settings.ts), as the stage plays it. TOP-DOWN is the rally made for one thumb
-// on a phone: the CLASSIC view (high, north up) pulled back and looking ahead of the car the way it's going, the gas
-// always on, a car a little slower than SIM's that keeps most of its speed off the road, and a roadside that knocks you
-// back rather than wrecking the car. SIM is the stage as it was: the VIEW and GAS you pick,
+// on a phone: the CLASSIC view (high, north up, the only one) pulled back and looking ahead of the car the way it's
+// going, the gas always on and no brake, SIM's car (quicker off the line) that keeps most of its speed off the road and
+// drifts from the one thumb (src/engine/drive/point.ts), and a roadside that knocks you back rather than wrecking the car. SIM is the stage as it was: the VIEW and GAS you pick,
 // the full-speed car and the hard trees.
 
-import { REFERENCE, carClass, type CarClass, type HandlingParams } from '../engine/driving';
+import { DRIFT, REFERENCE, carClass, type CarClass, type HandlingParams } from '../engine/driving';
 import type { DriveStyle } from '../engine/drive/settings';
 import { HD2D_VIEW } from '../engine/look';
 import { lineCornerSpeed, type Track } from './racing';
 
 export const TOP_DOWN = {
   /** the car's top speed against SIM's (the rivals' times come from a run in the same car, so they scale with it) */
-  speed: 0.8,
+  speed: 1,
   /** s from a standstill to top speed at the reference (SIM's: REFERENCE.zeroToTop) */
-  zeroToTop: 1.4,
+  zeroToTop: 1.1,
   /** the share of top speed and grip kept off the road (SIM's car: 0.25) */
   offRoad: 0.75,
   /** the crash damage against the difficulty's, and px/s of impact that do none at all */
@@ -33,7 +33,7 @@ export const TOP_DOWN = {
  */
 export const SIGHT = {
   /** s of road ahead at top speed, any way it runs */
-  seconds: 1.8,
+  seconds: 1.6,
   /** the least share of the screen (along the way the car's going) kept behind it */
   behind: 0.2,
   /** the furthest the camera pulls back (TOP_DOWN.zoom is the nearest) */
@@ -134,22 +134,24 @@ export function styleHandling(h: HandlingParams, style: DriveStyle): HandlingPar
   return { ...h, crashDamage: h.crashDamage * TOP_DOWN.crashDamage, crashThreshold: TOP_DOWN.crashThreshold, noRolls: true };
 }
 
-/** The key a stage's best time is kept under: TOP-DOWN's times are their own (a slower car). */
+/** The key a stage's best time is kept under: TOP-DOWN's times are their own (its own car and driving). */
 export const bestKey = (stageId: string, style: DriveStyle) => (style === 'sim' ? stageId : `${stageId}@topdown`);
 
 /**
  * CONTROL: POINT's own speed: the car slows for the road ahead without being asked. Each bend is taken at `share` of
- * what the car can turn through along the road's middle (not the racing line, which is wider and quicker: you're
- * near the middle, the road pulling you there), braked for at `brake` of the car's full braking, looking `reach` px
+ * what the car can turn through along the road's middle drifting (`turn`: DRIFT's quicker nose; not the racing line,
+ * which is wider and quicker: you're near the middle, the road pulling you there), so every stage's bends are flat out
+ * and only a hairpin tighter than that slows it, braked for at `brake` of the car's full braking, looking `reach` px
  * ahead (more than the hardest stop from top speed needs).
  */
-export const AUTO_SPEED = { share: 0.92, brake: 0.75, reach: 700, smooth: 2 };
+export const AUTO_SPEED = { share: 0.88, brake: 0.75, reach: 700, smooth: 2, turn: DRIFT.turn };
 
 /** px/s the car can be going at each of `track`'s samples and still take the road ahead (CONTROL: POINT), its tyres
  * gripping `grip` as well as new (worn, or on the wrong surface: less, and slower round the bends). */
 export function autoSpeed(track: Track, cls: CarClass, h: HandlingParams): (idx: number, grip?: number) => number {
   const n = track.samples.length;
-  const corner = lineCornerSpeed(cls, h, AUTO_SPEED.share);
+  // (a bend's taken drifting: the nose comes round quicker)
+  const corner = lineCornerSpeed({ ...cls, turnRate: cls.turnRate * AUTO_SPEED.turn }, h, AUTO_SPEED.share);
   const at = (k: number) => track.samples[track.open ? Math.max(0, Math.min(n - 1, k)) : ((k % n) + n) % n];
   // (each sample's bend: the tightest of its neighbours', so a kink in the road's curve doesn't slip through)
   const own = track.samples.map((_, k) => {

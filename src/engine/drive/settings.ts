@@ -1,8 +1,8 @@
-// The driving settings, remembered: STYLE (TOP-DOWN: a high view of the road ahead, the gas always on, a slower car and a
-// forgiving roadside; SIM: the low chase view and the rest as set below), GAS (MANUAL: a pedal; AUTO: always on),
-// STEERING (how quick and how far the wheel turns), ASSIST (a hand on the wheel that knows the road) and SIDES (which
-// thumb steers on a touch screen) and, in TOP-DOWN, CONTROL (POINT: point the way to go, the car slowing for bends on
-// its own; WHEEL: drag across to turn the wheel, and brake for the bends yourself).
+// The driving settings, remembered: STYLE (TOP-DOWN: a high view of the road ahead, the gas always on, one thumb that
+// points the way to go and drifts, and a forgiving roadside; SIM: the low chase view and the rest as set below), GAS
+// (MANUAL: a pedal; AUTO: always on), STEERING (how quick and how far the wheel turns), ASSIST (a hand on the wheel, or
+// on your aim, that knows the road) and SIDES (which thumb steers on a touch screen). CONTROL is how the car's steered:
+// POINT (TOP-DOWN's, always) or WHEEL (SIM's, always); it's kept as a setting for the driver's own sake (driver.ts).
 
 import { save, saved } from '../save';
 import { ASSIST_LEVELS, type AssistLevel } from './assist';
@@ -31,10 +31,11 @@ export const DRIVE_DEFAULTS: DriveSettings = { style: 'topdown', gas: 'manual', 
 const KEYS: Record<keyof DriveSettings, string> = { style: 'driveStyle', gas: 'driveGas', feel: 'driveSteering', assist: 'driveAssist', side: 'driveSide', control: 'driveControl' };
 const ALLOWED: { [K in keyof DriveSettings]: readonly DriveSettings[K][] } = { style: DRIVE_STYLES, gas: GAS_MODES, feel: STEER_FEELS, assist: ASSIST_LEVELS, side: STEER_SIDES, control: CONTROLS };
 
-/** The driving settings as they drive: as saved, but TOP-DOWN's gas is always on, and SIM steers with the wheel. */
+/** The driving settings as they drive: as saved, but TOP-DOWN's gas is always on and it points (one thumb, no brake),
+ * and SIM steers with the wheel. */
 export function driveSettings(): DriveSettings {
   const s = savedDriveSettings();
-  return s.style === 'topdown' ? { ...s, gas: 'auto' } : { ...s, control: 'wheel' };
+  return s.style === 'topdown' ? { ...s, gas: 'auto', control: 'point' } : { ...s, control: 'wheel' };
 }
 
 /** The driving settings as saved (each one its default until it's changed), for the settings rows. */

@@ -1,16 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { REFERENCE, angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
-import { Driver } from '../src/engine/drive/driver';
-import { keysIntent } from '../src/engine/drive/keys';
-import { DRIVE_DEFAULTS, driveSettings, savedDriveSettings, setDriveSetting } from '../src/engine/drive/settings';
+import { REFERENCE, carClass } from '../src/engine/driving';
+import { driveSettings, savedDriveSettings, setDriveSetting } from '../src/engine/drive/settings';
 import { useSave, type SaveStore } from '../src/engine/save';
 import { useStore } from '../src/engine/storage';
-import { buildCircuit } from '../src/f1/circuit';
 import { NORMAL, handlingFor } from '../src/f1/difficulty';
-import { referenceStage } from '../src/f1/rally';
-import { lineCornerSpeed, lineDecel, newProgress, stepProgress } from '../src/f1/racing';
 import { CC_SAVE } from '../src/f1/save';
-import { stageById } from '../src/f1/stages';
 import * as THREE from 'three';
 import { HD2D_VIEW } from '../src/engine/look';
 import { SIGHT, TOP_DOWN, bestKey, rallyCar, sightAhead, styleHandling, topDownFraming, type SightScreen } from '../src/f1/style';
@@ -39,11 +33,13 @@ describe('STYLE', () => {
     expect(driveSettings().gas).toBe('manual');
   });
 
-  it("gives TOP-DOWN a slower car that keeps more of its speed off the road, SIM the car as it was", () => {
+  it("gives TOP-DOWN a car as quick as SIM's that keeps more of its speed off the road, SIM the car as it was", () => {
     expect(rallyCar('sim')).toEqual(carClass('f1'));
     expect(rallyCar('topdown').topSpeed).toBeCloseTo(carClass('f1').topSpeed * TOP_DOWN.speed);
+    expect(TOP_DOWN.speed).toBe(1);
     expect(rallyCar('topdown').turnRate).toBe(carClass('f1').turnRate);
-    expect(TOP_DOWN.zeroToTop).toBeGreaterThan(REFERENCE.zeroToTop);
+    expect(TOP_DOWN.zeroToTop).toBeLessThan(1.4);
+    expect(TOP_DOWN.zeroToTop).toBeGreaterThanOrEqual(REFERENCE.zeroToTop * 0.9);
     expect(rallyCar('topdown').offRoad).toBeGreaterThan(carClass('f1').offRoad * 2);
   });
 
@@ -140,64 +136,4 @@ describe("TOP-DOWN's camera (P2: even sight)", () => {
   });
 });
 
-/**
- * A player on the keys (the gas always on, CONTROL on WHEEL) driving `stageId` in TOP-DOWN: what they see is 0.15 s old, so they lead it
- * by that much; they steer at the road 0.4 s ahead, and brake for what the camera shows of it on a phone (style.ts:
- * topDownFraming, the way the car's going).
- */
-function lateDriver(stageId: string) {
-  const style = 'topdown';
-  const cls = rallyCar(style);
-  const H = styleHandling(handlingFor(NORMAL), style);
-  const c = buildCircuit(stageById(stageId)!, { cornerSpeed: lineCornerSpeed(cls, H), decel: lineDecel(cls) });
-  const { track, grid } = c;
-  const n = track.samples.length;
-  const reference = referenceStage(track, grid, H, 'dry', c.slots[0], cls).time;
-  const LATE = 0.15;
-  const lag = Math.round(LATE * 60);
-  let held = new Set<string>();
-  const driver = new Driver({ keys: () => keysIntent(held), pad: () => undefined }, () => ({ ...DRIVE_DEFAULTS, gas: 'auto', control: 'wheel' }));
-  const car = newCar(cls, c.slots[0].x, c.slots[0].y, c.slots[0].heading);
-  let p = newProgress(Math.round((track.stage!.start - 24) / track.spacing));
-  const seenAt: { x: number; y: number; h: number; v: number; vx: number; vy: number; idx: number }[] = [];
-  const brakeRate = cls.topSpeed / cls.brakeTime;
-  let t = 0;
-  for (; t < 200 && p.idx * track.spacing < track.stage!.finish && !car.wrecked; t += 1 / 60) {
-    seenAt.push({ x: car.x, y: car.y, h: car.heading, v: speedOf(car), vx: car.vx, vy: car.vy, idx: p.idx });
-    const now = seenAt[Math.max(0, seenAt.length - 1 - lag)];
-    const before = seenAt[Math.max(0, seenAt.length - 7 - lag)];
-    const o = {
-      x: now.x + now.vx * LATE,
-      y: now.y + now.vy * LATE,
-      h: now.h + (angleDiff(now.h, before.h) / 0.1) * LATE,
-      idx: Math.min(n - 1, now.idx + Math.round((now.v * LATE) / track.spacing)),
-    };
-    const aim = track.samples[Math.min(n - 1, o.idx + Math.round(Math.max(60, now.v * 0.4) / track.spacing))];
-    const off = angleDiff(Math.atan2(aim.x - o.x, -(aim.y - o.y)), o.h);
-    // (what the camera shows the way the car's going: at least the old fixed camera's 300 px across a phone)
-    const wx = now.v > 30 ? now.vx : Math.sin(now.h);
-    const wy = now.v > 30 ? now.vy : -Math.cos(now.h);
-    const f = topDownFraming(wx, wy, PHONE, cls.topSpeed);
-    const SEE = sightAhead(wx, wy, PHONE, f.zoom, f.lead * Math.min(1, now.v / cls.topSpeed));
-    let want = Infinity;
-    for (let k = 0; k * track.spacing <= SEE; k++) want = Math.min(want, Math.hypot(track.samples[Math.min(n - 1, o.idx + k)].speed, Math.sqrt(2 * brakeRate * 0.8 * k * track.spacing)));
-    held = new Set([off < -0.05 && 'ArrowLeft', off > 0.05 && 'ArrowRight', now.v > want + 8 && 'ArrowDown'].filter((k): k is string => !!k));
-    driver.sample();
-    stepCar(car, driver.step(car, 1 / 60), H, 1 / 60, grid);
-    p = stepProgress(p, track, car, t, 1, 1 / 60);
-  }
-  return { finished: p.idx * track.spacing >= track.stage!.finish, health: car.health / cls.health, time: t, reference };
-}
-
-describe('TOP-DOWN on a stage', () => {
-  // Pine Ridge, and Castle Hill (two thirds of it across or down the screen)
-  for (const id of ['ss-pine-ridge', 'ss-castle-hill']) {
-    it(`${id}: can be driven to the finish unhurt, near the rivals, by a player who sees only what its camera shows and reacts late`, () => {
-      const r = lateDriver(id);
-      expect(r.finished).toBe(true);
-      expect(r.health).toBeGreaterThan(0.9);
-      // (NORMAL's rivals are about 9% off the reference)
-      expect(r.time).toBeLessThan(r.reference * 1.3);
-    }, 60_000);
-  }
-});
+// (TOP-DOWN on a stage: tests/point.test.ts, its players pointing with one thumb)
