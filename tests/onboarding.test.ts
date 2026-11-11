@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STEPS, advance, apexesPassed, newOnboarding, prompt, type Facts } from '../src/f1/onboarding';
+import { STEPS, advance, apexesPassed, newOnboarding, prompt, stepsFor, type Facts } from '../src/f1/onboarding';
 
 const facts = (f: Partial<Facts> = {}): Facts => ({ speed: 0, top: 320, bends: 0, drifting: false, lapDone: false, ...f });
 
@@ -54,3 +54,30 @@ describe('the controls lap', () => {
     expect(apexesPassed(apexes, 60, 40, 100)).toBe(0);
   });
 });
+
+describe("TOP-DOWN's controls lap", () => {
+  it('is four steps: go, a bend, the calls, the finish (no FASTER with the gas always on, no DRIFT)', () => {
+    const steps = stepsFor('topdown');
+    expect(steps.filter((s) => s !== 'done')).toEqual(['go', 'bend', 'notes', 'lap']);
+    expect(stepsFor('sim')).toEqual(STEPS);
+    const o = newOnboarding();
+    const f = (x: Partial<Facts>): Facts => ({ speed: 0, top: 256, bends: 0, drifting: false, lapDone: false, ...x });
+    advance(o, f({ speed: 120 }), steps);
+    expect(o.step).toBe('bend');
+    advance(o, f({ speed: 200, bends: 1 }), steps);
+    expect(o.step).toBe('notes');
+    advance(o, f({ bends: 2 }), steps);
+    expect(o.step).toBe('lap');
+    advance(o, f({ bends: 3, lapDone: true }), steps);
+    expect(o.step).toBe('done');
+  });
+
+  it('teaches the slide with the brake, never DRIFT', () => {
+    for (const device of ['touch', 'keys', 'pad'] as const) {
+      const p = prompt('bend', device, 'auto', 'topdown');
+      expect(p).toContain('SLIDE');
+      expect(p).not.toContain('DRIFT');
+    }
+  });
+});
+

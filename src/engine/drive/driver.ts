@@ -1,7 +1,8 @@
 // The driver: what you ask for (on a touch screen, the keys or a gamepad: whichever you used last) turned into what
 // the car does, one fixed step at a time. The steering goes through the wheel (steering.ts: its rate and its curve)
 // with the assist's hand on it (assist.ts); the gas, the brakes, and held on the brake once
-// stopped, reverse.
+// stopped, reverse. In TOP-DOWN there's no handbrake to reach for: braking with the wheel turned hard slides the car
+// (SLIDE), the way DRIFT does.
 
 import type { Car, DriveInput } from '../driving';
 import { assisted, type RoadAhead } from './assist';
@@ -17,6 +18,8 @@ export const REVERSE_BELOW = 12;
 const BRAKE_ON = 0.25;
 /** radians: the car turned further than this from the road (spun, or the wrong way) and the assist lets go */
 const ASSIST_GIVES_UP = 1.6;
+/** TOP-DOWN's slide: braking with the wheel turned at least `wheel` of the way, going at least `from` of top speed */
+export const SLIDE = { wheel: 0.6, from: 0.3 };
 
 /** The car's speed straight ahead (px/s; less than 0 going backwards). */
 export const forwardSpeed = (car: Car) => car.vx * Math.sin(car.heading) - car.vy * Math.cos(car.heading);
@@ -25,6 +28,7 @@ export class Driver {
   private wheel = 0;
   private now: Intent = IDLE;
   private last: Source | undefined;
+  private slid = false;
 
   constructor(
     private readonly read: { touch?: () => Intent; keys: () => Intent; pad: () => Intent | undefined },
@@ -55,6 +59,11 @@ export class Driver {
     return { ...i, throttle: i.brake > BRAKE_ON ? 0 : 1 };
   }
 
+  /** Whether the latest step slid the car (TOP-DOWN: braking with the wheel turned hard). */
+  sliding(): boolean {
+    return this.slid;
+  }
+
   /** The wheel's position (−1…1), for drawing it. */
   wheelPos(): number {
     return this.wheel;
@@ -73,9 +82,13 @@ export class Driver {
     // (the assist only going forwards, and only with the road roughly ahead)
     const near = road && forward > 20 && Math.abs(Math.atan2(Math.sin(road.dir - car.heading), Math.cos(road.dir - car.heading))) < ASSIST_GIVES_UP;
     this.wheel = turnWheel(this.wheel, assisted(i.steer, car.heading, near ? road : undefined, s.assist), dt, s.feel);
-    const turn = tyreTurn(this.wheel, Math.abs(forward) / car.cls.topSpeed, i.handbrake, s.feel);
-    const braking = i.brake > BRAKE_ON;
-    if (braking && i.throttle < 0.1 && forward < REVERSE_BELOW) return { wheel: { turn, gas: 0, reverse: true }, handbrake: i.handbrake };
-    return { wheel: { turn, gas: braking ? 0 : i.throttle, reverse: false }, brake: braking, handbrake: i.handbrake };
+    const pressed = i.brake > BRAKE_ON;
+    // (TOP-DOWN: the brake with the wheel turned hard is the handbrake, at speed)
+    this.slid = s.style === 'topdown' && pressed && Math.abs(this.wheel) >= SLIDE.wheel && forward >= car.cls.topSpeed * SLIDE.from;
+    const handbrake = i.handbrake || this.slid;
+    const braking = pressed && !this.slid;
+    const turn = tyreTurn(this.wheel, Math.abs(forward) / car.cls.topSpeed, handbrake, s.feel);
+    if (pressed && i.throttle < 0.1 && forward < REVERSE_BELOW) return { wheel: { turn, gas: 0, reverse: true }, handbrake };
+    return { wheel: { turn, gas: pressed ? 0 : i.throttle, reverse: false }, brake: braking, handbrake };
   }
 }

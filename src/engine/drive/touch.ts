@@ -9,10 +9,13 @@
 // gas is on unless you brake.
 //
 // SIDES in the settings puts the steering under the left thumb (the pedals right) or the other way round.
+//
+// In TOP-DOWN there are no pedals, just BRAKE: the whole of the other thumb's half (braking with the wheel turned hard
+// slides the car: driver.ts). Once you've steered, the wheel fades back out of the picture.
 
 import { vibrate } from '../haptics';
 import type { Intent } from './intent';
-import type { GasMode, SteerSide } from './settings';
+import type { DriveStyle, GasMode, SteerSide } from './settings';
 
 /** How the steering drag reads: px a thumb goes across for full lock, and px of wobble ignored round where it landed. */
 export const DRAG = { full: 64, dead: 4 };
@@ -55,6 +58,8 @@ export class TouchDriving {
   /** the pedal each thumb on the pedals is on */
   private readonly onPedal = new Map<number, Pedal | undefined>();
   private gas: GasMode = 'manual';
+  /** TOP-DOWN: the other half all BRAKE */
+  private brakeZone = false;
 
   constructor(host: HTMLElement) {
     this.el = el('div', 'drive');
@@ -74,11 +79,13 @@ export class TouchDriving {
     this.bindPedals();
   }
 
-  /** SIDES and GAS from the settings. */
-  setOptions(side: SteerSide, gas: GasMode): void {
+  /** SIDES, GAS and STYLE from the settings. */
+  setOptions(side: SteerSide, gas: GasMode, style: DriveStyle = 'sim'): void {
     this.el.dataset.side = side;
     this.el.dataset.gas = gas;
+    this.el.dataset.style = style;
     this.gas = gas;
+    this.brakeZone = style === 'topdown';
   }
 
   /** What the thumbs ask for now. */
@@ -133,6 +140,8 @@ export class TouchDriving {
       if (!s || s.id !== e.pointerId) return;
       s.anchor = followAnchor(s.anchor, e.clientX);
       this.steer = dragSteer(e.clientX - s.anchor);
+      // (steered once: the wheel can fade)
+      if (this.steer !== 0) this.el.classList.add('steered');
     });
     const end = (e: PointerEvent) => {
       if (this.steering?.id === e.pointerId) this.endSteering();
@@ -152,6 +161,8 @@ export class TouchDriving {
 
   /** The pedal under (x, y), if any: the nearest of those it's on or close to. */
   private pedalAt(x: number, y: number): Pedal | undefined {
+    // (TOP-DOWN: anywhere on the half)
+    if (this.brakeZone) return 'brake';
     let best: Pedal | undefined;
     let bestD = Infinity;
     for (const p of Object.keys(this.pedals) as Pedal[]) {

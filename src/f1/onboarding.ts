@@ -3,19 +3,28 @@
 // you're using (the touch screen, keys, or a gamepad): go, full speed, slowing
 // for a bend, drifting, the co-driver's calls, and on to the finish. Each
 // prompt moves on once you've done it (or, for the ones that wait for a bend,
-// once you've been through one). Engine-free.
+// once you've been through one). TOP-DOWN's is shorter: the gas is always on and there's no DRIFT (braking with the
+// wheel turned hard slides the car), so it's go, a bend, the calls and the finish. Engine-free.
 
-import type { GasMode } from '../engine/drive/settings';
+import type { DriveStyle, GasMode } from '../engine/drive/settings';
 
 /** The device you're driving with. */
 export type Device = 'touch' | 'keys' | 'pad';
 
 export type Step = 'go' | 'faster' | 'bend' | 'drift' | 'notes' | 'lap' | 'done';
 export const STEPS: Step[] = ['go', 'faster', 'bend', 'drift', 'notes', 'lap', 'done'];
+/** The controls lap's steps in `style` (the last, 'done', isn't one to do). */
+export const stepsFor = (style: DriveStyle): Step[] => (style === 'topdown' ? ['go', 'bend', 'notes', 'lap', 'done'] : STEPS);
 
-/** What the prompt says for `step` on `device`, with GAS on MANUAL or AUTO (src/engine/drive/settings.ts). */
-export function prompt(step: Step, device: Device, gas: GasMode = 'manual'): string {
+/** What the prompt says for `step` on `device`, with GAS on MANUAL or AUTO, in `style` (src/engine/drive/settings.ts). */
+export function prompt(step: Step, device: Device, gas: GasMode = 'manual', style: DriveStyle = 'sim'): string {
   const auto = gas === 'auto';
+  if (style === 'topdown' && step === 'bend') {
+    // (no DRIFT: the brake with the wheel turned hard slides the car)
+    if (device === 'touch') return 'BRAKE BEFORE A BEND · BRAKE AND STEER HARD TO SLIDE';
+    if (device === 'keys') return 'DOWN TO BRAKE · DOWN AND STEER HARD TO SLIDE';
+    return 'LEFT TRIGGER TO BRAKE · BRAKE AND STEER HARD TO SLIDE';
+  }
   switch (step) {
     case 'go':
       if (device === 'touch') return auto ? 'THE GAS IS ON · DRAG ACROSS TO STEER' : 'HOLD GAS TO GO · DRAG ACROSS TO STEER';
@@ -56,8 +65,8 @@ export interface Facts {
   lapDone: boolean;
 }
 
-/** Move the prompt on if its step is done; true if it moved. */
-export function advance(o: Onboarding, f: Facts): boolean {
+/** Move the prompt on if its step is done (the steps as `steps` has them); true if it moved. */
+export function advance(o: Onboarding, f: Facts, steps: Step[] = STEPS): boolean {
   const through = f.bends - o.from;
   const done =
     o.step === 'go' ? f.speed > 100
@@ -69,7 +78,7 @@ export function advance(o: Onboarding, f: Facts): boolean {
     : o.step === 'lap' ? f.lapDone
     : false;
   if (!done) return false;
-  o.step = STEPS[STEPS.indexOf(o.step) + 1];
+  o.step = steps[steps.indexOf(o.step) + 1] ?? 'done';
   o.from = f.bends;
   return true;
 }

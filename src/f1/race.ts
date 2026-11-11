@@ -17,14 +17,15 @@ import { NORMAL, handlingFor, type Difficulty } from './difficulty';
 import { DRY, lookAt as weatherLook, type Weather } from './weather';
 import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
-import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, type Device, type Onboarding } from './onboarding';
+import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, stepsFor, type Device, type Onboarding } from './onboarding';
 import { Driver, forwardSpeed } from '../engine/drive/driver';
 import { KeyDriving } from '../engine/drive/keys';
 import { readPad } from '../engine/drive/pad';
 import { driveSettings } from '../engine/drive/settings';
 import { TouchDriving } from '../engine/drive/touch';
 import { isView, nextView, setView, viewSetting, type ViewId } from './view';
-import { TOP_DOWN, bestKey, rallyCar, styleHandling } from './style';
+import { RESCUE, newRescue, stepRescue } from './rescue';
+import { SIGHT, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
@@ -141,6 +142,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const governor = new QualityGovernor();
   let viewW = fit.width;
   let viewH = fit.height;
+  let desktop = fit.desktop;
   let sizeKey = '';
   const applySize = () => {
     const q = QUALITY_LEVELS[governor.level];
@@ -158,6 +160,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     placeHud(f.desktop);
     viewW = f.width;
     viewH = f.height;
+    desktop = f.desktop;
     camera.aspect = viewW / f.height;
     // (without this the camera keeps its first shape, and a wider screen stretches the picture)
     camera.updateProjectionMatrix();
@@ -274,6 +277,10 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   let session: 'rally' | 'tutorial' = mode;
   /** the controls lap: the prompt you're on, the bends you've been through, and where you were last frame */
   let learn: { o: Onboarding; bends: number; lastIdx: number } | undefined;
+  /** TOP-DOWN's way back onto the road (rescue.ts) */
+  const rescue = newRescue();
+  /** the controls lap's steps (TOP-DOWN's are fewer: onboarding.ts) */
+  const lapSteps = stepsFor(style);
   /** the controls lap's bends (their middles, as samples) */
   let tutorApexes: number[] = [];
   /**
@@ -480,6 +487,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
         /** the music track playing (or loading) */
         music: () => musicPlaying(),
         skip: (seconds: number) => (race.clock += seconds),
+        /** your car moved by (dx, dy) px and turned to `heading`, stopped (off the road, say) */
+        put: (dx: number, dy: number, heading: number) => Object.assign(race.entrants[you].car, { x: race.entrants[you].car.x + dx, y: race.entrants[you].car.y + dy, heading, vx: 0, vy: 0, spin: 0 }),
         /** put your car `along` px down the road (less than 0: that far short of the flying finish), going along it at `speed` px/s */
         place: (along: number, speed = 150) => {
           const e = race.entrants[you];
@@ -600,8 +609,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   /** What each deck button does just now (race/deckLabels.ts). */
   const deckLabels = () => labelsFor({
     settings: pauseSettingsOn, resultsUp: results.style.display === 'block', tutorial: session === 'tutorial', learnt: learn?.o.step === 'done', done, paused,
-    // (on a touch screen DRIFT is the driving layer's, not the deck's)
-    drift: device() !== 'touch',
+    // (on a touch screen DRIFT is the driving layer's, not the deck's; TOP-DOWN has none: the brake slides)
+    drift: device() !== 'touch' && style !== 'topdown',
   });
   const deckEl = document.getElementById('deck');
   const showDeckLabels = () => {
@@ -609,7 +618,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     deckEl?.classList.toggle('driving', !paused && !done && results.style.display !== 'block');
     if (touchDrive) {
       const ds = driveSettings();
-      touchDrive.setOptions(ds.side, ds.gas);
+      touchDrive.setOptions(ds.side, ds.gas, ds.style);
       touchDrive.showWheel(driver.wheelPos());
     }
     const labels = deckLabels();
@@ -664,6 +673,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   let camYaw: number | undefined;
   /** px the TOP-DOWN camera looks ahead of the car (eased) */
   let topLead = TOP_VIEW.lead / 2;
+  /** the way TOP-DOWN's camera frames the road for (radians, eased; style.ts: SIGHT) */
+  let sightWay: number | undefined;
   const setFov = (fov: number) => {
     if (camera.fov === fov) return;
     camera.fov = fov;
@@ -831,11 +842,24 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       learn.bends += apexesPassed(tutorApexes, learn.lastIdx, p.idx, track.samples.length);
       learn.lastIdx = p.idx;
       const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: driver.intent().handbrake, canDrift: true, lapDone: pastFinish() };
-      if (nextPrompt(learn.o, facts)) sounds.record();
+      if (nextPrompt(learn.o, facts, lapSteps)) sounds.record();
       if (me.car.wrecked) startTutorial();
     }
     const me = race.entrants[you];
     const p = me.progress;
+    // TOP-DOWN: stopped off the road a while, back on it where you left it, facing down it, at a cost (rescue.ts)
+    if (style === 'topdown' && race.phase === 'racing' && steps > 0 && !pastFinish() && !me.car.wrecked && running(me)) {
+      const out = lateralOffset(track, p.idx, me.car.x, me.car.y);
+      if (stepRescue(rescue, out, speedOf(me.car), steps * SIM_DT)) {
+        const q = track.samples[p.idx];
+        Object.assign(me.car, { x: q.x, y: q.y, heading: q.dir, vx: 0, vy: 0, spin: 0 });
+        me.car.z = groundAt(grid, q.x, q.y).h;
+        before = undefined;
+        driver.reset();
+        if (session === 'rally') p.penalty += RESCUE.cost;
+        announce(session === 'rally' ? `BACK ON THE ROAD · +${RESCUE.cost} S` : 'BACK ON THE ROAD', '#f2c14e', 2);
+      }
+    }
     // your car's vibration: crashes, landings, rough ground, kerbs
     {
       const ev = cars[you];
@@ -917,7 +941,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     }
     paceCard.update(clock, done);
     hud.setPosition(rallyRun ? `SS${rallyRun.stage + 1}/${rallyEvent(rallyRun.rally).stages.length}` : 'SHAKEDOWN');
-    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}`
+    hud.setLap(learn ? `${Math.min(lapSteps.length - 1, lapSteps.indexOf(learn.o.step) + 1)}/${lapSteps.length - 1}`
       : stage?.result ? (stage.result.time === undefined ? 'DNF' : `P${stage.result.place}`)
       : race.phase === 'lights' ? 'ON THE LINE' : `${Math.max(0, kmOf(finishAt - p.idx * track.spacing)).toFixed(1)} KM TO GO`);
     // the banner: the countdown, GO!, then the most urgent message
@@ -940,7 +964,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       const [text, color] = bannerMessage({
         out: me.car.wrecked || !!p.retired, done, finishedPlace: stage?.result?.place || undefined, resultsUp: results.style.display === 'block',
         wrongWay: p.wrongWay, clock, notice,
-        learn: learn && { text: prompt(learn.o.step, device(), driveSettings().gas), last: learn.o.step === 'done' },
+        learn: learn && { text: prompt(learn.o.step, device(), driveSettings().gas, style), last: learn.o.step === 'done' },
       });
       showBanner(text);
       banner.style.color = color;
@@ -966,13 +990,19 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     // camera: follow your car, looking ahead along its motion
     const c = me.car;
     const drawn = pose(c, you, alpha);
+    // (TOP-DOWN's framing, for the way the car's going, eased: style.ts)
+    const moving = speedOf(c) > 30;
+    const way = moving ? Math.atan2(c.vx, -c.vy) : c.heading;
+    // (snapped to it after a restart)
+    sightWay = sightWay === undefined || !before ? way : lerpAngle(sightWay, way, 1 - Math.exp(-dt / SIGHT.ease));
+    const framing = topDownFraming(Math.sin(sightWay), -Math.cos(sightWay), { width: viewW, height: viewH, desktop }, c.cls.topSpeed);
     if (lookAt) {
       // (the debug hook's: the camera on a point of the map)
       target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
       focus.copy(target);
     } else {
-      // (TOP-DOWN looks further ahead)
-      const lead = style === 'topdown' ? TOP_DOWN.lead : t.lead;
+      // (TOP-DOWN looks further ahead: further still, and pulled back, with the road running across or down the screen)
+      const lead = style === 'topdown' ? framing.lead : t.lead;
       target.set(drawn.x + (c.vx / c.cls.topSpeed) * lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * lead);
     }
     focus.lerp(target, 1 - Math.exp(-dt * 6));
@@ -981,7 +1011,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const rushWant = running(me) ? rushOf(speedOf(me.car), me.car.cls.topSpeed) : 0;
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
     // (TOP-DOWN's pulled back further)
-    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (style === 'topdown' ? TOP_DOWN.zoom : t.zoom)) * (1 + RUSH.pullBack * rushNow);
+    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (style === 'topdown' ? framing.zoom : t.zoom)) * (1 + RUSH.pullBack * rushNow);
     // (the chase camera, or another tried out with ?cam=: CAMERAS; held on a point of the map, the classic view)
     const mode = lookAt ? 'classic' : camMode();
     if (mode === 'classic') {
