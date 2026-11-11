@@ -13,6 +13,7 @@ import { menuPick, menuTick } from './sounds';
 import { DIFFICULTIES, type Difficulty } from './difficulty';
 import { grouped, nextShown, settingsList, settingsRows as settingsRowsNow, versionLine } from './settingsRows';
 import { openReport, reportOpen } from './report';
+import { legalLine } from './legal';
 
 /** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
 const SWIPE = 28;
@@ -156,7 +157,8 @@ export function ownTabButton(): HTMLButtonElement {
 
 /**
  * The settings screen in `host`: DIFFICULTY, then the rows the pause screen has too (each remembered as it changes:
- * settingsRows.ts), DONE, and REPORT (a report of the screen as it is; not on YouTube). Resolves with the difficulty
+ * settingsRows.ts), DONE, and REPORT (a report of the screen as it is; not on YouTube), the version, and the privacy policy
+ * and terms (legal.ts; not on YouTube). Resolves with the difficulty
  * picked once DONE (or B, or the phone's back button).
  */
 export function showSettings(host: HTMLElement, services: Services, difficulty: Difficulty, closed?: AbortSignal): Promise<Difficulty> {
@@ -182,7 +184,7 @@ export function showSettings(host: HTMLElement, services: Services, difficulty: 
     const reportButton = menuButton('REPORT', () => void openReport({ mode: 'settings' }, [], () => menuPick()));
     const places: HTMLElement[] = [...rows.map((r) => r.el), doneButton, ...(YOUTUBE ? [] : [reportButton])];
     // (the rows in their groups, under their headings: settingsRows.ts)
-    screen.append(title, ...settingsList(rows), ...places.slice(rows.length), versionLine());
+    screen.append(title, ...settingsList(rows), ...places.slice(rows.length), versionLine(), ...(YOUTUBE ? [] : [legalLine()]));
     let focus = 0;
     const show = () => places.forEach((el, k) => el.classList.toggle('focused', k === focus));
     rows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
