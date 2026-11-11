@@ -23,9 +23,11 @@ import { KeyDriving } from '../engine/drive/keys';
 import { readPad } from '../engine/drive/pad';
 import { driveSettings } from '../engine/drive/settings';
 import { TouchDriving } from '../engine/drive/touch';
+import { screenToMap } from '../engine/drive/point';
+import type { Intent } from '../engine/drive/intent';
 import { isView, nextView, setView, viewSetting, type ViewId } from './view';
 import { RESCUE, newRescue, stepRescue } from './rescue';
-import { SIGHT, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
+import { SIGHT, autoSpeed, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
@@ -253,7 +255,17 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const deckHost = document.getElementById('deck');
   const touchDrive = deckHost && isTouchScreen() ? new TouchDriving(deckHost) : undefined;
   const keyDrive = new KeyDriving();
-  const driver = new Driver({ touch: touchDrive && (() => touchDrive.intent()), keys: () => keyDrive.intent(), pad: () => readPad() }, driveSettings);
+  /** CONTROL: POINT (TOP-DOWN's): the way pointed on the screen turned into the way on the map, through the camera
+   * (north up and pitched in TOP-DOWN's own view; turned with the car or the road in another) */
+  const onMap = <T extends Intent | undefined>(i: T): T => {
+    if (!i?.point) return i;
+    const squash = camYaw === undefined ? Math.sin(deg(LOOK.pitch)) : 1;
+    return { ...i, point: screenToMap(i.point.x, i.point.y, camYaw ?? 0, squash) };
+  };
+  const pointing = () => driveSettings().control === 'point';
+  const driver = new Driver({ touch: touchDrive && (() => onMap(touchDrive.intent())), keys: () => onMap(keyDrive.intent(pointing())), pad: () => onMap(readPad()) }, driveSettings);
+  /** CONTROL: POINT's own speed: how fast the car can go at each point of the road and still take what's ahead */
+  const safeAt = autoSpeed(track, f1, HANDLING);
   const setPaused = (on: boolean) => {
     if (on === paused) return;
     paused = on;
@@ -484,6 +496,12 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
         you: () => ({ ...race.entrants[you].progress, speed: speedOf(race.entrants[you].car), health: race.entrants[you].car.health, x: race.entrants[you].car.x, y: race.entrants[you].car.y }),
         /** your car driven by the AI's line at `pace`, for trying out a stage hands-off */
         autopilot: (pace = 0.97) => (race.entrants[you].ai = { lane: 0, pace }),
+        /** the middle of the road `px` ahead of your car along it (for steering a test thumb at it) */
+        ahead: (px: number) => {
+          const n = track.samples.length;
+          const q = track.samples[Math.min(n - 1, race.entrants[you].progress.idx + Math.round(px / track.spacing))];
+          return { x: q.x, y: q.y };
+        },
         /** your car: where, which way, how fast (px/s) */
         me: () => {
           const c = race.entrants[you].car;
@@ -639,7 +657,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     deckEl?.classList.toggle('driving', !paused && !done && results.style.display !== 'block');
     if (touchDrive) {
       const ds = driveSettings();
-      touchDrive.setOptions(ds.side, ds.gas, ds.style);
+      touchDrive.setOptions(ds.side, ds.gas, ds.style, ds.control);
       touchDrive.showWheel(driver.wheelPos());
     }
     const labels = deckLabels();
@@ -794,7 +812,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const roadAhead = (car: Car) => {
       const at = race.entrants[you].progress.idx;
       const ahead = Math.min(track.samples.length - 1, at + 6 + Math.round((Math.max(0, forwardSpeed(car)) * 0.35) / track.spacing));
-      return { dir: track.samples[ahead].dir, lateral: lateralOffset(track, at, car.x, car.y) };
+      return { dir: track.samples[ahead].dir, lateral: lateralOffset(track, at, car.x, car.y), safe: safeAt(at, car.tyreGrip) };
     };
     /** your car's input for one fixed step */
     const driveInput = (car: Car): DriveInput => driver.step(car, SIM_DT, roadAhead(car));
@@ -990,7 +1008,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       const state = {
         out: me.car.wrecked || !!p.retired, done, finishedPlace: stage?.result?.place || undefined, clean: stage?.result?.clean, resultsUp: results.style.display === 'block',
         wrongWay: p.wrongWay, clock, notice,
-        learn: learn && { text: prompt(learn.o.step, device(), driveSettings().gas, style), last: learn.o.step === 'done' },
+        learn: learn && { text: prompt(learn.o.step, device(), driveSettings().gas, style, driveSettings().control), last: learn.o.step === 'done' },
       };
       const [text, color] = bannerMessage(state);
       showBanner(text);

@@ -20,6 +20,8 @@ export const ASSIST = {
 export interface RoadAhead {
   dir: number;
   lateral: number;
+  /** px/s the car can go now and still take the road ahead (CONTROL: POINT slows to it on its own) */
+  safe?: number;
 }
 
 const clamp1 = (v: number) => Math.max(-1, Math.min(1, v));

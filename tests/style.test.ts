@@ -141,7 +141,7 @@ describe("TOP-DOWN's camera (P2: even sight)", () => {
 });
 
 /**
- * A player on the keys (the gas always on) driving `stageId` in TOP-DOWN: what they see is 0.15 s old, so they lead it
+ * A player on the keys (the gas always on, CONTROL on WHEEL) driving `stageId` in TOP-DOWN: what they see is 0.15 s old, so they lead it
  * by that much; they steer at the road 0.4 s ahead, and brake for what the camera shows of it on a phone (style.ts:
  * topDownFraming, the way the car's going).
  */
@@ -156,7 +156,7 @@ function lateDriver(stageId: string) {
   const LATE = 0.15;
   const lag = Math.round(LATE * 60);
   let held = new Set<string>();
-  const driver = new Driver({ keys: () => keysIntent(held), pad: () => undefined }, () => ({ ...DRIVE_DEFAULTS, gas: 'auto' }));
+  const driver = new Driver({ keys: () => keysIntent(held), pad: () => undefined }, () => ({ ...DRIVE_DEFAULTS, gas: 'auto', control: 'wheel' }));
   const car = newCar(cls, c.slots[0].x, c.slots[0].y, c.slots[0].heading);
   let p = newProgress(Math.round((track.stage!.start - 24) / track.spacing));
   const seenAt: { x: number; y: number; h: number; v: number; vx: number; vy: number; idx: number }[] = [];
