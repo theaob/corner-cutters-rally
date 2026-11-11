@@ -128,8 +128,9 @@ export function createHud(scheme: Scheme, difficulty: Difficulty) {
   const place = (desktop: boolean, host: HTMLElement, lap = false) => {
     if (desktop) {
       style(readout, { left: '12px', top: '14px', fontSize: '12px', lineHeight: 'normal', width: 'auto' });
-      style(cardSlot, { top: '14px', left: '50%', right: 'auto', width: 'auto', maxWidth: '60%', transform: 'translateX(-50%)' });
-      banner.style.top = '150px';
+      // (under the deck's strip, the stage's number, top middle)
+      style(cardSlot, { top: '52px', left: '50%', right: 'auto', width: 'auto', maxWidth: '60%', transform: 'translateX(-50%)' });
+      banner.style.top = '180px';
       style(lesson, { top: 'auto', bottom: '18%' });
       results.style.maxHeight = 'calc(82% - 8px)';
       results.style.fontSize = '12px';
@@ -139,7 +140,8 @@ export function createHud(scheme: Scheme, difficulty: Difficulty) {
       // under its SKIP, across the middle)
       if (lap) style(cardSlot, { top: '150px', left: '50%', right: 'auto', width: '240px', transform: 'translateX(-50%)' });
       else style(cardSlot, { top: '52px', left: '134px', right: '62px', width: 'auto', transform: 'none' });
-      banner.style.top = lap ? '262px' : '164px';
+      // (lower with LARGE text: the card's taller)
+      banner.style.top = lap ? 'calc(206px + 56px * var(--ts, 1))' : 'calc(108px + 56px * var(--ts, 1))';
       // (just over the steering pad and the brake: index.html's .drive)
       style(lesson, { top: 'auto', bottom: '22%' });
       // (the table, centred top to bottom with the buttons under it, clear of the stick above and below)

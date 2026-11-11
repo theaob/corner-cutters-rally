@@ -68,3 +68,11 @@ export function applyTheme(root: HTMLElement | undefined = globalThis.document?.
   if (!root) return;
   for (const [name, value] of Object.entries(CSS_VARS)) root.style.setProperty(name, value);
 }
+
+/** Each rally surface's colour, down the side of its card on home. */
+export const SURFACE_COLOR: Record<'GRAVEL' | 'SNOW' | 'SAND' | 'TARMAC', string> = {
+  GRAVEL: '#c98a4a',
+  SNOW: '#bfe3f7',
+  SAND: '#ecc57a',
+  TARMAC: '#a3a9b3',
+};

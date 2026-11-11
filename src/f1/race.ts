@@ -43,7 +43,7 @@ import { RUSH, newShake, rushOf, shakeOffset, shakeOn, stepShake, timeScale } fr
 import { RaceSounds, menuPick, menuTick } from './sounds';
 import { onBack } from '../engine/backButton';
 import { menuButton } from './menu';
-import { settingsRows, versionLine } from './settingsRows';
+import { nextShown, settingsList, settingsRows, versionLine } from './settingsRows';
 import { LAUNCH, kickOf, newLaunch, stepLaunch } from './launch';
 import { setAudioPaused } from '../engine/audio';
 import { musicPlaying, playMusic } from '../engine/music';
@@ -528,12 +528,12 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   // changes; tapped and swiped, or up/down and left/right on the deck, A, START or B back to the pause screen
   const pauseSettings = document.createElement('div');
   pauseSettings.className = 'circuit-menu pause-settings';
-  Object.assign(pauseSettings.style, { zIndex: '5', display: 'none', justifyContent: 'center', background: '#000' });
+  Object.assign(pauseSettings.style, { zIndex: '5', display: 'none', justifyContent: 'safe center', background: 'rgba(14,13,22,.9)' });
   const settingsTitle = document.createElement('h2');
   settingsTitle.textContent = 'SETTINGS';
   const pauseRows = settingsRows();
   const settingsDone = menuButton('DONE', () => openPauseSettings(false));
-  pauseSettings.append(settingsTitle, ...pauseRows.map((r) => r.el), settingsDone, versionLine());
+  pauseSettings.append(settingsTitle, ...settingsList(pauseRows), settingsDone, versionLine());
   host.append(pauseSettings);
   /** the settings are up, and the row the deck is on (the last place is DONE) */
   let pauseSettingsOn = false;
@@ -721,9 +721,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     if (pauseSettingsOn) {
       const [up, down, left, right, a, b, start] = (['up', 'down', 'left', 'right', 'a', 'b', 'start'] as const).map(pressed);
       pressed('select');
-      const places = pauseRows.length + 1;
       if (up || down) {
-        pauseFocus = (pauseFocus + (down ? 1 : -1) + places) % places;
+        // (past the rows hidden just now: VIEW and GAS in TOP-DOWN)
+        pauseFocus = nextShown([...pauseRows.map((r) => r.el), settingsDone], pauseFocus, down ? 1 : -1);
         showPauseFocus();
       }
       const row = pauseRows[pauseFocus];

@@ -2,7 +2,9 @@
 // the screen's shape (SCREEN: HANDHELD or WIDE, where the device can switch), the text's size (TEXT) and the
 // colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the driving's STYLE (TOP-DOWN or SIM), the camera (VIEW), the driving (GAS, STEERING, ASSIST, and on a touch screen SIDES: src/engine/drive/settings.ts), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
-// as it changes. Difficulty is the menu's alone (not changed mid-race).
+// as it changes. Difficulty is the menu's alone (not changed mid-race). They're shown in three groups, DRIVING,
+// SCREEN and SOUND (settingsList), and VIEW and GAS only when STYLE is SIM: TOP-DOWN has its own view and the gas
+// always on, so there they'd do nothing.
 
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
@@ -34,18 +36,66 @@ export function useLayoutSwitch(s: LayoutSwitch): void {
 const nearest = (v: number) => VOLUMES.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
 const volumeName = (v: number) => ['OFF', 'LOW', 'MEDIUM', 'HIGH'][VOLUMES.indexOf(v as (typeof VOLUMES)[number])];
 
-export type SettingsRow = ReturnType<typeof optionRow<unknown>>;
+export type SettingsRow = ReturnType<typeof optionRow<unknown>> & { group?: SettingsGroup };
+
+/** The settings' groups, in order. */
+export const SETTINGS_GROUPS = ['DRIVING', 'SCREEN', 'SOUND'] as const;
+export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
+
+/** Each row's group, by its label (a row not listed goes last, under no heading). */
+export const ROW_GROUP: Record<string, SettingsGroup> = {
+  DIFFICULTY: 'DRIVING', STYLE: 'DRIVING', VIEW: 'DRIVING', GAS: 'DRIVING', STEERING: 'DRIVING', ASSIST: 'DRIVING', SIDES: 'DRIVING', VIBRATION: 'DRIVING',
+  SCREEN: 'SCREEN', TEXT: 'SCREEN', COLOURS: 'SCREEN', 'SCREEN SHAKE': 'SCREEN',
+  SOUND: 'SOUND', MUSIC: 'SOUND',
+};
+
+/** `rows` in their groups, each group under its heading: the elements to show, in order. */
+export function settingsList(rows: { el: HTMLElement; group?: SettingsGroup }[]): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  for (const g of SETTINGS_GROUPS) {
+    const mine = rows.filter((r) => r.group === g);
+    if (!mine.length) continue;
+    const h = document.createElement('h3');
+    h.className = 'settings-group';
+    h.textContent = g;
+    out.push(h, ...mine.map((r) => r.el));
+  }
+  out.push(...rows.filter((r) => !r.group).map((r) => r.el));
+  return out;
+}
+
+/** The next of `els` shown (not hidden: VIEW and GAS in TOP-DOWN) from `from`, `by` 1 or -1, round the ends. */
+export function nextShown(els: HTMLElement[], from: number, by: 1 | -1): number {
+  for (let k = 1; k <= els.length; k++) {
+    const i = (((from + by * k) % els.length) + els.length) % els.length;
+    if (els[i].style.display !== 'none') return i;
+  }
+  return from;
+}
+
+/** Put each row in its group (by its label: ROW_GROUP). */
+export function grouped<T extends { el: HTMLElement }>(row: T, label: string): T & { group?: SettingsGroup } {
+  return Object.assign(row, { group: ROW_GROUP[label] });
+}
 
 /** The rows, read from the save as they are now. */
 export function settingsRows(): SettingsRow[] {
   const viewRow = optionRow('VIEW', VIEWS, viewSetting(), (v) => ({ name: v.toUpperCase(), about: VIEW_ABOUT[v] }), setView);
   // the driving (src/engine/drive/)
   const ds = savedDriveSettings();
+  const gasRow = optionRow('GAS', GAS_MODES, ds.gas, (g) => ({ name: g.toUpperCase(), about: g === 'auto' ? 'always on: you steer and brake' : 'yours: hold the gas pedal (SIM)' }), (g) => setDriveSetting('gas', g));
+  // (VIEW and GAS only for SIM: shown or hidden as STYLE changes)
+  const simOnly = (st: string) => {
+    for (const r of [viewRow, gasRow]) r.el.style.display = st === 'sim' ? '' : 'none';
+  };
   const styleRow = optionRow('STYLE', DRIVE_STYLES, ds.style, (st) => ({
     name: st === 'topdown' ? 'TOP-DOWN' : 'SIM',
     about: st === 'topdown' ? 'high view · gas always on · soft roadside' : 'your VIEW and GAS · full speed · hard trees',
-  }), (st) => setDriveSetting('style', st));
-  const gasRow = optionRow('GAS', GAS_MODES, ds.gas, (g) => ({ name: g.toUpperCase(), about: g === 'auto' ? 'always on: you steer and brake' : 'yours: hold the gas pedal (SIM)' }), (g) => setDriveSetting('gas', g));
+  }), (st) => {
+    setDriveSetting('style', st);
+    simOnly(st);
+  });
+  simOnly(ds.style);
   const steeringRow = optionRow('STEERING', STEER_FEELS, ds.feel, (f) => ({
     name: f.toUpperCase(),
     about: f === 'gentle' ? 'slower and softer, for fine lines' : f === 'quick' ? 'sharper, for the hairpins' : 'the wheel as set up',
@@ -73,7 +123,13 @@ export function settingsRows(): SettingsRow[] {
   const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
   const coloursRow = optionRow('COLOURS', [false, true], colourSafe(), (on) => ({ name: on ? 'COLOUR-SAFE' : 'STANDARD', about: on ? 'splits in blue, white, orange, and in words' : 'splits in purple, green, amber' }), setColourSafe);
   // (STATS only where the build has a backend to send them to)
-  return [...(screenRow ? [screenRow] : []), textRow, coloursRow, styleRow, viewRow, gasRow, steeringRow, assistRow, ...(touchScreen ? [sidesRow] : []), vibrationRow, shakeRow, soundRow, musicRow, ...(online() ? [statsRow] : [])] as SettingsRow[];
+  // (each with its label, for its group: STATS, where the build has a backend, under no heading at the end)
+  const rows: [SettingsRow, string][] = ([
+    [styleRow, 'STYLE'], [viewRow, 'VIEW'], [gasRow, 'GAS'], [steeringRow, 'STEERING'], [assistRow, 'ASSIST'], [touchScreen && sidesRow, 'SIDES'],
+    [vibrationRow, 'VIBRATION'], [screenRow, 'SCREEN'], [textRow, 'TEXT'], [coloursRow, 'COLOURS'], [shakeRow, 'SCREEN SHAKE'],
+    [soundRow, 'SOUND'], [musicRow, 'MUSIC'], [online() && statsRow, 'STATS'],
+  ] as [SettingsRow | false | undefined, string][]).filter((r): r is [SettingsRow, string] => !!r[0]);
+  return rows.map(([r, label]) => grouped(r, label)) as SettingsRow[];
 }
 
 /** The build's version (package and commit: vite.config.ts) as the settings say it: VERSION 0.0.1 · BUILD 2790585. */

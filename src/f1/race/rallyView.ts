@@ -150,6 +150,18 @@ export function createPaceCard() {
   };
 }
 
+/** The podium's colours: gold, silver, bronze, for the places set apart at the top of a table. */
+export const PODIUM = [COLOR.gold, '#c9cfd8', '#d08a52'] as const;
+
+/** s: the widest gap a results bar is drawn to (wider ones fill it) */
+export const GAP_SCALE = 30;
+
+/** A gap's bar, as a share (0…1) of the widest gap shown (`most`); none for the leader or a gap not known. */
+export function gapBar(gap: number | undefined, most: number): number {
+  if (gap === undefined || !(gap > 0) || !(most > 0)) return 0;
+  return Math.min(1, gap / most);
+}
+
 /** A cell of a results row. */
 const cell = (text: string, css: Partial<CSSStyleDeclaration> = {}) => {
   const td = document.createElement('td');
@@ -158,19 +170,49 @@ const cell = (text: string, css: Partial<CSSStyleDeclaration> = {}) => {
   return td;
 };
 
-/** A table of `rows` (each: its cells, and whether it's yours). */
-function table(rows: { cells: [string, Partial<CSSStyleDeclaration>?][]; you: boolean }[]): HTMLTableElement {
-  const t = document.createElement('table');
-  style(t, { width: '100%', borderCollapse: 'collapse', marginBottom: '8px' });
-  for (const r of rows) {
-    const tr = document.createElement('tr');
-    if (r.you) style(tr, { background: 'rgba(242,193,78,.18)', color: COLOR.gold });
-    for (const [text, css] of r.cells) tr.append(cell(text, css));
-    t.append(tr);
-  }
-  return t;
+/** A cell with the gap's bar in it, `share` of its width. */
+const barCell = (share: number, color: string) => {
+  const td = document.createElement('td');
+  style(td, { padding: '2px 4px', width: '22%' });
+  const bar = document.createElement('div');
+  style(bar, { height: '5px', borderRadius: '2px', width: `${Math.round(share * 100)}%`, minWidth: share > 0 ? '2px' : '0', background: color, opacity: '.75' });
+  td.append(bar);
+  return td;
+};
+
+/** A row of a results table: its cells, whether it's yours, and its gap (for its bar). */
+interface ResultRow {
+  cells: [string, Partial<CSSStyleDeclaration>?][];
+  you: boolean;
+  gap?: number;
 }
 
+/**
+ * A table of `rows`, in order: the first three set apart (their places in the podium's colours, a line under the
+ * third), each gap drawn as a bar, and yours kept in view (it sticks to the top or bottom of the panel as it scrolls).
+ */
+function table(rows: ResultRow[]): HTMLTableElement {
+  const t = document.createElement('table');
+  style(t, { width: '100%', borderCollapse: 'collapse', marginBottom: '8px' });
+  // (the bars to the widest gap, up to half a minute: a crew who didn't finish shouldn't squash everyone else's)
+  const most = Math.min(GAP_SCALE, Math.max(0, ...rows.map((r) => (r.gap !== undefined && Number.isFinite(r.gap) ? r.gap : 0))));
+  rows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    if (r.you) {
+      // (kept in view: an opaque row, stuck to whichever edge of the panel it would scroll past)
+      style(tr, { background: '#3b3426', color: COLOR.gold, position: 'sticky', top: '0', bottom: '0', zIndex: '1' });
+      tr.dataset.you = '';
+    }
+    if (i === 2 && rows.length > 3) tr.style.borderBottom = `1px solid ${COLOR.keyEdge}`;
+    const [place, ...rest] = r.cells;
+    tr.append(cell(place[0], { ...place[1], ...(i < 3 ? { color: PODIUM[i] } : {}) }));
+    const [name, time, ...more] = rest;
+    tr.append(cell(name[0], name[1]), cell(time[0], time[1]), barCell(gapBar(r.gap, most), r.you ? COLOR.gold : COLOR.muted));
+    for (const [text, css] of more) tr.append(cell(text, css));
+    t.append(tr);
+  });
+  return t;
+}
 const heading = (text: string, color: string = COLOR.gold) => {
   const h = document.createElement('div');
   h.textContent = text;
@@ -186,6 +228,7 @@ export function renderStageResults(el: HTMLElement, r: Rally, k: number, stageNa
   const right = { textAlign: 'right' };
   const stage = stageOrder(r, k).map((o, i) => ({
     you: o.crew === r.you,
+    gap: i === 0 ? undefined : o.gap,
     cells: [
       [`${i + 1}`, dim], [name(o.crew)],
       [i === 0 ? fmt(o.time) : gapText(o.gap), right], [o.note ?? '', { color: COLOR.red, fontSize: '10px' }],
@@ -193,6 +236,7 @@ export function renderStageResults(el: HTMLElement, r: Rally, k: number, stageNa
   }));
   const after = standings(r).map((s, i) => ({
     you: s.crew === r.you,
+    gap: i === 0 ? undefined : s.gap,
     cells: [
       [`${i + 1}`, dim], [name(s.crew)], [i === 0 ? fmt(s.total) : gapText(s.gap), right],
     ] as [string, Partial<CSSStyleDeclaration>?][],

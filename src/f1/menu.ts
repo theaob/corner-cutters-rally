@@ -11,7 +11,7 @@ import type { Services } from '../engine/services';
 import { YOUTUBE } from '../engine/host';
 import { menuPick, menuTick } from './sounds';
 import { DIFFICULTIES, type Difficulty } from './difficulty';
-import { settingsRows as settingsRowsNow, versionLine } from './settingsRows';
+import { grouped, nextShown, settingsList, settingsRows as settingsRowsNow, versionLine } from './settingsRows';
 import { openReport, reportOpen } from './report';
 
 /** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
@@ -165,7 +165,7 @@ export function showSettings(host: HTMLElement, services: Services, difficulty: 
   screen.className = 'circuit-menu settings-view';
   const title = document.createElement('h2');
   title.textContent = 'SETTINGS';
-  const difficultyRow = optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about }));
+  const difficultyRow = grouped(optionRow('DIFFICULTY', DIFFICULTIES, difficulty, (d) => ({ name: d.name, about: d.about })), 'DIFFICULTY');
   const rows = [difficultyRow, ...settingsRowsNow()];
   return new Promise((resolve) => {
     let done = false;
@@ -181,7 +181,8 @@ export function showSettings(host: HTMLElement, services: Services, difficulty: 
     const doneButton = menuButton('DONE', finish);
     const reportButton = menuButton('REPORT', () => void openReport({ mode: 'settings' }, [], () => menuPick()));
     const places: HTMLElement[] = [...rows.map((r) => r.el), doneButton, ...(YOUTUBE ? [] : [reportButton])];
-    screen.append(title, ...places, versionLine());
+    // (the rows in their groups, under their headings: settingsRows.ts)
+    screen.append(title, ...settingsList(rows), ...places.slice(rows.length), versionLine());
     let focus = 0;
     const show = () => places.forEach((el, k) => el.classList.toggle('focused', k === focus));
     rows.forEach((r, k) => r.el.addEventListener('pointerdown', () => {
@@ -212,7 +213,8 @@ export function showSettings(host: HTMLElement, services: Services, difficulty: 
       const [down, up, left, right, a, b, start] = (['down', 'up', 'left', 'right', 'a', 'b', 'start'] as const).map((k) => pressed(k) && !reportOpen());
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       if (move) {
-        focus = (focus + move + places.length) % places.length;
+        // (past the rows hidden just now: VIEW and GAS in TOP-DOWN)
+        focus = nextShown(places, focus, move > 0 ? 1 : -1);
         menuTick();
         show();
       }

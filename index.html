@@ -531,10 +531,54 @@
       .live-backdrop ~ .circuit-menu {
         background: linear-gradient(rgba(14, 13, 22, 0.05), rgba(14, 13, 22, 0.15) 18%, rgba(14, 13, 22, 0.7) 30%, rgba(14, 13, 22, 0.8));
       }
-      /* (the settings on black, for reading: the race behind hidden) */
+      /* (the settings over home's backdrop, dimmed well enough to read; in a stage's pause, over the stage) */
       .circuit-menu.settings-view,
       .live-backdrop ~ .circuit-menu.settings-view {
-        background: #000;
+        background: rgba(14, 13, 22, 0.86);
+      }
+      /* the settings' groups: DRIVING, SCREEN, SOUND (src/f1/settingsRows.ts) */
+      .circuit-menu .settings-group {
+        margin: 8px 2px -2px;
+        font: calc(11px * var(--ts, 1)) var(--pixel);
+        font-weight: 400;
+        letter-spacing: 2px;
+        color: var(--accent-b);
+      }
+      /* home's small text on a dark panel, readable over the forest (src/f1/screens/rally.ts) */
+      .circuit-menu .info-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: rgba(14, 13, 22, 0.82);
+      }
+      /* a rally to pick: a card, its surface's colour down its side (src/f1/screens/rally.ts) */
+      .circuit-menu .rally-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        text-align: left;
+        border-left: 6px solid var(--surface, var(--gold));
+        background: rgba(21, 20, 31, 0.9);
+      }
+      .circuit-menu .rally-card .rally-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .circuit-menu .rally-card .surface {
+        font-size: calc(10px * var(--ts, 1));
+        letter-spacing: 1px;
+        color: var(--surface, var(--gold));
+      }
+      .circuit-menu .rally-card .rally-facts {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: calc(10px * var(--ts, 1));
+        color: var(--text);
       }
       /* the trophy cabinet: the titles won, the medal tally, each circuit's medals */
       .circuit-menu .cabinet {

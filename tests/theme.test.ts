@@ -58,3 +58,32 @@ describe('the calls without a voice', () => {
     expect(hasVoice({ getVoices: () => [{} as SpeechSynthesisVoice] })).toBe(true);
   });
 });
+
+describe('the settings in groups', () => {
+  it('DRIVING, SCREEN and SOUND, every row but STATS in one', async () => {
+    const { ROW_GROUP, SETTINGS_GROUPS } = await import('../src/f1/settingsRows');
+    expect(SETTINGS_GROUPS).toEqual(['DRIVING', 'SCREEN', 'SOUND']);
+    for (const label of ['DIFFICULTY', 'STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES', 'VIBRATION', 'SCREEN', 'TEXT', 'COLOURS', 'SCREEN SHAKE', 'SOUND', 'MUSIC']) {
+      expect(ROW_GROUP[label], label).toBeDefined();
+    }
+    expect(ROW_GROUP.STATS).toBeUndefined();
+  });
+  it('up and down step past the hidden rows (VIEW and GAS in TOP-DOWN), round the ends', async () => {
+    const { nextShown } = await import('../src/f1/settingsRows');
+    const els = ['', 'none', 'none', '', ''].map((display) => ({ style: { display } }) as unknown as HTMLElement);
+    expect(nextShown(els, 0, 1)).toBe(3);
+    expect(nextShown(els, 3, -1)).toBe(0);
+    expect(nextShown(els, 0, -1)).toBe(4);
+    expect(nextShown(els, 4, 1)).toBe(0);
+  });
+});
+
+describe("the results' gap bars", () => {
+  it('each gap a share of the widest, up to half a minute; none for the leader', async () => {
+    const { gapBar, GAP_SCALE } = await import('../src/f1/race/rallyView');
+    expect(gapBar(undefined, 10)).toBe(0);
+    expect(gapBar(0, 10)).toBe(0);
+    expect(gapBar(5, 10)).toBe(0.5);
+    expect(gapBar(90, GAP_SCALE)).toBe(1);
+  });
+});
