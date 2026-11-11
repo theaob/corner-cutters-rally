@@ -1,5 +1,6 @@
-# GitHub Pages: the play-stats dashboard (stats.html, src/stats/) at the site's root. Built on a push to the default
-# branch that changes it, or by hand (Actions → pages → Run workflow).
+# GitHub Pages: the play-stats dashboard (stats.html, src/stats/) at the site's root, with the privacy policy and the
+# terms beside it (legal/: privacy.html, terms.html; the game's settings and the store listings link to them). Built on
+# a push to the default branch that changes them, or by hand (Actions → pages → Run workflow).
 #
 # The dashboard's built with the Supabase project's URL and public key (the repository variables SUPABASE_URL and
 # SUPABASE_ANON_KEY, as the game's builds use) and reads the totals live in the browser.
@@ -9,9 +10,10 @@ name: pages
 
 on:
   push:
-    branches: [main]
+    branches: [ccr-165b0d28-rj1xu0]
     paths:
       - stats.html
+      - legal/**
       - src/stats/**
       - src/f1/stages.ts
       - vite.stats.config.ts
@@ -50,6 +52,8 @@ jobs:
       - run: npm run stats:build
       # (the dashboard at the site's root)
       - run: mv dist-stats/stats.html dist-stats/index.html
+      # (the privacy policy and the terms, with the game's icon for their tabs)
+      - run: cp legal/* dist-stats/ && cp public/favicon.png dist-stats/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
