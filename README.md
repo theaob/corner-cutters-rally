@@ -173,6 +173,8 @@ Then add the repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`
 
 Locally (with the Android SDK and JDK 21): `npm run android:apk` builds `android/app/build/outputs/apk/release/app-release.apk`, and `npm run android:play` the Play AAB. `npm run android:art` redraws the game's icon, the gravel hairpin, into the launcher icons, the splash screens and the web icons in `public/` (`tools/android-art.py`, needs Pillow).
 
+**Google Play:** the store listing (texts, icon, feature graphic, screenshots) is in `fastlane/metadata/android/en-US/`, and [`store/README.md`](store/README.md) walks through the Play Console: content rating, data safety and the release steps.
+
 ## YouTube Playables
 
 `npm run youtube:build` builds the version for YouTube Playables into `dist-youtube/`, checks it against Playables' rules and zips it as `corner-cutters-rally-youtube.zip`. `.github/workflows/youtube.yml` does the same on every push to main and keeps the zip as the run's artifact. The build (`VITE_STORE=youtube`) loads the Playables SDK and keeps the save in the player's YouTube account (`src/engine/host.ts`). It's built without the backend (no play stats or REPORT), and Capacitor is swapped for a stand-in (`src/engine/notNative.ts`).
