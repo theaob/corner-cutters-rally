@@ -401,15 +401,20 @@ try {
     const [w, h] = await viewport();
     await tap([w / 2, h / 2]);
   }
-  const settings = await page.waitForFunction(() => {
-    const label = [...document.querySelectorAll('body *')].find((e) => e.children.length === 0 && e.textContent?.trim() === 'SETTINGS');
-    const el = label?.closest('button') ?? label;
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return r.width ? [r.left + r.width / 2, r.top + r.height / 2] : null;
-  }, null, { timeout: 120000 });
-  await tap(await settings.jsonValue());
-  await sleep(2000);
+  // (a button by its words: SETTINGS on home, then CONTROLS, the settings' page with the driving rows)
+  const tapLabel = async (text) => {
+    const at = await page.waitForFunction((text) => {
+      const label = [...document.querySelectorAll('body *')].find((e) => e.children.length === 0 && e.textContent?.trim() === text && e.getClientRects().length);
+      const el = label?.closest('button') ?? label;
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return r.width ? [r.left + r.width / 2, r.top + r.height / 2] : null;
+    }, text, { timeout: 120000 });
+    await tap(await at.jsonValue());
+    await sleep(2000);
+  };
+  await tapLabel('SETTINGS');
+  await tapLabel('CONTROLS');
   await shot('settings');
   const rows = await page.evaluate(() => document.body.innerText);
   const want = ['STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES'];
