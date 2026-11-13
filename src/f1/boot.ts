@@ -9,7 +9,7 @@ import { CC_SAVE } from './save';
 
 export async function prepareGame(): Promise<void> {
   // this game's saves (each game has its own prefix: itch.io games share one origin's storage), in its save format
-  useStore('cc:');
+  useStore('ccr:');
   useSave(CC_SAVE);
   await loadLanguages(LANGUAGE_SOURCES);
 }

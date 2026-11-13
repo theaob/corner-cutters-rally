@@ -8,7 +8,7 @@ export default defineConfig({
   base: './',
   // the YouTube build: Capacitor (the Android app's bridge and plugins) swapped for a stand-in (src/engine/notNative.ts)
   resolve: process.env.VITE_STORE === 'youtube'
-    ? { alias: Object.fromEntries(['@capacitor/core', '@capacitor/app', '@capacitor/haptics', '@capacitor/share', '@capacitor/filesystem', '@capacitor/local-notifications'].map((m) => [m, '/src/engine/notNative.ts'])) }
+    ? { alias: Object.fromEntries(['@capacitor/core', '@capacitor/app', '@capacitor/haptics', '@capacitor/share', '@capacitor/filesystem'].map((m) => [m, '/src/engine/notNative.ts'])) }
     : undefined,
   plugins: [
     {

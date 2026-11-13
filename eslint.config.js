@@ -3,7 +3,7 @@
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'dist-youtube/**', 'android/**', 'ios/**', 'node_modules/**', 'public/**', 'tools/**', 'site/**'] },
+  { ignores: ['dist/**', 'dist-youtube/**', 'android/**', 'ios/**', 'node_modules/**', 'public/**', 'tools/**', 'legal/**', 'fastlane/**'] },
   ...tseslint.configs.recommended,
   {
     rules: {

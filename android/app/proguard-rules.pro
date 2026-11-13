@@ -20,9 +20,9 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
-# R8 is on for release builds. Capacitor ships its own consumer rules; these cover the app's own plugin
-# (found by the bridge through its @CapacitorPlugin annotation and called by name from the web view)
--keep class io.github.theaob.cornercutters.** { *; }
+# R8 is on for release builds. Capacitor ships its own consumer rules; these keep the app's own classes and any
+# plugin method (found by the bridge through its annotations and called by name from the web view)
+-keep class io.github.theaob.cornercuttersrally.** { *; }
 -keepattributes *Annotation*
 -keepclassmembers class * {
     @com.getcapacitor.PluginMethod public *;
