@@ -86,8 +86,8 @@ export function unlockAudio(target: Window = window): void {
     const c = audio();
     if (c && c.state !== 'running' && !gamePaused && hostSound() && !gameHidden()) void c.resume().catch(() => {});
   };
-  target.addEventListener('pointerdown', resume, { capture: true });
-  target.addEventListener('keydown', resume, { capture: true });
+  // (a touch counts as the user's gesture at its end on Chromium, at its start on WebKit: both listened for)
+  for (const type of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const) target.addEventListener(type, resume, { capture: true });
 }
 
 /** Silence everything (a pause, the app in the background), or bring it back. */

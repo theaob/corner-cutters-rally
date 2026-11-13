@@ -82,7 +82,7 @@ export class TouchDriving {
   /** the pedal each thumb on the pedals is on */
   private readonly onPedal = new Map<number, Pedal | undefined>();
   private gas: GasMode = 'manual';
-  /** TOP-DOWN: no pedals (index.html hides them; a thumb on them would brake) */
+  /** TOP-DOWN: no pedals (game.css hides them; a thumb on them would brake) */
   private brakeZone = false;
 
   constructor(host: HTMLElement) {

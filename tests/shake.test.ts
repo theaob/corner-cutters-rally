@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SHAKE, newShake, rushOf, shakeOffset, stepShake, timeScale, type ShakeFrame } from '../src/f1/shake';
+import { SHAKE, newShake, rushOf, shakeOffset, stepShake, timeScale, zoomOf, type ShakeFrame } from '../src/f1/shake';
 
 const quiet: ShakeFrame = { dt: 1 / 60, speed: 200, topSpeed: 320, healthLost: 0, wreckedNow: false, landed: 0, onRough: false, onKerb: false };
 /** The most the camera moves over `seconds` of frames like `f` (the first frame as given, the rest quiet but for the ground). */
@@ -68,5 +68,13 @@ describe('the rush of speed', () => {
     expect(rushOf(320, 320)).toBe(1);
     expect(rushOf(250, 320, 1)).toBeGreaterThan(0.5);
     expect(rushOf(100, 320, 1)).toBe(0);
+  });
+});
+
+describe('the zoom out for speed', () => {
+  it('eases in from a fraction of top speed, and tops out at 1', () => {
+    expect(zoomOf(50, 320)).toBe(0);
+    expect(zoomOf(200, 320)).toBeGreaterThan(zoomOf(150, 320));
+    expect(zoomOf(320, 320)).toBe(1);
   });
 });

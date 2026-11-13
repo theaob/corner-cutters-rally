@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const sent: { kind: string; about: Record<string, unknown> }[] = [];
 vi.mock('../src/f1/metrics', () => ({ track: (kind: string, about: Record<string, unknown>) => sent.push({ kind, about }) }));
 
-const { CRASHES_MAX, crashOf, shortPath, watchCrashes } = await import('../src/f1/crashes');
+const { CRASHES_MAX, crashOf, reportProblem, setRaceSpot, shortPath, watchCrashes } = await import('../src/f1/crashes');
 const { batchesOf } = await vi.importActual<typeof import('../src/f1/metrics')>('../src/f1/metrics');
 
 /** a page to throw in: its listeners, and a way to fire them */
@@ -50,6 +50,22 @@ describe('crash reporting', () => {
     expect(sent[1]).toMatchObject({ kind: 'error', about: { circuit: 'baku', mode: 'race', data: { kind: 'rejection', screen: 'race' } } });
     for (let k = 0; k < CRASHES_MAX + 5; k++) p.throwError(new Error(`e${k}`));
     expect(sent).toHaveLength(CRASHES_MAX);
+  });
+
+  it('a freeze or slow stretch says the circuit and mode as its where, and the lap, sector and place as its stack', () => {
+    const p = page();
+    let at: { name: string; circuit?: string; mode?: string } = { name: 'race', circuit: 'monza', mode: 'race' };
+    watchCrashes(() => at, p.target);
+    setRaceSpot(() => 'race · lap 2/5 · sector 3 · P4 of 20');
+    reportProblem('Slow race: under 15 fps');
+    expect(sent[0].about).toMatchObject({ circuit: 'monza', data: { where: 'monza · race', stack: expect.stringMatching(/^race · lap 2\/5 · sector 3 · P4 of 20\n/) } });
+    // (from a menu: no circuit, nothing to say)
+    at = { name: 'menu' };
+    reportProblem('Slow menu: under 15 fps');
+    expect(sent[1].about).toMatchObject({ data: { where: 'menu' } });
+    // (the logbook's last notes under the spot)
+    expect((sent[0].about.data as { stack: string }).stack).toContain('error Slow race: under 15 fps');
+    setRaceSpot(undefined);
   });
 
   it('errors go to the backend in a batch of their own (a database not yet told of them refuses only them)', () => {

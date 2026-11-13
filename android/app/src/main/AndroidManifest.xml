@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -15,7 +16,7 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
-            android:screenOrientation="sensorPortrait"
+            android:resizeableActivity="true"
             android:exported="true">
 
             <intent-filter>
@@ -34,6 +35,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Google Play Games (PlayGamesPlugin): the project's id, from res/values/games-ids.xml -->
+        <meta-data
+            android:name="com.google.android.gms.games.APP_ID"
+            android:value="@string/game_services_project_id" />
     </application>
 
     <!-- Permissions -->
@@ -41,4 +47,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- the D-pad's little buzz (navigator.vibrate) -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- the daily reminder (local notifications) needs no exact alarm: an inexact one's fine, and needs no declaring -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
 </manifest>

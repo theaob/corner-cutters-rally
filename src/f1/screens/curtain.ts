@@ -78,6 +78,9 @@ const firstUp = new Promise<void>((resolve) => (lifted = resolve));
 /** Resolves once the curtain's first lifted (the game's first screen is up, and can be played). */
 export const curtainFirstUp = (): Promise<void> => firstUp;
 
+/** Whether the curtain's down (a screen going, or a race being built behind its card). */
+export const curtainIsDown = (): boolean => !!sheet?.classList.contains('down');
+
 /** Lift the curtain (the next screen is up). */
 export function curtainUp(): void {
   ensure().classList.remove('down');

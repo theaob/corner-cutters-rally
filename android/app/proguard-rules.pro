@@ -19,3 +19,15 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# R8 is on for release builds. Capacitor ships its own consumer rules; these cover the app's own plugin
+# (found by the bridge through its @CapacitorPlugin annotation and called by name from the web view)
+-keep class io.github.theaob.cornercutters.** { *; }
+-keepattributes *Annotation*
+-keepclassmembers class * {
+    @com.getcapacitor.PluginMethod public *;
+    @android.webkit.JavascriptInterface public *;
+}
+# readable crash stack traces in the Play Console
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile

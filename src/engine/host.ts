@@ -167,6 +167,10 @@ const watchPage: () => void = YOUTUBE
       watchingPage = true;
       hidden = document.visibilityState === 'hidden';
       document.addEventListener('visibilitychange', () => setHidden(document.visibilityState === 'hidden'));
+      // (the Android app: Capacitor's pause and resume, the app put away or covered, a Play Games or billing sheet
+      // over it, which the page's visibility doesn't always say)
+      document.addEventListener('pause', () => setHidden(true));
+      document.addEventListener('resume', () => setHidden(document.visibilityState === 'hidden'));
     };
 
 // ---------------------------------------------------------------- sound

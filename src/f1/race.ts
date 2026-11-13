@@ -30,10 +30,17 @@ import { RESCUE, newRescue, stepRescue } from './rescue';
 import { SIGHT, autoSpeed, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
-import { CarFx, DebrisLayer, Particles, SkidLayer } from '../engine/render/effects';
-import { Hd2dPipeline } from '../engine/render/hd2d';
+import { CarFx, DebrisLayer, makeFireLights, Particles, SkidLayer } from '../engine/render/effects';
+import { borrowView, returnView } from '../engine/render/sharedView';
+import { disposeDeep } from '../engine/render/dispose';
+import { drawWhole } from '../engine/render/warm';
 import { HD2D_VIEW } from '../engine/look';
-import { QUALITY_LEVELS, QualityGovernor } from '../engine/render/quality';
+import { DEFAULT_GOVERNOR, QUALITY_LEVELS, QualityGovernor, keptQuality } from '../engine/render/quality';
+import { save as saveValue, saved as savedValue } from '../engine/save';
+import { frameCap, graphicsSetting, heldLevel, skipFrame } from './graphics';
+import { note, setGpu, setQuality } from '../engine/logbook';
+import { reportProblem, setRaceSpot } from './crashes';
+import { t as tl } from '../engine/i18n';
 import { isTouchScreen, type ScreenFit } from '../engine/layout';
 import { loadVehicleEdits } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
@@ -72,6 +79,8 @@ import { SCHEMES, liveryOf, type Scheme } from './crews';
 import { COLOR } from './theme';
 
 type F1Tuning = Record<keyof typeof F1_TUNING, number>;
+/** s of count (3, 2, 1) after RESUME before the stage goes on */
+const RESUME_COUNT = 3;
 const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
 /** the TOP view: its zoom, its pitch (degrees down from level), and px it looks ahead of the car at top speed (half
@@ -107,7 +116,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const HANDLING = styleHandling(handlingFor(difficulty), style);
   // the racing line: flat out wherever the car can follow the bend
   const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, HANDLING), decel: lineDecel(f1) });
-  // (on dirt, the touch deck has a DRIFT button too: index.html)
+  // (on dirt, the touch deck has a DRIFT button too: game.css)
   document.documentElement.classList.toggle('dirt', !!layout.dirt);
   const { track, grid } = circuit;
   const finishAt = track.stage?.finish ?? track.length;
@@ -130,18 +139,34 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const onItsSide = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
 
   // ---------------------------------------------------------------- renderer
-  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(1);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NeutralToneMapping;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
-  Object.assign(renderer.domElement.style, { width: '100%', height: '100%', display: 'block' });
-  host.prepend(renderer.domElement);
   const camera = new THREE.PerspectiveCamera(LOOK.fov, fit.width / fit.height, 1, 4000);
   camera.up.set(0, 0, -1);
-  const post = new Hd2dPipeline(renderer, world.scene, camera);
-  const governor = new QualityGovernor();
+  // (the game's one renderer, home's backdrop done with it: the shaders the last stage compiled are still there)
+  const view = borrowView(world.scene, camera, () => dispose());
+  const { renderer, post } = view;
+  renderer.info.autoReset = false;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  // (for the logbook: the graphics chip; and the context lost, a phone's way of taking the graphics away, reported)
+  setGpu(renderer.getContext());
+  /** the canvas outlives the stage: what the stage listens for on it stops with the stage */
+  const canvasEvents = new AbortController();
+  renderer.domElement.addEventListener('webglcontextlost', () => {
+    note('webgl context lost');
+    reportProblem('WebGL context lost (on a stage)');
+  }, { signal: canvasEvents.signal });
+  renderer.domElement.addEventListener('webglcontextrestored', () => note('webgl context restored'), { signal: canvasEvents.signal });
+  Object.assign(renderer.domElement.style, { width: '100%', height: '100%', display: 'block' });
+  host.prepend(renderer.domElement);
+  // (the picture's quality where the last stage settled, so this one doesn't step down again mid-stage: quality.ts)
+  const gameVersion = (typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev').split('+')[0];
+  const governor = new QualityGovernor(DEFAULT_GOVERNOR, keptQuality(savedValue('device', 'quality'), Date.now(), gameVersion));
+  /** the level kept last, and whether it was locked (a change from it is kept again) */
+  let keptLevel = { level: governor.level, locked: governor.locked };
+  /** the level set by hand (__cc.quality): not kept */
+  let qualityHeld = false;
+  /** GRAPHICS held the level this frame (not AUTO) */
+  let wasHeld = false;
   let viewW = fit.width;
   let viewH = fit.height;
   let desktop = fit.desktop;
@@ -175,11 +200,11 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     readout, mainLines, tyreLine, cardSlot, banner, lesson, progress, setProgressMarks, setProgress, results, crewCard, weatherTag, pauseScreen,
     pauseTitle, pauseButton, place: layHud,
   } = createHud(scheme, difficulty);
-  weatherTag.textContent = weather.name;
+  weatherTag.textContent = tl(weather.name);
   // the rush of speed, the rain, and your chequered flag, drawn over the picture (race/screenFx.ts)
   const streaks = createStreaks();
-  /** the device asks for less motion: no speed lines */
-  const calm = motionReduced();
+  /** less motion asked for (MOTION in the settings, or the device): no speed lines; read as it's changed */
+  const calm = () => motionReduced();
   /** the rush now (eased toward what the speed says) */
   let rushNow = 0;
   const rain = createRain();
@@ -227,15 +252,17 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const progressBar = () => style === 'topdown' && !!rallyRun;
   /** The readout's panel lit up in `color` a moment (a split: ahead or behind). */
   const flashReadout = (color: string) => {
-    if (calm || typeof readout.animate !== 'function') return;
+    if (calm() || typeof readout.animate !== 'function') return;
     readout.animate([{ boxShadow: `0 0 0 2px ${color}`, background: `color-mix(in srgb, ${color} 35%, rgba(21,20,31,.75))` }, { boxShadow: '0 0 0 2px transparent' }], { duration: 1600, easing: 'ease-out' });
   };
   /** a message over the stage for a few seconds (a split, a penalty…), shown unless something more urgent is */
   let notice = { text: '', color: '', until: 0 };
-  const announce = (text: string, color: string, seconds = 3) => (notice = { text, color, until: race.clock + seconds });
+  const announce = (text: string, color: string, seconds = 3) => (notice = { text: tl(text), color, until: race.clock + seconds });
 
   /** the stage is stopped: nothing moves and the clock doesn't run */
   let paused = false;
+  /** s left of the countdown after RESUME (RESUME_COUNT at first): the stage is still stopped until it's out */
+  let resumeLeft = 0;
   /** frames to leave out of the quality governor after a pause (the first frame back measures the pause) */
   let settle = 0;
   let last = performance.now();
@@ -265,15 +292,18 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const driver = new Driver({ touch: touchDrive && (() => onMap(touchDrive.intent())), keys: () => onMap(keyDrive.intent(pointing())), pad: () => onMap(readPad()) }, driveSettings);
   /** CONTROL: POINT's own speed: how fast the car can go at each point of the road and still take what's ahead */
   const safeAt = autoSpeed(track, f1, HANDLING);
-  const setPaused = (on: boolean) => {
+  const setPaused = (on: boolean, count = true) => {
     if (on === paused) return;
     paused = on;
+    note(on ? 'paused' : 'resumed');
     // (nothing held carries over a pause)
     if (on) {
       touchDrive?.release();
       keyDrive.release();
     }
-    setAudioPaused(on);
+    // (back from a pause: three seconds of count first, the stage and its sounds held)
+    resumeLeft = !on && count && !done ? RESUME_COUNT : 0;
+    if (on || !resumeLeft) setAudioPaused(on);
     pauseScreen.style.display = on ? 'flex' : 'none';
     if (!on) openPauseSettings(false);
     askExit(false);
@@ -322,10 +352,13 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   let best = loadStageBests()[bestKey(layout.id, style)];
 
   /** Your car on the road in your paint, your number on the roof. */
+  // (your car's fire light, in the scene from the start: a light coming or going makes every shader compile again, a
+  // hitch mid-stage; effects.ts)
+  const [fireLight] = makeFireLights(world.scene, 1);
   const addLook = (): CarLook => {
     const mesh: CarMesh = createCarMesh('f1', { ...liveryOf(scheme), helmet: 'gold' }, !!layout.dirt);
     world.scene.add(mesh);
-    return { mesh, fx: new CarFx(mesh) };
+    return { mesh, fx: new CarFx(mesh, fireLight) };
   };
   /** px you've driven since the last 'drive' event, and where your car was last frame; and s on the road since then, not paused (for the play stats) */
   let drivenPx = 0;
@@ -344,7 +377,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     shake = newShake();
     launch = newLaunch();
     driver.reset();
-    setPaused(false);
+    // (a new run from the pause screen: no count back into it)
+    setPaused(false, false);
     resetClock(simClock);
     before = undefined;
     frameEvents = [];
@@ -472,8 +506,21 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
 
   if (mode === 'tutorial') startTutorial();
   else startStage();
+  /** A restart during the count back from a pause: the count's over (the stage from the line isn't held by it), and its sounds are back. */
+  const cancelResumeCount = () => {
+    if (!resumeLeft) return;
+    resumeLeft = 0;
+    setAudioPaused(false);
+    last = performance.now();
+    settle = 2;
+  };
   /** Restart: the stage from the line (not once it's finished: it counts), or the controls lap afresh. */
-  const restart = () => (session === 'tutorial' ? startTutorial() : !done && startStage());
+  const restart = () => {
+    if (session !== 'tutorial' && done) return;
+    cancelResumeCount();
+    if (session === 'tutorial') startTutorial();
+    else startStage();
+  };
 
   const seen = new Map<Button, number>();
   /** SELECT was pressed: back once it's released */
@@ -489,6 +536,18 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     Object.assign(window, {
       __cc: {
         circuit: () => layout.id,
+        /** hold the picture at a quality level (0 high … 3 minimum), for measuring each */
+        quality: (level: number) => {
+          governor.level = level;
+          governor.locked = true;
+          qualityHeld = true;
+        },
+        /** what the picture costs: the quality level, and the last frame's draw calls and triangles */
+        perf: () => ({ level: QUALITY_LEVELS[governor.level].name, locked: governor.locked, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
+        /** the count back from a pause (s left; 0: none) */
+        resumeLeft: () => resumeLeft,
+        /** the next frame fails on purpose: the loop has to carry on past it */
+        failFrame: () => (failNext = true),
         phase: () => (done ? 'done' : race.phase),
         clock: () => race.clock,
         paused: () => paused,
@@ -574,10 +633,18 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const exitLine = document.createElement('div');
   Object.assign(exitLine.style, { color: COLOR.muted, font: 'calc(11px * var(--ts, 1)) Silkscreen, monospace', textAlign: 'center', margin: '-4px 16px 6px', textWrap: 'balance' });
   const stayButton = pauseButton('STAY', () => askExit(false));
-  const leaveButton = pauseButton('EXIT', () => onQuit());
+  const leaveButton = pauseButton('MAIN MENU', () => onQuit());
   Object.assign(leaveButton.style, { borderColor: COLOR.red, color: COLOR.redText });
-  const exitParts = [exitLine, stayButton, leaveButton];
-  /** EXIT pressed: asked once more (the button the deck's on: 0 STAY, 1 EXIT) */
+  // (side by side, STAY on the left, wide enough for MAIN MENU on one line in larger text: as Corner Cutters asks)
+  const exitRow = document.createElement('div');
+  Object.assign(exitRow.style, { width: '84%', maxWidth: '420px', gap: '10px' });
+  for (const b of [stayButton, leaveButton]) Object.assign(b.style, { width: 'auto', flex: '1 1 0', whiteSpace: 'nowrap' });
+  exitRow.append(stayButton, leaveButton);
+  const exitParts = [exitLine, exitRow];
+  const showExitParts = (on: boolean) => {
+    for (const el of exitParts) el.style.display = on ? (el === exitRow ? 'flex' : '') : 'none';
+  };
+  /** EXIT pressed: asked once more (the button the deck's on: 0 STAY, 1 MAIN MENU) */
   let asking = false;
   let exitFocus = 0;
   const showExitFocus = () => {
@@ -590,15 +657,15 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     if (on === asking) return;
     if (on) menuPick();
     asking = on;
-    pauseTitle.textContent = !on ? 'PAUSED' : 'LEAVE THE STAGE?';
-    exitLine.textContent = exitCost();
+    pauseTitle.textContent = tl(!on ? 'PAUSED' : 'LEAVE THE STAGE?');
+    exitLine.textContent = tl(exitCost());
     for (const el of pauseMain) el.style.display = on ? 'none' : '';
-    for (const el of exitParts) el.style.display = on ? '' : 'none';
+    showExitParts(on);
     exitFocus = 0;
     showExitFocus();
   }
   pauseScreen.append(pauseTitle, ...pauseMain, ...exitParts);
-  for (const el of exitParts) el.style.display = 'none';
+  showExitParts(false);
   // the phone's back button: the pause screen's settings closed, the pause screen resumed, the stage paused; once it's
   // over, on (a stage's results up: on to the rally, as with A)
   const offBack = onBack(() => {
@@ -640,7 +707,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   });
   const deckEl = document.getElementById('deck');
   const showDeckLabels = () => {
-    // the driving layer while you drive (index.html: #deck.driving), set out as the settings say, its wheel turned
+    // the driving layer while you drive (game.css: #deck.driving), set out as the settings say, its wheel turned
     deckEl?.classList.toggle('driving', !paused && !done && results.style.display !== 'block');
     if (touchDrive) {
       const ds = driveSettings();
@@ -649,10 +716,10 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     }
     const labels = deckLabels();
     for (const k of ['a', 'b', 'start', 'select'] as const) hud.setLabel(k, labels[k]);
-    // with the results up, RESTART and EXIT go under the table, big (on a phone: index.html)
+    // with the results up, RESTART and EXIT go under the table, big (on a phone: game.css)
     const resultsUp = results.style.display === 'block' && !paused;
     deckEl?.classList.toggle('results-up', resultsUp);
-    // (and TUNE and the thumbstick go too while they're up: index.html)
+    // (and TUNE and the thumbstick go too while they're up: game.css)
     document.documentElement.classList.toggle('results-up', resultsUp);
     // (the pause screen too: its buttons and settings rows are tapped)
     document.documentElement.classList.toggle('paused', paused);
@@ -678,7 +745,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
    */
   const camParam = new URLSearchParams(window.location.search).get('cam');
   let camTry: ViewId | undefined = isView(camParam) ? camParam : undefined;
-  // (TOP-DOWN: CLASSIC, always; no camera button, index.html)
+  // (TOP-DOWN: CLASSIC, always; no camera button, game.css)
   const camMode = (): ViewId => (style === 'topdown' ? 'classic' : camTry ?? viewSetting());
   document.documentElement.classList.toggle('topdown', style === 'topdown');
   /** The next view (the deck's camera button, or C), named on the banner a moment, and remembered (SIM only). */
@@ -709,17 +776,44 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   };
   /** the view has been closed: the loop stops */
   let closed = false;
-  const tick = (now: number) => {
+  /** a frame failing on purpose (a debug hook: the loop has to carry on past one) */
+  let failNext = false;
+  /** the session and phase last noted (the logbook notes each change) */
+  let notedPhase = '';
+  const frame = (now: number) => {
     if (closed) return;
+    // (GRAPHICS: SAVER draws 30 frames a second: a frame too soon after the last is left for the next; `last` stays, so the time adds up)
+    if (skipFrame(frameCap(graphicsSetting()), now - last)) {
+      requestAnimationFrame(tick);
+      return;
+    }
+    {
+      const phase = `${session} ${done ? 'done' : race.phase}`;
+      if (phase !== notedPhase) note((notedPhase = phase));
+    }
+    if (failNext) {
+      failNext = false;
+      throw new Error('debug: a frame failing');
+    }
     // (the first frame's timestamp can be a touch before mount time)
     const real = Math.max(0, (now - last) / 1000);
     const dt = Math.min(0.05, real);
     last = now;
     // (the time on the road as it passes, slow frames and all; a gap of more than a second is the tab put away)
-    if (!paused && real < 1) drivenSecs += real;
+    if (!paused && !resumeLeft && real < 1) drivenSecs += real;
+    if (resumeLeft > 0) {
+      resumeLeft = Math.max(0, resumeLeft - Math.min(real, 0.1));
+      if (!resumeLeft) {
+        setAudioPaused(false);
+        last = now;
+        settle = 2;
+      }
+    }
     showDeckLabels();
     // (a report being made: the deck and keys are its, not the stage's)
     if (reportOpen()) {
+      // (the presses meanwhile seen, so none fires here once it's closed)
+      for (const b of ['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select'] as const) pressed(b);
       requestAnimationFrame(tick);
       return;
     }
@@ -735,7 +829,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       return;
     }
     if (asking) {
-      // leave? left/right (or up/down) moves between STAY and EXIT, A or START picks, B stays, SELECT again leaves
+      // leave? left/right (or up/down) moves between STAY and MAIN MENU, A or START picks, B stays, SELECT again leaves
       const [up, down, left, right, a, b, start, select] = (['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select'] as const).map(pressed);
       if (up || down || left || right) {
         exitFocus = 1 - exitFocus;
@@ -778,8 +872,14 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       quitting = false;
       onQuit();
     }
-    // paused: nothing moves, and the last frame stays on the screen
-    if (paused) {
+    // paused, or counting back in from a pause: nothing moves, and the last frame stays on the screen
+    if (paused || resumeLeft > 0) {
+      // (the count back onto the stage: 3, 2, 1, over the still picture)
+      if (!paused && resumeLeft > 0) {
+        showBanner(String(Math.ceil(resumeLeft)));
+        banner.style.color = COLOR.gold;
+        banner.style.fontSize = 'calc(64px * var(--ts, 1))';
+      }
       // (a screenshot waiting for a frame, the report's: the still picture drawn again for it)
       if (frameWanted()) {
         const q = QUALITY_LEVELS[governor.level];
@@ -1028,7 +1128,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       const sy = c.vy * Math.sin(deg(LOOK.pitch));
       const len = Math.hypot(c.vx, sy) || 1;
       // (none for a device asking for less motion)
-      streaks.draw(dt, calm ? 0 : rushNow, c.vx / len, sy / len);
+      streaks.draw(dt, calm() ? 0 : rushNow, c.vx / len, sy / len);
     }
     skids.update(dt);
 
@@ -1119,47 +1219,112 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       sounds.setRain(race.rain);
     }
 
-    if (settle > 0) settle--;
-    else governor.sample(dt);
+    // (GRAPHICS: HIGH and LOW hold their level, whatever the frame rate: the governor's watch is over and nothing is kept)
+    const held = heldLevel(graphicsSetting());
+    if (held !== undefined) {
+      governor.level = held;
+      governor.locked = true;
+    } else if (wasHeld && !qualityHeld) {
+      // (back to AUTO: the governor watches again, from full quality)
+      governor.level = 0;
+      governor.locked = false;
+    }
+    wasHeld = held !== undefined;
+    if (held !== undefined) {
+      // nothing to sample
+    } else if (settle > 0) settle--;
+    // (the frame's real length, not the simulation's capped one: at 5 fps the capped time ran the governor's waits four times too long)
+    else governor.sample(Math.min(real, 0.25));
+    if (!qualityHeld && !wasHeld && (governor.level !== keptLevel.level || governor.locked !== keptLevel.locked)) {
+      keptLevel = { level: governor.level, locked: governor.locked };
+      saveValue('device', 'quality', { ...keptLevel, at: Date.now(), version: gameVersion });
+    }
+    setQuality(QUALITY_LEVELS[governor.level].name);
     const q = QUALITY_LEVELS[governor.level];
+    // (the pause menus' blur is a cost on a phone already at the lowest level: they go darker instead, game.css)
+    document.documentElement.classList.toggle('no-pause-blur', governor.level >= QUALITY_LEVELS.length - 1);
     applySize();
     world.setShadowMapSize(q.shadowMap);
+    // (the frame's draw calls counted across all the passes, not just the last: for __cc.perf)
+    renderer.info.reset();
     post.render(dt, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur });
     requestAnimationFrame(tick);
   };
+  /** errors in the stage's frames (reported, the first few) */
+  let failures = 0;
+  /**
+   * A frame of the stage, carried on past one that fails: the next is asked for at the end of each, so an error
+   * partway through one would stop the loop for good (the picture frozen, every button deaf). The error's still
+   * reported (the crash reports: crashes.ts), the first few.
+   */
+  const tick = (now: number) => {
+    try {
+      frame(now);
+    } catch (e) {
+      if (!closed) requestAnimationFrame(tick);
+      if (failures++ < 3)
+        setTimeout(() => {
+          throw e;
+        });
+    }
+  };
+  // where you are on the stage, for a freeze or slow stretch reported mid-stage (crashes.ts)
+  setRaceSpot(() => {
+    const me = race.entrants[you];
+    const around = Math.round(((me.progress.idx * track.spacing) / Math.max(1, finishAt)) * 100);
+    return [`${session}${race.phase === 'lights' ? ' (countdown)' : ''}`, `${Math.min(100, around)}% down the stage`, `${Math.round(speedOf(me.car))} px/s`].join(' · ');
+  });
+  // one frame drawn now, behind the loading card, of the whole scene: the first draw of a scene compiles its shaders
+  // and sends its meshes and textures to the graphics chip, seconds on a slow phone, which fell after the curtain lifted
+  try {
+    const q = QUALITY_LEVELS[governor.level];
+    const had = renderer.info.programs?.length ?? 0;
+    const from = performance.now();
+    drawWhole(world.scene, () => post.render(0, { bloom: LOOK.bloom, blur: LOOK.blur, bloomOn: q.bloom, blurOn: q.blur }));
+    // (for the logbook: how long the first draw took, and how many of its shaders were new to the renderer)
+    note(`first draw ${Math.round(performance.now() - from)} ms, ${(renderer.info.programs?.length ?? 0) - had} shaders compiled, ${had} kept`);
+  } catch {
+    // (a frame that fails here fails in the loop too, which reports it)
+  }
   requestAnimationFrame(tick);
 
   const dispose = () => {
     if (closed) return;
     closed = true;
-    noteDriven();
-    offHidden();
-    window.removeEventListener('keydown', onKey);
-    viewButton?.removeEventListener('pointerdown', onViewButton);
-    setAudioPaused(false);
-    sounds.dispose();
-    paceCard.hush();
-    // everything on the GPU: the scene's meshes, materials and textures, the post passes, the context itself
-    world.scene.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      mesh.geometry?.dispose();
-      for (const m of [mesh.material ?? []].flat() as THREE.Material[]) {
-        for (const v of Object.values(m)) if (v instanceof THREE.Texture) v.dispose();
-        m.dispose();
+    setRaceSpot(undefined);
+    // (each part let go even if one before it fails: a stage half closed would keep the back button and its overlays,
+    // and the next screen would open under them; the first failure is thrown once the rest are done)
+    let failed: unknown;
+    const step = (f: () => void) => {
+      try {
+        f();
+      } catch (e) {
+        failed ??= e;
       }
+    };
+    step(noteDriven);
+    step(offHidden);
+    step(() => window.removeEventListener('keydown', onKey));
+    step(() => viewButton?.removeEventListener('pointerdown', onViewButton));
+    step(() => setAudioPaused(false));
+    step(() => sounds.dispose());
+    step(() => paceCard.hush());
+    step(offBack);
+    for (const el of [cardSlot, streaks.el, rain.el, readout, progress, banner, lesson, results, crewCard, pauseScreen, pauseSettings, flagOverlay.el]) step(() => el.remove());
+    step(() => {
+      deckEl?.classList.remove('results-up');
+      deckEl?.classList.remove('driving');
     });
-    post.dispose();
-    renderer.dispose();
-    renderer.forceContextLoss();
-    renderer.domElement.remove();
-    offBack();
-    for (const el of [cardSlot, streaks.el, rain.el, readout, progress, banner, lesson, results, crewCard, pauseScreen, pauseSettings, flagOverlay.el]) el.remove();
-    deckEl?.classList.remove('results-up');
-    deckEl?.classList.remove('driving');
-    touchDrive?.dispose();
-    keyDrive.dispose();
-    document.documentElement.classList.remove('results-up', 'paused', 'dirt', 'topdown');
+    step(() => touchDrive?.dispose());
+    step(() => keyDrive.dispose());
+    step(() => document.documentElement.classList.remove('results-up', 'paused', 'dirt', 'topdown', 'no-pause-blur'));
     delete (window as { __cc?: unknown }).__cc;
+    // the renderer given back for the next screen (its canvas out of the page, its compiled shaders kept), then
+    // everything of this stage's on the GPU: the scene's meshes, materials and textures
+    step(() => canvasEvents.abort());
+    step(() => returnView(view));
+    step(() => disposeDeep(world.scene));
+    if (failed !== undefined) throw failed;
   };
   return { resize, dispose };
 };

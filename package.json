@@ -1,7 +1,7 @@
 {
   "name": "corner-cutters-rally",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +11,14 @@
     "stats": "vite --config vite.stats.config.ts --open /stats.html",
     "stats:build": "vite build --config vite.stats.config.ts",
     "typecheck": "tsc",
+    "lint": "eslint .",
     "test": "vitest run",
+    "test:fast": "vitest run --exclude tests/racing.test.ts --exclude tests/raceControl.test.ts",
+    "test:sims": "vitest run tests/racing.test.ts tests/raceControl.test.ts",
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
     "android:play": "VITE_STORE=play npm run android:sync && cd android && ./gradlew bundleRelease",
+    "bump": "npm version --no-git-tag-version",
     "android:art": "python3 tools/android-art.py"
   },
   "dependencies": {
@@ -31,8 +35,14 @@
     "@capacitor/cli": "^8.5.2",
     "@types/node": "^22.20.4",
     "@types/three": "^0.186.0",
+    "eslint": "^10.14.0",
+    "source-map-js": "^1.2.2",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.2",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"
+  },
+  "overrides": {
+    "minimatch": "^11.0.8"
   }
 }
