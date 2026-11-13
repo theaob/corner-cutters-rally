@@ -103,6 +103,7 @@ export class RaceSounds {
   private readonly gravel = noiseVoice('bandpass', 2400, 1.4);
   private readonly crowd = noiseVoice('bandpass', 800, 0.35);
   private readonly roar = noiseVoice('bandpass', 1700, 0.6);
+  private readonly jet = noiseVoice('lowpass', 240, 0.8);
   /** the crowd's cheer, 0…1, dying away */
   private cheering = 0;
   /** s to the pit limiter's next beep */
@@ -118,6 +119,11 @@ export class RaceSounds {
   /** `rain`: how hard it's raining, 0…1 (a steady hiss). */
   constructor(rain: number) {
     this.setRain(rain);
+  }
+
+  /** A plane flying over: its low roar, as near as it is now (0 none … 1 right overhead). */
+  setJet(near: number): void {
+    this.jet.set(near * near * 0.16);
   }
 
   /** The rain's hiss as hard as it's raining now, 0…1. */
@@ -213,16 +219,23 @@ export class RaceSounds {
     this.gravel.set(0);
     this.crowd.set(0);
     this.roar.set(0);
+    this.jet.set(0);
   }
 
   /** Silence and stop every voice for good (the race view is closing). */
   dispose(): void {
-    for (const v of [this.engine, this.rival, this.tyres, this.rumble, this.kerb, this.rain, this.wind, this.gravel, this.crowd, this.roar]) v.stop();
+    for (const v of [this.engine, this.rival, this.tyres, this.rumble, this.kerb, this.rain, this.wind, this.gravel, this.crowd, this.roar, this.jet]) v.stop();
   }
 
   /** A hit: `strength` 0…1. */
   hit(strength: number): void {
     thump(strength);
+  }
+
+  /** The gopher hit, sent flying: a soft bump and a cartoon boing. */
+  boing(): void {
+    thump(0.15);
+    [330, 494, 659].forEach((f, i) => beep(f, 0.09, 0.12, 'triangle', i * 0.05));
   }
 
   /** One of the five start lights coming on. */

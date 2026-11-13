@@ -3,6 +3,8 @@
 
 import { online, rpc } from '../engine/backend';
 import { STAGE_SPECS } from '../f1/stages';
+import { MARKS, cohortRate, rate, type Retention } from './retention';
+import { SCHEMA_VERSION } from './schemaVersion';
 
 /** What game_stats() gives. */
 interface Stats {
@@ -27,7 +29,6 @@ interface Stats {
   returning_players?: number;
   races_per_player?: number;
   by_team?: Record<string, number>;
-  by_driver?: Record<string, number>;
   daily_players_today: number;
   by_platform: Record<string, number>;
   by_mode: Record<string, number>;
@@ -257,6 +258,46 @@ function circuitsTable(list: CircuitStats[]) {
   $('circuits').replaceChildren(table);
 }
 
+/** The retention tiles (D1, D7, D30 over the cohorts old enough) and the last 14 days' cohorts. */
+function retention(r: Retention | undefined) {
+  const el = $('retention');
+  if (!r) {
+    $('retention-tiles').replaceChildren();
+    el.innerHTML = '<p class="empty">Retention could not be read. Run supabase/schema.sql again to add it.</p>';
+    return;
+  }
+  $('retention-tiles').replaceChildren(...MARKS.map((m) => {
+    const x = rate(r, m);
+    return tile(`DAY ${m}`, x ? `${Math.round(x.rate * 100)}%` : '–', x ? `${fmt(x.back)} of ${fmt(x.of)} players came back` : 'no player is old enough yet');
+  }));
+  if (!r.cohorts.length) {
+    el.innerHTML = '<p class="empty">No players yet.</p>';
+    return;
+  }
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr><th>FIRST PLAYED</th><th class="r">PLAYERS</th>' + MARKS.map((m) => `<th class="r">DAY ${m}</th>`).join('') + '</tr></thead>';
+  const body = document.createElement('tbody');
+  for (const c of r.cohorts.slice(-14).reverse()) {
+    const tr = document.createElement('tr');
+    const cells = [c.day, fmt(c.size), ...MARKS.map((m) => {
+      const x = cohortRate(c, m, r.today);
+      return x === undefined ? '–' : `${Math.round(x * 100)}%`;
+    })];
+    cells.forEach((t, i) => {
+      const td = document.createElement('td');
+      if (i) td.className = 'r';
+      td.textContent = t;
+      tr.append(td);
+    });
+    body.append(tr);
+  }
+  table.append(body);
+  const note = document.createElement('p');
+  note.className = 'empty';
+  note.textContent = 'A player counts as back on day N if the same device played exactly N days after its first day. The last 14 days of newcomers shown.';
+  el.replaceChildren(table, note);
+}
+
 async function load() {
   if (!online()) {
     status('NOT SET UP', 'off');
@@ -266,7 +307,7 @@ async function load() {
     return;
   }
   status('READING…', '');
-  const s = await rpc<Stats>('game_stats', {});
+  const [s, ret, version] = await Promise.all([rpc<Stats>('game_stats', {}), rpc<Retention>('retention_stats', {}), rpc<number>('schema_version', {})]);
   const n = $('notice');
   if (!s) {
     status('NO CONNECTION', 'off');
@@ -274,7 +315,10 @@ async function load() {
     n.textContent = "The stats could not be read. Check that supabase/schema.sql has been run in the project, then press Refresh.";
     return;
   }
-  n.hidden = true;
+  // (a project whose schema is older has no schema_version at all: it answers nothing)
+  const behind = typeof version !== 'number' || version < SCHEMA_VERSION;
+  n.hidden = !behind;
+  if (behind) n.textContent = `The Supabase project's schema is behind this dashboard (it has ${typeof version === 'number' ? `version ${version}` : 'no version'}, this expects ${SCHEMA_VERSION}). Paste supabase/schema.sql into the SQL Editor and run it again.`;
   tiles(s);
   chart('chart', (s.daily_players ?? []).map((d) => ({ day: d.day, n: d.players })), { what: 'Players', empty: 'No players in the last 30 days yet.' });
   chart('chart-launches', (s.daily_launches ?? []).map((d) => ({ day: d.day, n: d.launches })), { what: 'Launches', empty: 'No launches in the last 30 days yet.' });
@@ -290,6 +334,7 @@ async function load() {
   bars('mode', s.by_mode ?? {}, (k) => MODE_NAMES[k] ?? k);
   bars('circuit', s.by_circuit ?? {}, circuitName);
   circuitsTable(s.circuits ?? []);
+  retention(ret);
   $('errors-title').textContent = `ERRORS · CAUGHT IN THE GAME · ${fmt(s.errors ?? 0)} (${fmt(s.errors_today ?? 0)} TODAY)`;
   const at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   status(`LIVE · ${at}`, 'on');
@@ -345,7 +390,8 @@ let shown = 0;
 function reportCard(r: Report): HTMLElement {
   const card = document.createElement('article');
   card.className = 'report';
-  if (r.picture) {
+  // (only a JPEG the game made: anything else, such as a link, would be fetched by opening the report)
+  if (r.picture?.startsWith('data:image/jpeg;base64,')) {
     const img = document.createElement('img');
     img.className = 'shot';
     img.src = r.picture;
@@ -379,9 +425,51 @@ function reportCard(r: Report): HTMLElement {
     path.textContent = `Storage: reports/${r.image}`;
     body.append(path);
   }
+  body.append(clearButton('DELETE', `Delete report #${r.id}? This can't be undone.`, async () => {
+    const done = await rpc<Cleared>('reports_delete', { p_code: reportsCode, p_id: r.id });
+    if (!done?.ok) return false;
+    card.remove();
+    shown -= 1;
+    total -= 1;
+    showReportsCount();
+    return true;
+  }));
   card.append(body);
   return card;
 }
+
+/** What a CLEAR or a DELETE gives back. */
+interface Cleared {
+  ok: boolean;
+  why?: string;
+  cleared?: number;
+}
+
+/**
+ * A button that clears something for good: asked first (`question`), held while `act` runs, and an alert if it
+ * fails (`act` gives back whether it went).
+ */
+function clearButton(label: string, question: string, act: () => Promise<boolean>, className = 'danger card-clear'): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = className;
+  b.textContent = label;
+  b.addEventListener('click', async () => {
+    if (!confirm(question)) return;
+    b.disabled = true;
+    const went = await act().catch(() => false);
+    b.disabled = false;
+    if (!went) alert('That could not be cleared. Check that supabase/schema.sql has been run again since clearing was added.');
+  });
+  return b;
+}
+
+/** the reports there are, all told (as the last page said, less those deleted since) */
+let total = 0;
+const showReportsCount = () => {
+  $('reports-count').textContent = `${fmt(total)} REPORT${total === 1 ? '' : 'S'} · ${fmt(shown)} SHOWN`;
+  if (!total) $('reports-list').innerHTML = '<p class="empty">No reports yet.</p>';
+};
 
 /** Open the reports with `code` (`more`: the next page after the ones shown). */
 async function openReports(code: string, more = false) {
@@ -400,7 +488,9 @@ async function openReports(code: string, more = false) {
     keepCode(undefined);
     note.textContent = page.why === 'no code set'
       ? "No reports code is set yet. In Supabase's SQL Editor run: select public.set_reports_code('your code');"
-      : "That isn't the reports code.";
+      : page.why === 'too many attempts'
+        ? 'Too many wrong codes from this address. Wait 15 minutes and try again.'
+        : "That isn't the reports code.";
     $('reports-lock').hidden = false;
     return;
   }
@@ -420,8 +510,8 @@ async function openReports(code: string, more = false) {
   list.append(...reports.map(reportCard));
   shown += reports.length;
   oldest = reports.length ? reports[reports.length - 1].id : oldest;
-  const total = page.total ?? shown;
-  $('reports-count').textContent = `${fmt(total)} REPORT${total === 1 ? '' : 'S'} · ${fmt(shown)} SHOWN`;
+  total = page.total ?? shown;
+  showReportsCount();
   $('reports-more').hidden = shown >= total || !reports.length;
 }
 
@@ -476,8 +566,27 @@ function errorCard(e: ErrorGroup): HTMLElement {
     fold.append(sum, pre);
     card.append(fold);
   }
+  card.append(clearButton('CLEAR', `Clear this error (seen ${fmt(e.count)} time${e.count === 1 ? '' : 's'})? This can't be undone.`, async () => {
+    const done = await rpc<Cleared>('errors_clear', { p_code: reportsCode, p_message: e.message, p_where: e.where, p_all: false });
+    if (!done?.ok) return false;
+    card.remove();
+    showErrorsCount(-1);
+    return true;
+  }));
   return card;
 }
+
+/** how many errors are listed (`change`: one cleared) */
+let errorsShown = 0;
+const showErrorsCount = (change = 0) => {
+  errorsShown += change;
+  $('errors-count').textContent = `${fmt(errorsShown)} ERROR${errorsShown === 1 ? '' : 'S'} · LAST 30 DAYS`;
+  $('errors-head').hidden = !errorsShown;
+  if (!errorsShown) {
+    $('errors-note').hidden = false;
+    $('errors-note').textContent = 'No errors in the last 30 days.';
+  }
+};
 
 /** Show the errors with the reports' `code` (`undefined`: locked again). */
 async function openErrors(code: string | undefined) {
@@ -485,6 +594,7 @@ async function openErrors(code: string | undefined) {
   const list = $('errors-list');
   list.replaceChildren();
   if (!code) {
+    $('errors-head').hidden = true;
     note.hidden = false;
     note.textContent = 'Errors are private: open the reports above with your code to see them.';
     return;
@@ -495,6 +605,9 @@ async function openErrors(code: string | undefined) {
   else if (!page.ok) note.textContent = "That code doesn't open the errors.";
   else if (!page.errors?.length) note.textContent = 'No errors in the last 30 days.';
   else list.append(...page.errors.map(errorCard));
+  errorsShown = 0;
+  showErrorsCount(page?.ok ? page.errors?.length ?? 0 : 0);
+  if (!page?.ok) $('errors-head').hidden = true;
 }
 
 $('reports-lock').addEventListener('submit', (e) => {
@@ -502,6 +615,25 @@ $('reports-lock').addEventListener('submit', (e) => {
   const code = ($('reports-code') as HTMLInputElement).value.trim();
   if (code) void openReports(code);
 });
+{
+  const all = clearButton('CLEAR ALL', 'Clear every error, at any age? This can\'t be undone.', async () => {
+    const done = await rpc<Cleared>('errors_clear', { p_code: reportsCode, p_message: null, p_where: null, p_all: true });
+    if (!done?.ok) return false;
+    void openErrors(reportsCode);
+    void load();
+    return true;
+  }, 'danger');
+  all.id = 'errors-clear';
+  $('errors-clear').replaceWith(all);
+  const reportsAll = clearButton('DELETE ALL', 'Delete every report? This can\'t be undone.', async () => {
+    const done = await rpc<Cleared>('reports_delete', { p_code: reportsCode, p_id: null });
+    if (!done?.ok) return false;
+    void openReports(reportsCode);
+    return true;
+  }, 'danger');
+  reportsAll.id = 'reports-clear';
+  $('reports-clear').replaceWith(reportsAll);
+}
 $('reports-more').addEventListener('click', () => void openReports(reportsCode, true));
 $('reports-lockup').addEventListener('click', () => {
   keepCode(undefined);

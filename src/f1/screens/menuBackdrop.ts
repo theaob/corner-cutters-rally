@@ -11,7 +11,8 @@ import * as THREE from 'three';
 import { bodyTilt, carClass, newCar, type Car } from '../../engine/driving';
 import { SIM_DT, lerp, lerpAngle } from '../../engine/fixedStep';
 import { HD2D_VIEW } from '../../engine/look';
-import { Hd2dPipeline } from '../../engine/render/hd2d';
+import { borrowView, returnView, type SharedView } from '../../engine/render/sharedView';
+import { disposeDeep } from '../../engine/render/dispose';
 import { createCarMesh } from '../../engine/render/vehicles3d';
 import { buildCircuit } from '../circuit';
 import { createCircuitScene } from '../circuitScene';
@@ -23,6 +24,7 @@ import { CREWS, crewById, liveryOf, schemeById } from '../crews';
 import { DRY } from '../weather';
 import { keepStill } from './backdropStill';
 import { gameHidden } from '../../engine/host';
+import { motionReduced } from '../access';
 
 export const BACKDROP = {
   /** cars on the road */
@@ -40,11 +42,31 @@ export const BACKDROP = {
   /** share of the screen's resolution it's drawn at, and the most frames a second */
   res: 0.75,
   fps: 30,
+  /** the page's frames this slow (a second) or slower: drawn without the glow and blur (40, where the menu starts being reported as slow: it was 20, and a phone at 35 fps stayed with the glow) */
+  slowFps: 40,
   /** frames drawn before it's kept as the still the next menu opens on (3 s in) */
   keepAt: 90,
 };
 
 const deg = THREE.MathUtils.degToRad;
+
+/** ms a backdrop handed over (parkBackdrop) waits to be picked up by the next screen before it stops */
+export const PARK_MS = 1000;
+
+/** The backdrop racing now, and the one handed over from the screen going to the one opening (still racing, unless nobody takes it). */
+let racing: { canvas: HTMLCanvasElement; stop: () => void; layoutId: string } | undefined;
+let parked: { stop: () => void; layoutId: string; canvas: HTMLCanvasElement; timer: ReturnType<typeof setTimeout> } | undefined;
+
+/**
+ * Let the next backdrop started carry on this one's race instead of beginning another (the title
+ * splash into the menu: the same cars, the same camera, no new fade-in). Stopped all the same if nothing takes it
+ * (the next screen is a race, say) or it hadn't faded in yet. `stop` is what startBackdrop gave back.
+ */
+export function parkBackdrop(stop: () => void): void {
+  if (!racing || racing.stop !== stop || !racing.canvas.classList.contains('on')) return stop();
+  const { canvas, layoutId } = racing;
+  parked = { stop, layoutId, canvas, timer: setTimeout(() => { parked = undefined; stop(); }, PARK_MS) };
+}
 
 /**
  * Start the backdrop behind `host`'s contents, driving `layout`, fading in
@@ -52,12 +74,18 @@ const deg = THREE.MathUtils.degToRad;
  * Gives back a function that stops it.
  */
 export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: HTMLElement): () => void {
-  if (globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return () => {};
-  let renderer: THREE.WebGLRenderer;
-  try {
-    renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' });
-  } catch {
-    return () => {};
+  if (motionReduced()) return () => {};
+  // (a backdrop handed over from the screen before, in this host (whatever circuit the menu has since picked: the race behind carries on): it goes on, over the still)
+  if (parked) {
+    const p = parked;
+    parked = undefined;
+    clearTimeout(p.timer);
+    if (p.canvas.parentElement === host) {
+      if (still?.parentElement === host) still.after(p.canvas);
+      still?.remove();
+      return p.stop;
+    }
+    p.stop();
   }
   const f1 = carClass('f1');
   const handling = handlingFor(NORMAL);
@@ -93,17 +121,22 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
   for (let t = 0; t < BACKDROP.preRoll + 4; t += SIM_DT) stepRace(race, SIM_DT);
   again();
 
-  renderer.setPixelRatio(1);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NeutralToneMapping;
+  const camera = new THREE.PerspectiveCamera(HD2D_VIEW.fov, 1, 1, 4000);
+  camera.up.set(0, 0, -1);
+  // (the game's one renderer, shared with the races: sharedView.ts. A race opening while this is still going stops it)
+  let view: SharedView;
+  try {
+    view = borrowView(world.scene, camera, () => stop());
+  } catch {
+    disposeDeep(world.scene);
+    return () => {};
+  }
+  const { renderer, post } = view;
   const canvas = renderer.domElement;
   canvas.className = 'live-backdrop';
   // (over the still, under the menu)
   if (still?.parentElement === host) still.after(canvas);
   else host.prepend(canvas);
-  const camera = new THREE.PerspectiveCamera(HD2D_VIEW.fov, 1, 1, 4000);
-  camera.up.set(0, 0, -1);
-  const post = new Hd2dPipeline(renderer, world.scene, camera);
   let size = '';
   const fit = () => {
     const w = Math.max(1, host.clientWidth);
@@ -127,12 +160,18 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
   let lastDraw = 0;
   /** frames drawn so far */
   let drawn = 0;
+  /** how long the page's frames have been taking (s, smoothed), and whether that's too slow for the glow and blur */
+  let frameTime = 1 / 60;
+  let lite = false;
   let stopped = false;
   const frame = (now: number) => {
     if (stopped) return;
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
+    // (a phone that can't keep up, once it's warmed up: the picture without the glow and blur, as a race steps down)
+    frameTime += (dt - frameTime) * 0.05;
+    if (drawn > BACKDROP.keepAt && frameTime > 1 / BACKDROP.slowFps) lite = true;
     if (gameHidden() || now - lastDraw < 1000 / BACKDROP.fps - 2) return;
     const frameDt = Math.min(0.1, (now - lastDraw) / 1000);
     lastDraw = now;
@@ -173,7 +212,7 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
     camera.lookAt(focus);
     world.followSun(focus);
     world.animate(now / 1000, race.entrants.map((e) => e.car));
-    post.render(dt, { bloom: HD2D_VIEW.bloom, blur: HD2D_VIEW.blur, bloomOn: true, blurOn: true });
+    post.render(dt, { bloom: HD2D_VIEW.bloom, blur: HD2D_VIEW.blur, bloomOn: !lite, blurOn: !lite });
     // (faded in once a few frames are drawn: the first can take a while, compiling the shaders)
     if (++drawn === 3) {
       canvas.classList.add('on');
@@ -185,11 +224,18 @@ export function startBackdrop(host: HTMLElement, layout: CircuitLayout, still?: 
   };
   requestAnimationFrame(frame);
 
-  return () => {
+  const stop = () => {
+    if (racing?.stop === stop) racing = undefined;
+    if (parked?.stop === stop) {
+      clearTimeout(parked.timer);
+      parked = undefined;
+    }
+    if (stopped) return;
     stopped = true;
-    post.dispose();
-    renderer.dispose();
-    renderer.forceContextLoss();
-    canvas.remove();
+    // (the renderer given back, its canvas out of the page; then the circuit and cars this drew)
+    returnView(view);
+    disposeDeep(world.scene);
   };
+  racing = { canvas, stop, layoutId: layout.id };
+  return stop;
 }

@@ -3,11 +3,13 @@
 # page's "android" channel (with the same BUTLER_API_KEY / ITCH_TARGET as the
 # web build), where phones can download it.
 #
-# Runs on every push and pull request (and by hand from the Actions tab); only
-# a push to the default branch (or a run by hand on it) uploads to itch.io.
+# Runs on a push to the default branch and by hand from the Actions tab (and on a pull request only when the
+# Android project itself changes; tests, types and the web build for every pull request are ci.yml's); only a push
+# to the default branch (or a run by hand on it) uploads to itch.io.
 #
 # It also builds the Google Play version as an AAB, kept as a download
-# on the run for uploading to the Play Console.
+# on the run for uploading to the Play Console, and, with the PLAY_SERVICE_ACCOUNT_JSON secret set, uploaded to
+# Play's internal testing track as a draft (store/README.md has the steps).
 #
 # Signing: with the four ANDROID_* secrets set (see the README), the APK and the
 # AAB are signed with your release key, so each build installs as an update over
@@ -17,7 +19,9 @@ name: android
 
 on:
   push:
+    branches: [ccr-165b0d28-rj1xu0]
   pull_request:
+    paths: ['android/**', 'capacitor.config.ts', 'package.json', 'package-lock.json', '.github/workflows/android.yml']
   workflow_dispatch:
 
 permissions:
@@ -31,31 +35,38 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     env:
-      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
-      ITCH_TARGET: ${{ vars.ITCH_TARGET || secrets.ITCH_TARGET }}
-      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      # Secrets sit only on the step that uses them, so `npm ci` and the build tools can't read them; the job
+      # keeps just whether each one is set (true or false), for the `if:` lines below.
+      HAS_BUTLER_KEY: ${{ secrets.BUTLER_API_KEY != '' }}
+      HAS_ITCH_TARGET: ${{ (vars.ITCH_TARGET || secrets.ITCH_TARGET) != '' }}
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      # a Play Developer API service account's JSON key (store/README.md): with it, each Play build from the default
+      # branch goes to Play's internal testing track as a draft release
+      HAS_PLAY_KEY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
       PUBLISH: ${{ github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch }}
       # the play stats (Supabase, supabase/README.md): the project's URL and its
       # public (anon) key, as repository variables or secrets; left out, the game plays offline (no stats)
       VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
         with:
           distribution: temurin
           java-version: 21
           cache: gradle
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - name: Build the web game and copy it into the Android project
         run: npm run android:sync
 
       - name: Release key (when the secrets are set)
-        if: env.KEYSTORE_BASE64 != ''
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
           echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
@@ -77,7 +88,7 @@ jobs:
 
       # a download on the run; kept a week, and not fatal: the account's artifact storage can be full
       # (it's shared by every repo), and the itch.io upload below is the real way out
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         continue-on-error: true
         with:
           name: corner-cutters-rally-apk
@@ -100,7 +111,7 @@ jobs:
           mkdir -p ../play
           cp app/build/outputs/bundle/release/app-release.aab "../play/corner-cutters-rally-play-$version-$GITHUB_RUN_NUMBER.aab"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         continue-on-error: true
         with:
           name: corner-cutters-rally-play-aab
@@ -108,10 +119,59 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Push to itch.io (android channel)
-        if: env.PUBLISH == 'true' && env.BUTLER_API_KEY != '' && env.ITCH_TARGET != ''
+      # the source maps of what was just built (same code, same file names: a crash stack from the play stats dashboard
+      # is turned back into the source's lines with `node tools/unminify.mjs`, tools/unminify.mjs says how); a download on
+      # the run, kept three months, and not fatal; they never go into the app or the upload
+      - name: Source maps of this version
         run: |
+          VITE_SOURCEMAPS=1 npx vite build --outDir maps/web
+          VITE_STORE=play VITE_SOURCEMAPS=1 npx vite build --outDir maps/play
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        continue-on-error: true
+        with:
+          name: corner-cutters-rally-sourcemaps
+          path: maps/web/assets/*.map
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        continue-on-error: true
+        with:
+          name: corner-cutters-rally-sourcemaps-play
+          path: maps/play/assets/*.map
+          if-no-files-found: error
+          retention-days: 90
+
+      # to Google Play's internal testing track, as a draft (promoting it, and every track past internal, stays by hand
+      # in the Play Console); only with the service account's key and the release key (Play takes no debug-signed build),
+      # and not fatal: a run whose version code Play has seen, or a Console not set up yet, keeps the itch.io upload
+      - name: Upload to Google Play (internal testing, draft)
+        if: env.PUBLISH == 'true' && env.HAS_PLAY_KEY == 'true' && env.HAS_KEYSTORE == 'true'
+        continue-on-error: true
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: io.github.theaob.cornercuttersrally
+          releaseFiles: play/*.aab
+          track: internal
+          status: draft
+
+      - name: Push to itch.io (android channel)
+        if: env.PUBLISH == 'true' && env.HAS_BUTLER_KEY == 'true' && env.HAS_ITCH_TARGET == 'true'
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          ITCH_TARGET: ${{ vars.ITCH_TARGET || secrets.ITCH_TARGET }}
+        run: |
+          # (butler is itch.io's own uploader and has no checksum to pin; its version is in the log, to pin to)
           curl -sSfL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
           unzip -q butler.zip -d butler && chmod +x butler/butler
+          butler/butler -V
           version="$(node -p "require('./package.json').version")+${GITHUB_SHA::7}"
-          butler/butler push out/*.apk "$ITCH_TARGET:android" --userversion "$version"
+          # itch.io refuses a push while the channel's previous build is still processing (merges landing close
+          # together); wait and retry instead of failing the run
+          for attempt in 1 2 3 4 5 6; do
+            butler/butler push out/*.apk "$ITCH_TARGET:android" --userversion "$version" && exit 0
+            [ "$attempt" -lt 6 ] || break
+            echo "::warning::butler push failed (attempt $attempt of 6); retrying in 60s"
+            sleep 60
+          done
+          exit 1

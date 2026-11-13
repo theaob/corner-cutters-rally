@@ -123,14 +123,14 @@ export const tyreGrip = (wear: number) => 1 - TYRES.gripLoss * wear - TYRES.clif
 /** The share of top speed left at `wear`. */
 export const tyreSpeed = (wear: number) => 1 - TYRES.speedLoss * wear - TYRES.cliffSpeedLoss * overCliff(wear);
 
-/** Wear the tyres for one driving step of `car` (with that step's events) in `weather` (or on a track that wet), and put their state on the car. */
-export function wearTyres(set: TyreSet, car: Car, events: StepEvents, dt: number, weather: WeatherId | number = 'dry'): void {
+/** Wear the tyres for one driving step of `car` (with that step's events) in `weather` (or on a track that wet), the wear times `scale` (a circuit's tyreWear), and put their state on the car. */
+export function wearTyres(set: TyreSet, car: Car, events: StepEvents, dt: number, weather: WeatherId | number = 'dry', scale = 1): void {
   if (!car.airborne && !car.wrecked) {
     const v = speedOf(car);
     const f = { x: Math.sin(car.heading), y: -Math.cos(car.heading) };
     const slide = Math.abs(car.vx * -f.y + car.vy * f.x);
     const rate = TYRES.base * Math.min(1, v / car.cls.topSpeed) + TYRES.slide * Math.min(1, slide / TYRES.slideFull) + (events.onRough && v > 20 ? TYRES.rough : 0);
-    set.wear = Math.min(1, set.wear + rate * fitAt(set.compound, weather).wear * dt);
+    set.wear = Math.min(1, set.wear + rate * fitAt(set.compound, weather).wear * scale * dt);
     set.driven += v * dt;
   }
   fitTyres(set, car, weather);

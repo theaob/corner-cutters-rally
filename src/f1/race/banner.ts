@@ -3,6 +3,7 @@
 // lap's prompt, in a slot of its own under it (race/hud.ts). Engine-free.
 
 import { COLOR } from '../theme';
+import { t } from '../../engine/i18n';
 
 export interface BannerState {
   /** your car's wrecked, or out */
@@ -26,20 +27,20 @@ export interface BannerState {
 /** The banner's text and colour. At the finish, an announcement first (a stage best), then the finish itself. */
 export function bannerMessage(s: BannerState): [string, string] {
   const finished = s.done && s.finishedPlace !== undefined && !s.resultsUp;
-  return s.out ? ['OUT OF THE STAGE', COLOR.red]
+  return s.out ? [t('OUT OF THE STAGE'), COLOR.red]
     : finished && s.clock < s.notice.until ? [s.notice.text, s.notice.color]
-    : finished && s.clean ? [`CLEAN STAGE · P${s.finishedPlace}`, COLOR.teal]
-    : finished ? [`FINISHED · P${s.finishedPlace}`, s.finishedPlace! <= 3 ? COLOR.gold : COLOR.white]
+    : finished && s.clean ? [t('CLEAN STAGE · P{place}', { place: s.finishedPlace! }), COLOR.teal]
+    : finished ? [t('FINISHED · P{place}', { place: s.finishedPlace! }), s.finishedPlace! <= 3 ? COLOR.gold : COLOR.white]
     : s.done ? ['', '']
-    : s.wrongWay > 1 ? ['WRONG WAY', COLOR.red]
-    : s.clock < 1.2 && !s.learn ? ['GO!', COLOR.teal]
+    : s.wrongWay > 1 ? [t('WRONG WAY'), COLOR.red]
+    : s.clock < 1.2 && !s.learn ? [t('GO!'), COLOR.teal]
     : s.clock < s.notice.until ? [s.notice.text, s.notice.color]
     : ['', ''];
 }
 
 /** The controls lap's prompt in its own slot (none once you're out of the stage), and its colour: the last in gold. */
 export function lessonMessage(s: Pick<BannerState, 'out' | 'learn'>): [string, string] {
-  return !s.learn || s.out ? ['', ''] : [s.learn.text, s.learn.last ? COLOR.gold : COLOR.white];
+  return !s.learn || s.out ? ['', ''] : [t(s.learn.text), s.learn.last ? COLOR.gold : COLOR.white];
 }
 
 /**

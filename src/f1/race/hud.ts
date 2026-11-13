@@ -5,10 +5,12 @@
 // the phone. No map: the co-driver's calls are what you drive by (the progress
 // bar is only how far along the stage you are, never the road's shape).
 
+import { t } from '../../engine/i18n';
+import { driverName } from '../profile';
 import type { Difficulty } from '../difficulty';
 import type { Scheme } from '../crews';
 import { style } from './dom';
-import { READOUT_GRID, readoutRun } from './readoutView';
+import { READOUT_GRID, fitReadout, readoutRun } from './readoutView';
 import { COLOR, font } from '../theme';
 
 /** The HUD for your car in `scheme`, at `difficulty`. */
@@ -92,19 +94,21 @@ export function createHud(scheme: Scheme, difficulty: Difficulty) {
     border: `4px solid ${scheme.trim}`,
   });
   const weatherTag = document.createElement('span');
-  crewCard.append(plate, `YOU · ${difficulty.name} · `, weatherTag);
+  crewCard.append(plate, `${driverName()} · ${t(difficulty.name)} · `, weatherTag);
   // the pause screen: resume, restart or leave, by tap or with the deck (A, START, SELECT)
   const pauseScreen = document.createElement('div');
+  // (blurred race behind it: game.css .pause-screen)
+  pauseScreen.className = 'pause-screen';
   style(pauseScreen, {
     position: 'absolute', inset: '0', zIndex: '4', display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    gap: '10px', background: 'rgba(14,13,22,.72)', color: COLOR.text, font: '12px Silkscreen, monospace',
+    gap: '10px', background: 'rgba(14,13,22,.55)', color: COLOR.text, font: '12px Silkscreen, monospace',
   });
   const pauseTitle = document.createElement('div');
-  pauseTitle.textContent = 'PAUSED';
+  pauseTitle.textContent = t('PAUSED');
   style(pauseTitle, { font: 'calc(22px * var(--ts, 1)) Silkscreen, monospace', color: COLOR.gold, textShadow: `0 2px 0 ${COLOR.ink}`, marginBottom: '6px' });
   const pauseButton = (label: string, action: () => void) => {
     const b = document.createElement('button');
-    b.textContent = label;
+    b.textContent = t(label);
     style(b, {
       width: '60%', padding: '10px 0', borderRadius: '10px', border: `1px solid ${COLOR.keyEdge}`, background: COLOR.key,
       color: COLOR.text, font: 'calc(14px * var(--ts, 1)) Silkscreen, monospace', cursor: 'pointer', touchAction: 'none',
@@ -120,13 +124,14 @@ export function createHud(scheme: Scheme, difficulty: Difficulty) {
     return b;
   };
   // the wide screen: the readout top left, the card's slot top middle with the banner under it, the controls lap's
-  // prompt low in the middle. The phone: RESTART and PAUSE in the top corners (index.html) with the stage's number
+  // prompt low in the middle. The phone: RESTART and PAUSE in the top corners (game.css) with the stage's number
   // between them, the readout down the left and the camera on the right under them, the card's slot between those two
   // (lower on the controls lap, under its SKIP), the banner under the card, the prompt over the driving, and the
   // controls along the bottom
   /** Lay the HUD out for the wide screen or the phone, in `host`; `lap`: the controls lap (SKIP up top on a phone). */
   const place = (desktop: boolean, host: HTMLElement, lap = false) => {
     if (desktop) {
+      delete readout.dataset.base;
       style(readout, { left: '12px', top: '14px', fontSize: '12px', lineHeight: 'normal', width: 'auto' });
       // (under the deck's strip, the stage's number, top middle)
       style(cardSlot, { top: '52px', left: '50%', right: 'auto', width: 'auto', maxWidth: '60%', transform: 'translateX(-50%)' });
@@ -136,13 +141,16 @@ export function createHud(scheme: Scheme, difficulty: Difficulty) {
       results.style.fontSize = '12px';
     } else {
       style(readout, { left: '12px', top: '52px', fontSize: '10px', lineHeight: '15px', width: '116px', boxSizing: 'border-box' });
+      // (its type a step smaller where a language's words would overrun the panel: readoutView.ts)
+      readout.dataset.base = '10';
+      fitReadout(readout);
       // (between the readout, 116 px wide, and the camera, 44 px: on a 393 px phone about 200 px; on the controls lap
       // under its SKIP, across the middle)
       if (lap) style(cardSlot, { top: '150px', left: '50%', right: 'auto', width: '240px', transform: 'translateX(-50%)' });
       else style(cardSlot, { top: '52px', left: '134px', right: '62px', width: 'auto', transform: 'none' });
       // (lower with LARGE text: the card's taller)
       banner.style.top = lap ? 'calc(206px + 56px * var(--ts, 1))' : 'calc(108px + 56px * var(--ts, 1))';
-      // (just over the steering pad and the brake: index.html's .drive)
+      // (just over the steering pad and the brake: game.css's .drive)
       style(lesson, { top: 'auto', bottom: '22%' });
       // (the table, centred top to bottom with the buttons under it, clear of the stick above and below)
       results.style.maxHeight = 'calc(100% - 2 * var(--deck-cover, 0px) - 80px)';

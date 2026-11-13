@@ -140,12 +140,15 @@ npm run dev        # http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run build` | Typecheck + production build to `dist/` |
 | `npm test` | Unit tests (Vitest) |
+| `npm run test:fast` | The same without the two race-simulation files (racing, raceControl): for working on something; CI runs both sets side by side (`npm run test:sims` is the other) |
+| `npm run bump -- patch` | Raise the game's version (package.json); a pull request has to (version.yml), unless it's labelled `no-version-bump` |
+| `npm run lint` | ESLint (the bug-catching rules; CI runs it) |
 | `npm run typecheck` | TypeScript only |
 | `npm run stats` | The play-stats dashboard |
 
 ## Publishing to itch.io
 
-`.github/workflows/itch.yml` tests and builds every push and pull request. A push to the default branch (or **Run workflow** in the Actions tab on it) also uploads `dist/` to itch.io with [butler](https://itch.io/docs/butler/) as the `html5` channel, versioned `<package version>+<commit>`.
+`.github/workflows/ci.yml` checks every push and every pull request (`npm audit`, ESLint, the tests, the web build) without reading any secret. `.github/workflows/itch.yml` builds a push to the default branch (or **Run workflow** in the Actions tab on it) and uploads `dist/` to itch.io with [butler](https://itch.io/docs/butler/) as the `html5` channel, versioned `<package version>+<commit>`.
 
 Setup (once):
 1. On itch.io, create the project with kind **HTML**. Under the embed options, tick **Mobile friendly** (portrait) and **Fullscreen button**, and set a viewport of about 390×844.

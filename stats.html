@@ -99,6 +99,11 @@
       .reports button, .lock button { font: 11px var(--pixel); letter-spacing: 1px; color: var(--amber); background: transparent; border: 1px solid var(--edge); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
       .reports-head { display: flex; justify-content: space-between; align-items: center; font: 11px var(--pixel); color: var(--muted); letter-spacing: 1px; }
       .reports-head[hidden] { display: none; }
+      .head-buttons { display: flex; gap: 8px; }
+      .reports button.danger, .errors button.danger { color: #ff6b6b; border-color: #6a2a34; }
+      .errors button { font: 11px var(--pixel); letter-spacing: 1px; color: var(--amber); background: transparent; border: 1px solid var(--edge); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+      .card-clear { margin-top: 8px; padding: 5px 10px !important; }
+      button:disabled { opacity: .5; cursor: progress; }
       .reports-list { display: flex; flex-direction: column; gap: 10px; }
       .report { display: grid; grid-template-columns: 160px 1fr; gap: 14px; align-items: start; padding-top: 10px; border-top: 1px solid var(--edge); }
       .report:first-child { border-top: none; padding-top: 0; }
@@ -140,6 +145,11 @@
       <div class="notice" id="notice" hidden></div>
       <div class="tiles" id="tiles"></div>
       <section>
+        <h2>RETENTION · PLAYERS BACK 1, 7 AND 30 DAYS AFTER THEY FIRST PLAYED (UTC)</h2>
+        <div class="tiles" id="retention-tiles"></div>
+        <div class="board" id="retention"><p class="empty">Loading retention…</p></div>
+      </section>
+      <section>
         <h2>PLAYERS PER DAY · LAST 30 DAYS (UTC)</h2>
         <div class="chart" id="chart"><p class="empty">Waiting for the first day of play.</p></div>
       </section>
@@ -173,7 +183,7 @@
             </div>
             <p class="empty" id="reports-note"></p>
           </form>
-          <div id="reports-head" class="reports-head" hidden><span id="reports-count"></span><button type="button" id="reports-lockup">LOCK</button></div>
+          <div id="reports-head" class="reports-head" hidden><span id="reports-count"></span><span class="head-buttons"><button type="button" id="reports-clear" class="danger">DELETE ALL</button><button type="button" id="reports-lockup">LOCK</button></span></div>
           <div id="reports-list" class="reports-list"></div>
           <div class="more"><button type="button" id="reports-more" hidden>LOAD MORE</button></div>
         </div>
@@ -181,6 +191,7 @@
       <section>
         <h2 id="errors-title">ERRORS · CAUGHT IN THE GAME</h2>
         <div class="board errors">
+          <div id="errors-head" class="reports-head" hidden><span id="errors-count"></span><button type="button" id="errors-clear" class="danger">CLEAR ALL</button></div>
           <p class="empty" id="errors-note">Errors are private: open the reports above with your code to see them.</p>
           <div id="errors-list" class="errors-list"></div>
         </div>

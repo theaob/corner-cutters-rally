@@ -2,7 +2,10 @@
 // DOM and a canvas over whatever's showing; each goes away by itself. With
 // reduced motion asked for, the trophy just appears and there's no confetti.
 
-const reduced = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+import { t } from '../../engine/i18n';
+import { motionReduced } from '../access';
+
+const reduced = motionReduced;
 
 /** A trophy (a rally won), `size` px tall. */
 export function trophy(size: number): SVGSVGElement {
@@ -71,11 +74,18 @@ export function confetti(host: HTMLElement, ms = 3500): void {
 
 /** ms an achievement's toast stays up. */
 export const TOAST_MS = 3200;
-let toasts: { name: string; about: string }[] = [];
+/** A toast: its heading (ACHIEVEMENT unless set: MISSION, STREAK, REWARD), its mark (★ unless set), what, and a line on it. */
+export interface Toast {
+  name: string;
+  about: string;
+  head?: string;
+  mark?: string;
+}
+let toasts: Toast[] = [];
 let toasting = false;
 
 /** An achievement unlocked: a toast slides down from the top of the page (one at a time, in turn). */
-export function achievementToast(a: { name: string; about: string }): void {
+export function achievementToast(a: Toast): void {
   toasts.push(a);
   if (!toasting) nextToast();
 }
@@ -87,14 +97,14 @@ function nextToast(): void {
   const el = document.createElement('div');
   el.className = `achievement-toast${reduced() ? ' still' : ''}`;
   const star = document.createElement('b');
-  star.textContent = '★';
+  star.textContent = a.mark ?? '★';
   const text = document.createElement('div');
   const head = document.createElement('small');
-  head.textContent = 'ACHIEVEMENT';
+  head.textContent = t(a.head ?? 'ACHIEVEMENT');
   const name = document.createElement('strong');
-  name.textContent = a.name;
+  name.textContent = t(a.name);
   const about = document.createElement('span');
-  about.textContent = a.about;
+  about.textContent = t(a.about);
   text.append(head, name, about);
   el.append(star, text);
   document.body.append(el);
@@ -115,7 +125,7 @@ export function hintToast(text: string, ms = 2000): void {
   document.querySelector('.hint-toast')?.remove();
   const el = document.createElement('div');
   el.className = 'hint-toast';
-  el.textContent = text;
+  el.textContent = t(text);
   document.body.append(el);
   setTimeout(() => el.remove(), ms);
 }

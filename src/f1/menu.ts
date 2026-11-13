@@ -12,6 +12,7 @@ import { menuPick, menuTick } from './sounds';
 import { DIFFICULTIES, type Difficulty } from './difficulty';
 import { sectioned, settingsPages, settingsRows as settingsRowsNow } from './settingsRows';
 import { reportOpen } from './report';
+import { availableLanguages, t, takeSettingsResume } from '../engine/i18n';
 
 /** px a finger must travel sideways for a swipe; less than TAP_SLOP counts as a tap */
 const SWIPE = 28;
@@ -58,13 +59,13 @@ export function optionRow<T>(
     el.innerHTML = '';
     // one line: the label on the left; on the right the value (with its colours) and a line about it
     const name = document.createElement('b');
-    name.textContent = label;
+    name.textContent = t(label);
     const right = document.createElement('div');
     right.className = 'value';
     // (its arrows either side; a name too long for the row wraps between them)
     const top = document.createElement('strong');
     const arrow = (a: string) => Object.assign(document.createElement('em'), { textContent: a });
-    const text = Object.assign(document.createElement('em'), { className: 'name', textContent: v.name });
+    const text = Object.assign(document.createElement('em'), { className: 'name', textContent: t(v.name) });
     top.append(arrow('◀'), text, arrow('▶'));
     fitName = () => hugLines(text);
     const line = document.createElement('div');
@@ -82,7 +83,7 @@ export function optionRow<T>(
     }
     line.append(top);
     const about = document.createElement('span');
-    about.textContent = v.about;
+    about.textContent = t(v.about);
     right.append(line, about);
     el.append(name, right);
   };
@@ -114,7 +115,7 @@ export function optionRow<T>(
 export function menuButton(text: string, onPick: () => void): HTMLButtonElement {
   const b = document.createElement('button');
   b.className = 'menu-button';
-  b.textContent = text;
+  b.textContent = t(text);
   let armed = false;
   b.addEventListener('pointerdown', () => (armed = true));
   b.addEventListener('pointerleave', () => (armed = false));
@@ -138,7 +139,7 @@ export function framed(): boolean {
 export function ownTabButton(): HTMLButtonElement {
   const b = document.createElement('button');
   b.className = 'own-tab';
-  b.textContent = 'SLOW HERE? PLAY IN ITS OWN TAB ↗';
+  b.textContent = t('SLOW HERE? PLAY IN ITS OWN TAB ↗');
   // on the press's release, not 'click' (in a cross-origin frame on a phone a tap's click can go astray)
   let armed = false;
   b.addEventListener('pointerdown', () => (armed = true));
@@ -148,7 +149,7 @@ export function ownTabButton(): HTMLButtonElement {
     armed = false;
     const tab = window.open(window.location.href, '_blank');
     if (tab) tab.opener = null;
-    else b.textContent = 'THE PAGE BLOCKED A NEW TAB';
+    else b.textContent = t('THE PAGE BLOCKED A NEW TAB');
   });
   return b;
 }
@@ -158,7 +159,8 @@ export function ownTabButton(): HTMLButtonElement {
  * (CONTROLS, GAME, SOUND, ACCESSIBILITY), BACK and the version; each page its rows (DIFFICULTY first on GAME, then the
  * rows the pause screen has too, each remembered as it changes: settingsRows.ts) and BACK. On black, for reading. A
  * report is made from the REPORT in the top corner, as on every menu screen. Resolves with the difficulty picked once
- * the list's BACK (or B, or the phone's back button) leaves it.
+ * the list's BACK (or B, or the phone's back button) leaves it. After a change of LANGUAGE (which builds the screen
+ * again) it opens on GAME, at LANGUAGE.
  */
 export function showSettings(host: HTMLElement, services: Services, difficulty: Difficulty, closed?: AbortSignal): Promise<Difficulty> {
   const { controls, hud } = services;
@@ -181,6 +183,8 @@ export function showSettings(host: HTMLElement, services: Services, difficulty: 
       resolve(difficultyRow.value());
     };
     const pages = settingsPages(rows, finish);
+    // (a language change built the screen again: back on GAME, at LANGUAGE, DIFFICULTY's next)
+    if (takeSettingsResume() && availableLanguages().length > 1) pages.restore('game', 1);
     const offBack = onBack(() => (pages.back(), true));
     screen.append(name, ...pages.els);
     holdTouches(screen);

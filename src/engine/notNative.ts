@@ -11,3 +11,5 @@ export const Haptics = { vibrate: never };
 export const Share = { share: never };
 export const Filesystem = { writeFile: never };
 export const Directory = { Cache: 'CACHE' };
+export const LocalNotifications = { checkPermissions: never, requestPermissions: never, cancel: never, schedule: never, addListener: never };
+export const registerPlugin = <T>(): T => ({}) as T;
