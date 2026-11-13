@@ -6,6 +6,7 @@
 // bar is only how far along the stage you are, never the road's shape).
 
 import { t } from '../../engine/i18n';
+import { driverName } from '../profile';
 import type { Difficulty } from '../difficulty';
 import type { Scheme } from '../crews';
 import { style } from './dom';
@@ -93,7 +94,7 @@ export function createHud(scheme: Scheme, difficulty: Difficulty) {
     border: `4px solid ${scheme.trim}`,
   });
   const weatherTag = document.createElement('span');
-  crewCard.append(plate, `YOU · ${difficulty.name} · `, weatherTag);
+  crewCard.append(plate, `${driverName()} · ${t(difficulty.name)} · `, weatherTag);
   // the pause screen: resume, restart or leave, by tap or with the deck (A, START, SELECT)
   const pauseScreen = document.createElement('div');
   // (blurred race behind it: game.css .pause-screen)

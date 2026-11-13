@@ -3,23 +3,21 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { ACHIEVEMENTS } from '../../src/f1/achievements';
 import { COMPOUNDS } from '../../src/f1/tyres';
 import { DIFFICULTIES } from '../../src/f1/difficulty';
-import { CHANGEABLE, WEATHERS } from '../../src/f1/weather';
-import { LAYOUTS } from '../../src/f1/layouts';
-import { MISSIONS } from '../../src/f1/missions';
-import { REWARDS } from '../../src/f1/streak';
-import { MEDAL_NAME } from '../../src/f1/medals';
-import { MODES } from '../../src/f1/circuitSelect';
-import { CAR_STYLES } from '../../src/f1/carStyle';
+import { RACE_WEATHERS } from '../../src/f1/weather';
+import { SCHEMES } from '../../src/f1/crews';
 import { LABEL_ICON } from '../../src/f1/race/readout';
-import { prompt } from '../../src/f1/onboarding';
-import { SEASON_LENGTHS } from '../../src/f1/laps';
-import { RADIO_LINES } from '../../src/f1/radio';
+import { prompt, STEPS, type Device } from '../../src/f1/onboarding';
+import { ASSIST_LEVELS } from '../../src/engine/drive/assist';
+import { STEER_FEELS } from '../../src/engine/drive/steering';
+import { GAS_MODES, type Control, type DriveStyle, type GasMode } from '../../src/engine/drive/settings';
+import { VIEWS } from '../../src/f1/view';
+import { RALLIES } from '../../src/f1/rally';
+import { STAGE_SPECS } from '../../src/f1/stages';
 
 /** Texts that stay as they are in a language: names, codes and things that read the same. */
-export const SAME = new Set(['OK', 'NORMAL', 'AUTO', 'ABC', 'YOU', 'CORNER CUTTERS']);
+export const SAME = new Set(['OK', 'NORMAL', 'AUTO', 'ABC', 'YOU', 'CORNER CUTTERS', 'CORNER CUTTERS RALLY']);
 
 const sources = (dir: string): string[] =>
   readdirSync(dir).flatMap((f) => {
@@ -70,6 +68,13 @@ function firstArgs(src: string, names: string[]): string[] {
   return out;
 }
 
+/** The texts in the `name:` and `about:` fields of `src`'s objects (up to the field's comma or closing bracket). */
+function fields(src: string): string[] {
+  return firstArgs(src.replace(/\b(name|about):\s*/g, '$1('), ['name', 'about'])
+    .flatMap((arg) => literals(arg.replace(/[=!]==\s*(?:'[^']*'|"[^"]*")/g, '')))
+    .filter((s) => /^[A-Z][A-Z -]+$|\s/.test(s));
+}
+
 const translatable = (s: string) => /[A-Za-z]{2}/.test(s.replace(/\{\w+\}/g, ''));
 
 
@@ -85,26 +90,24 @@ export function gameTexts(): string[] {
   }
 
   const tables: string[] = [
-    ...ACHIEVEMENTS.flatMap((a) => [a.name, a.about]),
     ...Object.values(COMPOUNDS).map((c) => c.name),
     ...DIFFICULTIES.flatMap((d) => [d.name, d.about]),
-    ...[...WEATHERS, CHANGEABLE].flatMap((w) => [w.name, w.about]),
-    ...LAYOUTS.map((l) => l.about),
-    ...MISSIONS.filter((m) => !m.circuit).map((m) => m.text),
-    ...REWARDS.map((r) => r.name),
-    ...Object.values(MEDAL_NAME),
-    ...MODES.flatMap((m) => [m.name, m.about]),
-    ...CAR_STYLES.map((c) => c.name),
-    ...SEASON_LENGTHS.map((l) => l.name),
-    ...Object.values(RADIO_LINES).flat(),
-    ...literals(stripComments(readFileSync('src/f1/radio.ts', 'utf8'))).filter((s) => /^(P\{place\}|PODIUM|YES|CHEQUERED)/.test(s)),
-    // (said through a constant, or looked up by a variable: the hint under the circuit, the tower's and the position's words)
-    'SWIPE TO CHANGE · TAP THE CIRCUIT TO RACE', 'CIRCUIT', 'QUALI', 'PIT', 'BLUE',
-    'SHOWERS', 'DRYING', 'LIGHT RAIN', ...Object.keys(LABEL_ICON), 'WRECKED', 'WORN', 'FOR', 'MISSION', 'STREAK', 'REWARD', 'ACHIEVEMENT',
+    ...RACE_WEATHERS.flatMap((w) => [w.name, w.about]),
+    ...SCHEMES.map((s) => s.name),
+    ...Object.keys(LABEL_ICON),
     ...literals(stripComments(readFileSync('src/f1/race/deckLabels.ts', 'utf8'))).filter((s) => /^[A-Z]+$/.test(s)),
+    ...RALLIES.flatMap((e) => [e.name, e.surface, e.about]),
+    ...STAGE_SPECS.map((l) => l.about),
+    ...[...VIEWS, ...GAS_MODES, ...STEER_FEELS, ...ASSIST_LEVELS].map((v) => v.toUpperCase()),
+    // (a setting's choices, named and told about in the row's own callback: optionRow translates them)
+    ...['src/f1/settingsRows.ts', 'src/f1/view.ts', 'src/f1/screens/rally.ts'].flatMap((f) => fields(stripComments(readFileSync(f, 'utf8')))),
+    // (said through a variable: the stage notes on the results, the road's state)
+    'WENT OFF', 'WORN', 'WRECKED', 'SPIN', 'PUNCTURE', 'ROLLED', 'DNF', 'PENALTY', 'DRY', 'DAMP', 'WET',
   ];
-  const prompts = (['go', 'faster', 'bend', 'drift', 'limits', 'lap', 'done'] as const).flatMap((step) =>
-    (['touch', 'keys', 'pad'] as const).flatMap((d) => [prompt(step, d, false), prompt(step, d, true)]));
+  const prompts = STEPS.flatMap((step) =>
+    (['touch', 'keys', 'pad'] as Device[]).flatMap((d) =>
+      (['manual', 'auto'] as GasMode[]).flatMap((g) =>
+        (['sim', 'topdown'] as DriveStyle[]).flatMap((st) => (['wheel', 'point'] as Control[]).map((c) => prompt(step, d, g, st, c))))));
 
   return [...new Set([...calls.keys(), ...tables, ...prompts])].filter((s) => translatable(s) && !SAME.has(s));
 }

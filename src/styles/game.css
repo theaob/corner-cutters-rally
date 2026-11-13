@@ -1278,58 +1278,6 @@ html.no-pause-blur .pause-settings {
 .circuit-menu .menu-button.mode-button.focused strong {
   color: var(--accent-b);
 }
-/* the modes, SETTINGS and TROPHIES: a grid of square tiles, an icon over its name (RESUME RACE across the top) */
-.circuit-menu .menu-tiles {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-.circuit-menu .menu-button.menu-tile {
-  aspect-ratio: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 0;
-  padding: 6px 4px;
-  text-align: center;
-}
-.circuit-menu .menu-button.menu-tile.wide {
-  grid-column: 1 / -1;
-  aspect-ratio: auto;
-  flex-direction: row;
-  justify-content: center;
-  min-height: 64px;
-}
-.circuit-menu .menu-tile .tile-icon {
-  width: 46%;
-  max-width: 64px;
-  height: auto;
-  flex: none;
-  color: var(--gold);
-}
-.circuit-menu .menu-tile.wide .tile-icon {
-  width: 32px;
-}
-.circuit-menu .menu-tile .tile-words {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  text-align: left;
-}
-.circuit-menu .menu-tile strong {
-  font-size: calc(min(11px, 2.5vw) * var(--ts, 1));
-  line-height: 1.3;
-  text-wrap: balance;
-  overflow-wrap: anywhere;
-}
-.circuit-menu .menu-tile.locked .tile-icon {
-  opacity: 0.5;
-}
-.circuit-menu .menu-button.menu-tile.focused .tile-icon,
-.circuit-menu .menu-button.menu-tile.focused strong {
-  color: var(--accent-b);
-}
 .desktop .circuit-menu {
   padding: 24px max(24px, calc(50% - 220px));
 }

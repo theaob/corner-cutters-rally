@@ -212,7 +212,7 @@ function reportLater(e: unknown): void {
 function stageLine(mode: string | null): string {
   if (mode === 'tutorial') return `${t('SHAKEDOWN')} · ${t('CONTROLS LAP')}`;
   const r = loadRally();
-  if (r && !rallyOver(r)) return `${rallyEvent(r).name} · ${t('SS{n} OF {total}', { n: nextStage(r) + 1, total: rallyEvent(r).stages.length })}`;
+  if (r && !rallyOver(r)) return `${t(rallyEvent(r).name)} · ${t('SS{n} OF {total}', { n: nextStage(r) + 1, total: rallyEvent(r).stages.length })}`;
   return t('RALLY');
 }
 

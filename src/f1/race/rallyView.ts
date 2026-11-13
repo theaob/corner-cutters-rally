@@ -12,6 +12,8 @@ import { formatTime as fmt } from '../time';
 import { crewName, gapText, rallyEvent, stageOrder, standings, type Rally } from '../rally';
 import { cardArrow, shown, spoken, type Grade, type PaceNote } from '../paceNotes';
 import { style } from './dom';
+import { t } from '../../engine/i18n';
+import { driverName } from '../profile';
 import { COLOR, DISPLAY, font, pixelFont } from '../theme';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -224,14 +226,14 @@ const heading = (text: string, color: string = COLOR.gold) => {
 export function renderStageResults(el: HTMLElement, r: Rally, k: number, stageName: string): void {
   const event = rallyEvent(r);
   const dim = { color: COLOR.muted };
-  const name = (crew: number) => (crew === r.you ? 'YOU' : crewName(r.crews[crew]));
+  const name = (crew: number) => (crew === r.you ? driverName() : crewName(r.crews[crew]));
   const right = { textAlign: 'right' };
   const stage = stageOrder(r, k).map((o, i) => ({
     you: o.crew === r.you,
     gap: i === 0 ? undefined : o.gap,
     cells: [
       [`${i + 1}`, dim], [name(o.crew)],
-      [i === 0 ? fmt(o.time) : gapText(o.gap), right], [o.note ?? '', { color: COLOR.red, fontSize: '10px' }],
+      [i === 0 ? fmt(o.time) : gapText(o.gap), right], [o.note ? t(o.note === 'OFF' ? 'WENT OFF' : o.note) : '', { color: COLOR.red, fontSize: '10px' }],
     ] as [string, Partial<CSSStyleDeclaration>?][],
   }));
   const after = standings(r).map((s, i) => ({
@@ -243,9 +245,9 @@ export function renderStageResults(el: HTMLElement, r: Rally, k: number, stageNa
   }));
   const last = k === event.stages.length - 1;
   el.replaceChildren(
-    heading(`SS${k + 1} · ${stageName.toUpperCase()}`),
+    heading(`${t('SS{n}', { n: k + 1 })} · ${stageName.toUpperCase()}`),
     table(stage),
-    heading(last ? `${event.name} · FINAL` : `${event.name} · AFTER SS${k + 1} OF ${event.stages.length}`, COLOR.teal),
+    heading(`${t(event.name)} · ${last ? t('FINAL') : t('AFTER SS{n} OF {total}', { n: k + 1, total: event.stages.length })}`, COLOR.teal),
     table(after),
   );
 }

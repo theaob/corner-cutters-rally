@@ -7,6 +7,7 @@
 
 import { formatTime as fmt } from '../time';
 import type { IconName } from './icons';
+import { t } from '../../engine/i18n';
 
 /** Five blocks, `share` (0…1) of them filled. */
 export const blocks = (share: number) => {
@@ -22,7 +23,7 @@ export function readoutText(r: {
   health: number;
   wrecked: boolean;
 }): string {
-  const car = r.wrecked ? 'WRECKED' : blocks(r.health);
+  const car = r.wrecked ? t('WRECKED') : blocks(r.health);
   return `TIME ${fmt(r.time)}\nBEST ${fmt(r.best)}\nCAR  ${car}\n`;
 }
 
@@ -34,7 +35,7 @@ export function gapValue(gap: number | undefined): string {
 
 /** TOP-DOWN's readout: the stage clock, the gap at the last split (on a rally's stage), and your car's health as pips. */
 export function topDownReadout(r: { time?: number; gap?: number; splits: boolean; health: number; wrecked: boolean }): string {
-  const car = r.wrecked ? 'WRECKED' : blocks(r.health);
+  const car = r.wrecked ? t('WRECKED') : blocks(r.health);
   return `TIME ${fmt(r.time)}\n${r.splits ? `GAP  ${gapValue(r.gap)}\n` : ''}CAR  ${car}\n`;
 }
 
@@ -53,7 +54,7 @@ export interface ReadoutRow {
 }
 
 /** Each label's icon. */
-const LABEL_ICON: Record<string, IconName> = {
+export const LABEL_ICON: Record<string, IconName> = {
   TIME: 'watch', BEST: 'star', GAP: 'flag', CAR: 'car', TYRE: 'tyre',
 };
 /** labels longer than the label column has room for on a phone: label and value as one, across both columns */
@@ -70,7 +71,7 @@ export function readoutRows(text: string): ReadoutRow[] {
     .filter((l) => l.trim())
     .map((l) => {
       const [, label, value = ''] = l.match(/^(\S+)\s*(.*)$/) ?? [];
-      if (!value && !LABEL_ICON[label]) return { label: '', value: label };
-      return { ...(LABEL_ICON[label] ? { icon: LABEL_ICON[label] } : {}), label, value, ...(SPANS.has(label) ? { span: true } : {}) };
+      if (!value && !LABEL_ICON[label]) return { label: '', value: t(label) };
+      return { ...(LABEL_ICON[label] ? { icon: LABEL_ICON[label] } : {}), label: t(label), value, ...(SPANS.has(label) ? { span: true } : {}) };
     });
 }
