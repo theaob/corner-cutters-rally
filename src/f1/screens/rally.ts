@@ -25,8 +25,15 @@ import { gridStep, makeTile } from '../menuTiles';
 import { confetti, trophy } from './celebrate';
 import { COLOR, SURFACE_COLOR } from '../theme';
 import { language, t, upper } from '../../engine/i18n';
+import { ROUNDS, YOU, opensAt, roundOf, roundOpen, seasonOver, seasonPlace, seasonStandings, type Season } from '../season';
 
-export type RallyAction = 'stage' | 'abandon' | 'settings' | { start: RallyEvent; scheme: Scheme };
+export type RallyAction = 'stage' | 'abandon' | 'settings' | 'new-season' | { start: RallyEvent; scheme: Scheme };
+
+/** The season home shows (season.ts), and the time its calendar goes by. */
+export interface SeasonView {
+  season: Season;
+  now: number;
+}
 
 /** A place as the language writes it: 1ST in English, 1. in German and Turkish, 1º, 1er, 1位. */
 const ORDINAL: Record<string, (n: number) => string> = {
@@ -61,6 +68,33 @@ function standingsTable(r: Rally): HTMLTableElement {
   return table;
 }
 
+/** The season's standings as a table: place, the crew's paint, crew, points; you in gold. */
+function seasonTable(s: Season, scheme: Scheme): HTMLTableElement {
+  const table = document.createElement('table');
+  Object.assign(table.style, { width: '100%', maxWidth: '360px', borderCollapse: 'collapse', font: '12px var(--pixel)', color: 'var(--text)' });
+  seasonStandings(s).forEach((c, k) => {
+    const row = document.createElement('tr');
+    if (c.key === YOU) row.style.color = 'var(--gold)';
+    row.style.animation = `row-in 0.35s ease-out ${(0.1 + k * 0.05).toFixed(2)}s both`;
+    const crew = c.key === YOU ? { scheme: scheme.id } : { crew: c.key };
+    const paint = crewScheme(crew);
+    const cell = (text: string, right = false) => {
+      const d = document.createElement('td');
+      d.textContent = text;
+      Object.assign(d.style, { padding: '2px 4px', textAlign: right ? 'right' : 'left', whiteSpace: 'nowrap' });
+      return d;
+    };
+    const chip = document.createElement('td');
+    Object.assign(chip.style, { width: '14px', padding: '0', background: paint.body, boxShadow: `inset 0 0 0 3px ${paint.trim}` });
+    row.append(cell(`${k + 1}`, true), chip, cell(crewName(crew)), cell(`${c.points} ${t('PTS')}`, true));
+    table.append(row);
+  });
+  return table;
+}
+
+/** A date as the language writes it, short and upper case: 23 NOV, 23. NOV., 11月23日. */
+const shortDate = (ms: number) => new Date(ms).toLocaleDateString(language().code, { day: 'numeric', month: 'short', timeZone: 'UTC' }).toUpperCase();
+
 /** A dark panel holding `children` (small text over the forest backdrop is hard to read without one). */
 function panel(...children: HTMLElement[]): HTMLElement {
   const d = document.createElement('div');
@@ -74,7 +108,7 @@ function panel(...children: HTMLElement[]): HTMLElement {
  * surface's colour) over its name, and under that its stages and your best finish there; the rest for a screen reader
  * and a long press.
  */
-export function rallyTile(e: RallyEvent, bestPlace: number | undefined, b: HTMLButtonElement): HTMLButtonElement {
+export function rallyTile(e: RallyEvent, bestPlace: number | undefined, b: HTMLButtonElement, round?: { n: number; state: string; color?: string }): HTMLButtonElement {
   b.classList.add('rally-tile');
   b.style.setProperty('--surface', SURFACE_COLOR[e.surface]);
   const facts = document.createElement('span');
@@ -82,8 +116,13 @@ export function rallyTile(e: RallyEvent, bestPlace: number | undefined, b: HTMLB
   const best = document.createElement('span');
   best.textContent = bestPlace ? t('BEST {place}', { place: ordinal(bestPlace) }) : t('NOT RUN YET');
   if (bestPlace === 1) best.style.color = 'var(--gold)';
-  facts.append(`${t('{n} STAGES', { n: e.stages.length })} · `, best);
-  makeTile(b, e.surface, t(e.name), `${t(e.surface)} · ${t(e.about)}${bestPlace ? ` · ${t('BEST {place}', { place: ordinal(bestPlace) })}` : ''}`, facts);
+  if (round) {
+    // (a round of the season: its number, and how it stands: driven, open, or when it opens)
+    best.textContent = round.state;
+    best.style.color = round.color ?? '';
+    facts.append(`${t('ROUND {n}', { n: round.n })} · `, best);
+  } else facts.append(`${t('{n} STAGES', { n: e.stages.length })} · `, best);
+  makeTile(b, e.surface, t(e.name), `${round ? `${t('ROUND {n}', { n: round.n })} · ${round.state} · ` : ''}${t(e.surface)} · ${t(e.about)}${bestPlace ? ` · ${t('BEST {place}', { place: ordinal(bestPlace) })}` : ''}`, facts);
   return b;
 }
 
@@ -91,7 +130,7 @@ export function rallyTile(e: RallyEvent, bestPlace: number | undefined, b: HTMLB
  * Show the rally screen in `host` (the rally under way, if any; your car's paint `scheme` for a new one) until the
  * player picks.
  */
-export function showRally(host: HTMLElement, services: Services, rally: Rally | undefined, scheme: Scheme, closed?: AbortSignal): Promise<RallyAction> {
+export function showRally(host: HTMLElement, services: Services, rally: Rally | undefined, scheme: Scheme, closed?: AbortSignal, view?: SeasonView): Promise<RallyAction> {
   const { controls, hud } = services;
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
@@ -124,7 +163,9 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
     if (!rally) {
       // a new rally: your car's paint, then the rallies to pick from
       title.textContent = 'CORNER CUTTERS RALLY';
-      screen.append(panel(line(t('STAGE BY STAGE AGAINST THE CLOCK, THE CO-DRIVER CALLING THE BENDS: THE LEAST TIME OVERALL WINS'), 'var(--accent-b)')));
+      screen.append(panel(line(view
+        ? t('A SEASON OF {n} ROUNDS, A NEW ONE EACH WEEK: POINTS FOR THE TOP 10, BONUS POINTS ON EACH POWER STAGE', { n: ROUNDS.length })
+        : t('STAGE BY STAGE AGAINST THE CLOCK, THE CO-DRIVER CALLING THE BENDS: THE LEAST TIME OVERALL WINS'), 'var(--accent-b)')));
       const car = optionRow('CAR', SCHEMES, scheme, (s) => ({ name: s.name, about: 'your paint · #1 on the roof', colors: [s.body, s.trim, ...(s.accent ? [s.accent] : [])] }));
       places.push({ el: car.el, step: car.step });
       screen.append(car.el);
@@ -132,11 +173,47 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
       const bests = loadBests();
       const grid = document.createElement('div');
       grid.className = 'menu-tiles';
-      RALLIES.forEach((e, k) => {
-        grid.append(rallyTile(e, bests[e.id]?.place, button('', () => finish({ start: e, scheme: car.value() }))));
-        places[places.length - 1].tile = k;
-      });
-      screen.append(grid);
+      if (view) {
+        // the season's rounds: one driven shows how it went, one open is picked, one not open yet says when it opens
+        const { season, now } = view;
+        ROUNDS.forEach((e, k) => {
+          const done = season.results[e.id];
+          const open = roundOpen(k, now);
+          const state = done
+            ? { n: k + 1, state: `${ordinal(done.place)} · ${done.points[YOU] ?? 0} ${t('PTS')}`, color: done.place === 1 ? 'var(--gold)' : undefined }
+            : open ? { n: k + 1, state: t('OPEN NOW'), color: 'var(--accent-b)' } : { n: k + 1, state: t('OPENS {date}', { date: shortDate(opensAt(k)) }) };
+          const b = button('', () => !done && open && finish({ start: e, scheme: car.value() }));
+          grid.append(rallyTile(e, bests[e.id]?.place, b, state));
+          places[places.length - 1].tile = k;
+          // (one driven, or not open yet: moved over, not picked, and not where the highlight starts)
+          if (done || !open) {
+            b.classList.add('tile-off');
+            places[places.length - 1].pick = undefined;
+          }
+        });
+        screen.append(grid);
+        if (Object.keys(season.results).length) {
+          const over = seasonOver(season);
+          const place = seasonPlace(season);
+          if (over && place === 1) {
+            const cup = trophy(56);
+            Object.assign(cup.style, { display: 'block', margin: '0 auto' });
+            screen.append(cup);
+            requestAnimationFrame(() => confetti(host));
+          }
+          screen.append(panel(
+            line(over ? (place === 1 ? t('YOU ARE THE CHAMPION!') : t('YOU FINISHED THE SEASON {place}', { place: ordinal(place) })) : t('SEASON STANDINGS'), over && place === 1 ? 'var(--gold)' : 'var(--text)'),
+            seasonTable(season, car.value()),
+          ));
+          if (over) screen.append(button(`${t('NEW SEASON')} ▶`, () => finish('new-season'), true));
+        }
+      } else {
+        RALLIES.forEach((e, k) => {
+          grid.append(rallyTile(e, bests[e.id]?.place, button('', () => finish({ start: e, scheme: car.value() }))));
+          places[places.length - 1].tile = k;
+        });
+        screen.append(grid);
+      }
     } else {
       const e = rallyEvent(rally);
       title.textContent = t(e.name);
@@ -154,16 +231,25 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
           line(`${t(e.surface)} · ${t('{n} STAGES', { n: e.stages.length })} · ${t('FINAL STANDINGS')}`),
           standingsTable(rally),
         ));
-        screen.append(button(`${t('NEW RALLY')} ▶`, () => finish('abandon'), true));
+        const result = rally.season && view ? view.season.results[rally.event] : undefined;
+        if (result) {
+          const bonus = result.power[YOU];
+          screen.append(panel(line(t('+{n} SEASON POINTS', { n: result.points[YOU] ?? 0 }), 'var(--gold)'),
+            ...(bonus ? [line(`${t('POWER STAGE')} +${bonus}`, 'var(--accent-b)')] : [])));
+        }
+        screen.append(button(`${rally.season ? t('BACK TO THE SEASON') : t('NEW RALLY')} ▶`, () => finish('abandon'), true));
       } else {
         const next = e.stages[k];
         const layout = layoutById(next.layout);
         const health = Math.round(rally.health * 100);
+        const round = rally.season ? roundOf(rally.event) : -1;
         const info = panel(
+          ...(round >= 0 ? [line(t('ROUND {n} OF {total}', { n: round + 1, total: ROUNDS.length }), 'var(--muted)')] : []),
           line(`${t('SS{n} OF {total}', { n: k + 1, total: e.stages.length })} · ${layout?.name.toUpperCase() ?? ''}`, 'var(--gold)'),
           line(`${upper(t(layout?.about ?? ''))} · ${t(weatherById(next.weather)?.name ?? '')}`, 'var(--accent-b)'),
           line(`${t('YOUR CAR: {n}%', { n: health })}${health < 100 ? ` · ${t('DAMAGED')}` : ''}${k > 0 && serviceAfter(rally, k - 1) ? ` · ${t('FRESH FROM SERVICE')}` : ''}`, health < 60 ? COLOR.red : 'var(--text)'),
         );
+        if (round >= 0 && k === e.stages.length - 1) info.append(line(t('POWER STAGE · BONUS POINTS FOR THE TOP 5'), 'var(--gold)'));
         if (k > 0) info.append(line(t("STANDINGS AFTER SS{n}: YOU'RE {place}", { n: k, place: ordinal(yourPlace(rally)) })), standingsTable(rally));
         else info.append(line(t('THE CO-DRIVER CALLS EVERY BEND: ◀ 1 THE SLOWEST … 6 ▶ BARELY A LIFT')));
         info.style.borderLeft = `6px solid ${SURFACE_COLOR[e.surface]}`;

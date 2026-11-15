@@ -4,7 +4,8 @@
 //             largeText and colourSafe (on/off: off unless set; access.ts)
 //   choices   the difficulty (by id), and your car's paint scheme (crews.ts)
 //   progress  onboarded: the controls lap done or skipped
-//   rally     current: the rally under way (or just over); best: your best finish in each rally; stages: your best time on each stage (rally.ts)
+//   rally     current: the rally under way (or just over); best: your best finish in each rally; stages: your best time on each stage (rally.ts);
+//             season: the season under way, its rival crews and the rounds driven (season.ts)
 // Each value is checked where it's read, so a missing or odd one falls back to its default.
 //
 // To change the format: bump `version`, and add a migration from the old

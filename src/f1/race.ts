@@ -71,6 +71,7 @@ import { F1_TUNING } from './tuning';
 import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
+import { loadSeason, recordRound, saveSeason } from './season';
 import { aiStage, loadStageBests, rallyEvent, recordBest, recordStage, recordStageBest, referenceStage, saveRally, stageOrder, type Rally } from './rally';
 import { newCaller, paceNotes, screenFacing, stepCaller, type Caller } from './paceNotes';
 import { createPaceCard, renderStageResults } from './race/rallyView';
@@ -481,6 +482,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     recordStage(r, rallyRun.stage, { time, penalty: p.penalty, health: me.car.wrecked ? 0 : me.car.health / me.car.cls.health }, aiStage(r, rallyRun.stage, stage.reference.time, difficulty));
     if (recordBest(r)) sounds.record();
     saveRally(r);
+    // (the last stage of a season's round: its points into the season)
+    const season = r.season ? loadSeason() : undefined;
+    if (season && recordRound(season, r)) saveSeason(season);
     const place = stageOrder(r, rallyRun.stage).findIndex((o) => o.crew === r.you) + 1;
     stage.result.place = place;
     noteStat('race_finish', { circuit: layout.id, mode: 'rally', data: { place: time === undefined ? null : place, stage: rallyRun.stage } });
