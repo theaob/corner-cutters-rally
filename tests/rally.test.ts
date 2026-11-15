@@ -41,12 +41,17 @@ describe('a rally', () => {
       expect(Object.keys(c).sort()).toEqual(['crew', 'rank']);
       expect(CREWS.map((x) => x.id)).toContain(c.crew);
       expect(crewName(c)).toBe(crewById(c.crew)!.name);
+      expect(crewName(c)).toMatch(/^[A-Z]{3}$/);
       expect(crewScheme(c).id).toBe(crewById(c.crew)!.scheme);
     }
     expect(new Set(rivals.map((c) => c.crew)).size).toBe(9);
     const names = r.crews.map(crewName);
     expect(new Set(names).size).toBe(names.length);
     expect(rivals.map((c) => c.rank).sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+  it('names every rival crew by a three-letter driver code, no two alike', () => {
+    for (const c of CREWS) expect(c.name).toMatch(/^[A-Z]{3}$/);
+    expect(new Set(CREWS.map((c) => c.name)).size).toBe(CREWS.length);
   });
   it('is the same rally from the same seed', () => {
     expect(fresh(3)).toEqual(fresh(3));

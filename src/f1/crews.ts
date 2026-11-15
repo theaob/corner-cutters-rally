@@ -1,6 +1,7 @@
 // The crews: the paint schemes a rally car can wear (yours picked on the rally's
-// screen), and the nine rival crews of a rally, each a made-up driver with a
-// paint scheme of their own. Engine-free.
+// screen), and the nine rival crews of a rally, each a made-up driver (by a
+// three-letter code, as the timing screens show them) with a paint scheme of
+// their own. Engine-free.
 
 import type { LiveryPattern } from '../engine/render/vehicles3d';
 
@@ -31,27 +32,29 @@ export const SCHEMES: Scheme[] = [
 
 export const schemeById = (id: string | null | undefined): Scheme | undefined => SCHEMES.find((s) => s.id === id);
 
-/** A rival crew: its driver's name (as the timing screens show it), and its car's paint. */
+/** A rival crew: its driver, by their three-letter code (as the timing screens show it, like your initials), and its car's paint. */
 export interface Crew {
+  /** saved in a rally, so it stays the same when the code changes */
   id: string;
+  /** three letters, for the timing screens */
   name: string;
   scheme: string;
 }
 
 /** The rival crews a rally draws its nine from. */
 export const CREWS: Crew[] = [
-  { id: 'lindqvist', name: 'LINDQVIST', scheme: 'arctic' },
-  { id: 'moreau', name: 'MOREAU', scheme: 'royal' },
-  { id: 'okafor', name: 'OKAFOR', scheme: 'forest' },
-  { id: 'varga', name: 'VARGA', scheme: 'works-red' },
-  { id: 'tanaka', name: 'TANAKA', scheme: 'midnight' },
-  { id: 'castillo', name: 'CASTILLO', scheme: 'sunburst' },
-  { id: 'brennan', name: 'BRENNAN', scheme: 'lime' },
-  { id: 'novak', name: 'NOVAK', scheme: 'copper' },
-  { id: 'haugen', name: 'HAUGEN', scheme: 'powder' },
-  { id: 'rossi', name: 'ROSSI', scheme: 'stripes' },
-  { id: 'kowalski', name: 'KOWALSKI', scheme: 'royal' },
-  { id: 'mbeki', name: 'MBEKI', scheme: 'forest' },
+  { id: 'lindqvist', name: 'LIN', scheme: 'arctic' },
+  { id: 'moreau', name: 'MOR', scheme: 'royal' },
+  { id: 'okafor', name: 'OKA', scheme: 'forest' },
+  { id: 'varga', name: 'VAR', scheme: 'works-red' },
+  { id: 'tanaka', name: 'TAN', scheme: 'midnight' },
+  { id: 'castillo', name: 'CAS', scheme: 'sunburst' },
+  { id: 'brennan', name: 'BRE', scheme: 'lime' },
+  { id: 'novak', name: 'NOV', scheme: 'copper' },
+  { id: 'haugen', name: 'HAU', scheme: 'powder' },
+  { id: 'rossi', name: 'ROS', scheme: 'stripes' },
+  { id: 'kowalski', name: 'KOW', scheme: 'royal' },
+  { id: 'mbeki', name: 'MBE', scheme: 'forest' },
 ];
 
 export const crewById = (id: string | null | undefined): Crew | undefined => CREWS.find((c) => c.id === id);
