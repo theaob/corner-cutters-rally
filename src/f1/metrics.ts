@@ -4,7 +4,7 @@
 // id the device made for itself; nothing at all when STATS is off in the
 // settings, or the build has no backend.
 
-import { Capacitor } from '@capacitor/core';
+import { platformName, type Platform } from '../engine/platform';
 import { insert, online } from '../engine/backend';
 import { playerId, statsOn } from './profile';
 import { gameHidden, onHidden } from '../engine/host';
@@ -20,7 +20,7 @@ const EVERY = 20;
 export interface Event {
   player: string;
   kind: EventKind;
-  platform: 'web' | 'android';
+  platform: Platform;
   version: string;
   circuit?: string;
   mode?: string;
@@ -75,7 +75,7 @@ export function flush(closing = false): void {
 export function track(kind: EventKind, about: { circuit?: string; mode?: string; km?: number; seconds?: number; data?: Record<string, unknown> } = {}): void {
   if (!online() || !statsOn()) return;
   queue.push({
-    player: playerId(), kind, platform: Capacitor.isNativePlatform() ? 'android' : 'web', version: version(),
+    player: playerId(), kind, platform: platformName(), version: version(),
     ...about, ...(about.km !== undefined ? { km: Math.round(about.km * 1000) / 1000 } : {}),
   });
   if (!timer) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { foldTail, musicPlaying, musicVolume, playMusic, setMusicVolume, stopMusic } from '../src/engine/music';
-import { useSave, type SaveStore } from '../src/engine/save';
+import { flushSave, useSave, type SaveStore } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
 import { MENU_MUSIC, PODIUM_MUSIC, RACE_MUSIC, THEME_MUSIC, menuSong, placeholder, podiumSong, raceSong, themeSong, type Song } from '../src/f1/music';
 
@@ -62,6 +62,7 @@ describe('the music without Web Audio (tests, old browsers)', () => {
     useSave(CC_SAVE, store);
     expect(musicVolume()).toBe(0.7);
     setMusicVolume(0.35);
+    flushSave();
     expect(JSON.parse(items.get('cc:save')!).data.settings.music).toBe(0.35);
     expect(() => {
       playMusic(MENU_MUSIC);

@@ -11,6 +11,7 @@ import { isTouchScreen } from '../../engine/layout';
 import type { CircuitLayout } from '../layouts';
 import { versionLine } from '../settingsRows';
 import { showStill } from './backdropStill';
+import { t } from '../../engine/i18n';
 
 /** ms from the start being pressed to the game going on (the prompt flashes) */
 export const SPLASH_GO_MS = 360;
@@ -21,7 +22,7 @@ const NOT_START = new Set(['Shift', 'Control', 'Alt', 'Meta', 'Tab', 'CapsLock',
 
 /** What the prompt says: a tap on a touch screen, a key otherwise. */
 export function startPrompt(touch: boolean): string {
-  return touch ? 'TAP TO START' : 'PRESS ANY KEY';
+  return t(touch ? 'TAP TO START' : 'PRESS ANY KEY');
 }
 
 export interface Splash {
@@ -37,8 +38,10 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
   const { signal } = closed;
   const still = showStill(host);
   let stopBackdrop = () => {};
-  void import('./menuBackdrop').then(({ startBackdrop }) => {
-    if (!signal.aborted) stopBackdrop = startBackdrop(host, layout, still);
+  let parkBackdrop = (stop: () => void) => stop();
+  void import('./menuBackdrop').then((m) => {
+    parkBackdrop = m.parkBackdrop;
+    if (!signal.aborted) stopBackdrop = m.startBackdrop(host, layout, still);
   });
 
   const page = document.createElement('div');
@@ -100,7 +103,8 @@ export function showSplash(host: HTMLElement, layout: CircuitLayout, controls: C
     started,
     close: () => {
       closed.abort();
-      stopBackdrop();
+      // (the race behind it goes on into the menu, if that's next)
+      parkBackdrop(stopBackdrop);
       still.remove();
       page.remove();
     },

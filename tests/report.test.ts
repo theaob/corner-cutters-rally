@@ -33,4 +33,10 @@ describe('a copy of the next frame', () => {
     expect(await waiting).toBeUndefined();
     expect(frameWanted()).toBe(false);
   });
+
+  it('carries the logbook when it has one (and leaves the column out when not, for an older project)', () => {
+    const log = { device: { screen: '390x844@3' }, notes: ['1.0 screen menu', '2.5 press a'] };
+    expect(reportRow({ player: 'p', platform: 'android', version: '1', about: {}, screen: '1x1', text: '', log }).log).toEqual(log);
+    expect('log' in reportRow({ player: 'p', platform: 'android', version: '1', about: {}, screen: '1x1', text: '' })).toBe(false);
+  });
 });

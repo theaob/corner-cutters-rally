@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Controls, guardInput, readGamepad } from '../src/engine/controls';
+import { Controls, guardInput, readGamepad, unstuck } from '../src/engine/controls';
 
 describe('Controls', () => {
   it('holds a button while any source holds it', () => {
@@ -31,7 +31,7 @@ describe('Controls', () => {
   it('does not double-count a button held by two sources', () => {
     const c = new Controls();
     c.press('keyboard', 'a', true);
-    c.press('touch-a', 'a', true);
+    c.set('gamepad', ['a']);
     expect(c.presses('a')).toBe(1);
     c.set('dpad', ['up']);
     c.set('dpad', ['up', 'right']);
@@ -39,6 +39,39 @@ describe('Controls', () => {
     expect(c.presses('right')).toBe(1);
   });
 });
+
+describe('a tap on the screen', () => {
+  it('is always a press, even with the button left held by another source (a lost touch, a pad that is not one)', () => {
+    const c = new Controls();
+    // (a pad the phone lists, its buttons stuck down)
+    c.set('gamepad', ['a', 'b', 'start', 'select']);
+    const before = c.presses('a');
+    c.press('touch-a', 'a', true);
+    c.press('touch-a', 'a', false);
+    c.press('touch-a', 'a', true);
+    expect(c.presses('a')).toBe(before + 2);
+  });
+
+  it('counts once while held, however often the press is reported', () => {
+    const c = new Controls();
+    c.press('touch-a', 'a', true);
+    c.press('touch-a', 'a', true);
+    expect(c.presses('a')).toBe(1);
+  });
+});
+
+describe('a pad with buttons held from the start', () => {
+  it('has them ignored until each is let go once (a phone listing a part of itself as a pad, its buttons stuck)', () => {
+    const stuck = new Set<'a' | 'b' | 'start'>(['a', 'b']);
+    // (held still: ignored; START pressed since: counts)
+    expect(unstuck(['a', 'b', 'start'], stuck)).toEqual(['start']);
+    // (A let go: from then on it counts again; B never is)
+    expect(unstuck(['b'], stuck)).toEqual([]);
+    expect(unstuck(['a', 'b'], stuck)).toEqual(['a']);
+    expect([...stuck]).toEqual(['b']);
+  });
+});
+
 
 describe('guardInput', () => {
   const fakeWindow = () => {

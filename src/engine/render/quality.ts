@@ -5,6 +5,11 @@
 // picture's fault (the browser is holding the page to 30 fps: Low Power Mode,
 // or Safari throttling a game embedded in another site's page), so it goes
 // back to where it started and stops trying.
+//
+// Every step is a hitch (a picture of another size, its targets made again), so where it settles is kept on the
+// device (`keptQuality`, race.ts) and the next race starts there, warmed up behind the loading card, rather than
+// stepping down again mid-race. It's forgotten after a few days, and with a new version of the game, so a phone
+// that was only hot once, or on battery saver, gets full quality back.
 
 export interface QualityLevel {
   name: string;
@@ -12,6 +17,7 @@ export interface QualityLevel {
   res: number;
   bloom: boolean;
   blur: boolean;
+  /** the sun's shadow map (px square); 0: no shadows at all */
   shadowMap: number;
 }
 
@@ -19,6 +25,10 @@ export const QUALITY_LEVELS: QualityLevel[] = [
   { name: 'high', res: 2, bloom: true, blur: true, shadowMap: 2048 },
   { name: 'medium', res: 2, bloom: false, blur: true, shadowMap: 1024 },
   { name: 'low', res: 1, bloom: false, blur: false, shadowMap: 1024 },
+  // (a phone too slow even for that: a coarser shadow map. Not none: the shadows turned off or back on make every
+  // material's shader again, mid-race, a hitch of several hundred ms on a phone, then more as each part of the circuit
+  // comes into sight)
+  { name: 'minimum', res: 1, bloom: false, blur: false, shadowMap: 512 },
 ];
 
 export interface GovernorParams {
@@ -46,7 +56,12 @@ export class QualityGovernor {
   /** where it was, and how slow, when it started stepping down; cleared once a step helps */
   private probe?: { level: number; ms: number };
 
-  constructor(private readonly p: GovernorParams = DEFAULT_GOVERNOR) {}
+  /** `start`: where a race before settled (`keptQuality`), if it's still to be trusted. */
+  constructor(private readonly p: GovernorParams = DEFAULT_GOVERNOR, start?: { level: number; locked: boolean }) {
+    if (!start) return;
+    this.level = start.level;
+    this.locked = start.locked;
+  }
 
   private change(level: number): void {
     this.level = level;
@@ -78,4 +93,28 @@ export class QualityGovernor {
     }
     return this.level;
   }
+}
+
+/** Where the governor settled on this device: its level, whether it gave up, when (ms since 1970) and in which version of the game. */
+export interface KeptQuality {
+  level: number;
+  locked: boolean;
+  at: number;
+  version: string;
+}
+
+/** days a kept level is trusted */
+export const KEEP_QUALITY_DAYS = 3;
+
+/**
+ * The level (and whether it's locked) to start a race at, from `kept` as stored (anything: a save can be damaged, or
+ * from another version): nothing (full quality, and the governor watching) when there's none, it's from another
+ * version of the game, or it's older than KEEP_QUALITY_DAYS.
+ */
+export function keptQuality(kept: unknown, now: number, version: string): { level: number; locked: boolean } | undefined {
+  if (!kept || typeof kept !== 'object') return undefined;
+  const k = kept as Partial<KeptQuality>;
+  if (k.version !== version || typeof k.at !== 'number' || now - k.at > KEEP_QUALITY_DAYS * 86400000 || now < k.at) return undefined;
+  if (typeof k.level !== 'number' || !Number.isInteger(k.level) || k.level < 0 || k.level >= QUALITY_LEVELS.length) return undefined;
+  return { level: k.level, locked: k.locked === true };
 }

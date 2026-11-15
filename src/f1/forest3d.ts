@@ -466,7 +466,8 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): Tree[] {
     for (const mesh of Object.values(meshes)) {
       if (!mesh.count) continue;
       mesh.computeBoundingSphere();
-      mesh.castShadow = true;
+      // (a trunk's shadow falls under its crown's, and the dates' are specks: not worth drawing thousands of them again)
+      mesh.castShadow = mesh !== meshes.trunk && mesh !== meshes.dates;
       mesh.receiveShadow = true;
       scene.add(mesh);
     }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { migrateSave, parseSaveDoc, save, saved, savedSection, saveVersion, useSave, type SaveFormat, type SaveStore } from '../src/engine/save';
+import { exportSaveDoc, flushSave, migrateSave, parseSaveDoc, replaceSave, save, saved, savedSection, saveVersion, useSave, type SaveFormat, type SaveStore } from '../src/engine/save';
 import { useStore } from '../src/engine/storage';
 import { CC_SAVE } from '../src/f1/save';
 import { loadStageBests, recordStageBest } from '../src/f1/rally';
@@ -96,6 +96,7 @@ describe('saving', () => {
     s.items.set('cc:save', JSON.stringify(other));
     // …then this one changes a setting
     save('settings', 'vibration', false);
+    flushSave();
     expect(stored(s).data.rally.stages['ss-old-mill']).toBe(300);
     expect(stored(s).data.settings.vibration).toBe(false);
   });
@@ -168,5 +169,81 @@ describe('reading a stored save', () => {
   it('takes only a versioned document of sections', () => {
     expect(parseSaveDoc('{"version":2,"data":{"a":{"x":1},"b":3,"c":[1]}}')).toEqual({ version: 2, data: { a: { x: 1 } } });
     for (const bad of ['', 'null', '[]', '{"data":{}}', '{"version":0}', '{"version":"1"}', '{"version":1.5}']) expect(parseSaveDoc(bad)).toBeUndefined();
+  });
+});
+
+describe('a run of saves', () => {
+  it('is one write, made as the run ends, and a ghost is kept under a key of its own', async () => {
+    const writes: string[] = [];
+    const s = fakeStore();
+    const setItem = s.setItem;
+    s.setItem = (k, v) => {
+      writes.push(k);
+      setItem(k, v);
+    };
+    useSave(CC_SAVE, s);
+    saved('settings', 'sound'); // (the first save, made as it's read)
+    writes.length = 0;
+    // (a lap ends: records, a kept race, a ghost)
+    save('settings', 'sound', 0.5);
+    save('choices', 'team', 'maas');
+    const ghost = { time: 21.5, frames: [1, 2, 3] };
+    save('ghosts', 'crescent-park', ghost);
+    expect(saved('settings', 'sound')).toBe(0.5); // (read at once, from memory)
+    expect(saved('ghosts', 'crescent-park')).toEqual(ghost);
+    await Promise.resolve();
+    expect(writes.filter((k) => k === 'cc:save')).toHaveLength(1);
+    expect(s.items.get('cc:ghosts.crescent-park')).toBe(JSON.stringify(ghost));
+    // the document holds a marker only
+    expect(stored(s).data.ghosts).toEqual({ 'crescent-park': 1 });
+    expect(stored(s).data.settings.sound).toBe(0.5);
+    // another ghost, the same ghost over: the document isn't written again
+    writes.length = 0;
+    save('ghosts', 'crescent-park', { ...ghost, time: 21.1 });
+    await Promise.resolve();
+    expect(writes).toEqual(['cc:ghosts.crescent-park']);
+  });
+
+  it('keeps ghosts a reload later, lists them, and removes them with their names', () => {
+    const s = fakeStore();
+    useSave(CC_SAVE, s);
+    save('ghosts', 'a', { n: 1 });
+    save('ghosts', 'b:wet', { n: 2 });
+    useSave(CC_SAVE, s); // a reload
+    expect(saved('ghosts', 'b:wet')).toEqual({ n: 2 });
+    expect(Object.keys(savedSection('ghosts')).sort()).toEqual(['a', 'b:wet']);
+    save('ghosts', 'a', undefined);
+    flushSave();
+    expect(saved('ghosts', 'a')).toBeUndefined();
+    expect(s.items.has('cc:ghosts.a')).toBe(false);
+    expect(Object.keys(stored(s).data.ghosts)).toEqual(['b:wet']);
+  });
+
+  it("moves the ghosts of a save from before out of the document, and works without room for them", () => {
+    const old = { version: 2, data: { settings: { sound: 1 }, ghosts: { a: { n: 1 } } } };
+    const s = fakeStore({ 'cc:save': JSON.stringify(old) });
+    useSave(CC_SAVE, s);
+    expect(saved('ghosts', 'a')).toEqual({ n: 1 });
+    expect(s.items.get('cc:ghosts.a')).toBe('{"n":1}');
+    expect(stored(s).data.ghosts).toEqual({ a: 1 });
+    // a full storage: the ghost is kept for as long as the page is open
+    useSave(CC_SAVE, fakeStore({}, 'full'));
+    save('ghosts', 'c', { n: 3 });
+    expect(saved('ghosts', 'c')).toEqual({ n: 3 });
+  });
+
+  it('a save moved to another device carries its ghosts whole', () => {
+    const s = fakeStore();
+    useSave(CC_SAVE, s);
+    save('settings', 'sound', 0.5);
+    save('ghosts', 'a', { n: 1 });
+    const out = exportSaveDoc();
+    expect(out.data.ghosts).toEqual({ a: { n: 1 } });
+    const t = fakeStore();
+    useSave(CC_SAVE, t);
+    expect(replaceSave(out)).toBe(true);
+    expect(t.items.get('cc:ghosts.a')).toBe('{"n":1}');
+    expect(stored(t).data.ghosts).toEqual({ a: 1 });
+    expect(saved('ghosts', 'a')).toEqual({ n: 1 });
   });
 });

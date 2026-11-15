@@ -1,6 +1,5 @@
-# Tests and builds the game on every push and pull request, and publishes the
-# build to itch.io (as its HTML5 upload) on a push to the default branch, or
-# when run by hand from the Actions tab.
+# Builds the game and publishes it to itch.io (as its HTML5 upload) on a push to the default
+# branch, or when run by hand from the Actions tab. (Tests and the check build of a pull request are ci.yml's.)
 #
 # Setup (once):
 #   - Repo secret   BUTLER_API_KEY : itch.io → Settings → API keys
@@ -11,7 +10,7 @@ name: itch.io
 
 on:
   push:
-  pull_request:
+    branches: [ccr-165b0d28-rj1xu0]
   workflow_dispatch:
 
 permissions:
@@ -25,8 +24,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
-      # Accept ITCH_TARGET as a repository variable or, failing that, a secret.
+      # The key sits only on the push step below (so `npm ci` and the build can't read it); here, whether it is set.
+      # ITCH_TARGET is a repository variable or, failing that, a secret.
+      HAS_BUTLER_KEY: ${{ secrets.BUTLER_API_KEY != '' }}
       ITCH_TARGET: ${{ vars.ITCH_TARGET || secrets.ITCH_TARGET }}
       # publish from the default branch (push or manual run), never from pull requests
       PUBLISH: ${{ github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch }}
@@ -35,26 +35,35 @@ jobs:
       VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm test
+      - run: npm ci --ignore-scripts
       - run: npm run build
 
       - name: Check itch.io settings
         if: env.PUBLISH == 'true'
         run: |
-          [ -n "$BUTLER_API_KEY" ] && echo "BUTLER_API_KEY: set" || echo "::warning::BUTLER_API_KEY is missing: add it under Settings → Secrets and variables → Actions → Secrets"
+          [ "$HAS_BUTLER_KEY" = true ] && echo "BUTLER_API_KEY: set" || echo "::warning::BUTLER_API_KEY is missing: add it under Settings → Secrets and variables → Actions → Secrets"
           [ -n "$ITCH_TARGET" ] && echo "ITCH_TARGET: set ($ITCH_TARGET)" || echo "::warning::ITCH_TARGET is missing: add it under Settings → Secrets and variables → Actions → Variables (e.g. theaob/corner-cutters-rally)"
 
       - name: Push to itch.io
-        if: env.PUBLISH == 'true' && env.BUTLER_API_KEY != '' && env.ITCH_TARGET != ''
+        if: env.PUBLISH == 'true' && env.HAS_BUTLER_KEY == 'true' && env.ITCH_TARGET != ''
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
           curl -sSfL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
           unzip -q butler.zip -d butler && chmod +x butler/butler
           butler/butler -V
           version="$(node -p "require('./package.json').version")+${GITHUB_SHA::7}"
-          butler/butler push dist "$ITCH_TARGET:html5" --userversion "$version"
+          # itch.io refuses a push while the channel's previous build is still processing (merges landing close
+          # together); wait and retry instead of failing the run
+          for attempt in 1 2 3 4 5 6; do
+            butler/butler push dist "$ITCH_TARGET:html5" --userversion "$version" && exit 0
+            [ "$attempt" -lt 6 ] || break
+            echo "::warning::butler push failed (attempt $attempt of 6); retrying in 60s"
+            sleep 60
+          done
+          exit 1

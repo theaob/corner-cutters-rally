@@ -228,20 +228,23 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   const W = Math.ceil((Math.max(...track.samples.map((p) => p.x)) + margin) / TILE);
   const H = Math.ceil((Math.max(...track.samples.map((p) => p.y)) + margin) / TILE);
 
-  // spatial hash of samples, 64 px buckets, for nearest-centreline lookups
+  // spatial hash of samples, 64 px buckets (a flat array of them, by column and row), for nearest-centreline lookups
   const B = 64;
-  const buckets = new Map<string, number[]>();
-  track.samples.forEach((p, i) => {
-    const key = `${Math.floor(p.x / B)},${Math.floor(p.y / B)}`;
-    (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(i);
-  });
+  const bw = Math.floor(Math.max(...track.samples.map((p) => p.x)) / B) + 1;
+  const bh = Math.floor(Math.max(...track.samples.map((p) => p.y)) / B) + 1;
+  const buckets: number[][] = Array.from({ length: bw * bh }, () => []);
+  track.samples.forEach((p, i) => buckets[Math.floor(p.y / B) * bw + Math.floor(p.x / B)].push(i));
+  // (the samples near a point, row by row: filled into one array that's kept, so a lookup makes none; used up before the next one's made)
+  const found: number[] = [];
   const near = (x: number, y: number, r: number) => {
-    const out: number[] = [];
+    found.length = 0;
     const bx = Math.floor(x / B);
     const by = Math.floor(y / B);
     const rb = Math.ceil(r / B);
-    for (let j = by - rb; j <= by + rb; j++) for (let i = bx - rb; i <= bx + rb; i++) out.push(...(buckets.get(`${i},${j}`) ?? []));
-    return out;
+    for (let j = Math.max(0, by - rb); j <= Math.min(bh - 1, by + rb); j++) {
+      for (let i = Math.max(0, bx - rb); i <= Math.min(bw - 1, bx + rb); i++) for (const k of buckets[j * bw + i]) found.push(k);
+    }
+    return found;
   };
   /** px from the centreline the nearest-sample lookup reaches: past the run-off */
   const REACH = HALF_WIDTH + RUNOFF + 16;
@@ -319,6 +322,8 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     }
   }
 
+  // (each sample's height on the profile, worked out once: not again for every tile corner it's near)
+  const rise = track.samples.map((_, i) => elevationAt(layout.elevation, i / n));
   // heights at tile corners: blended from the centreline's elevation nearby
   const heights: number[] = [];
   for (let cy = 0; cy <= H; cy++) {
@@ -332,7 +337,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         const d2 = (p.x - x) ** 2 + (p.y - y) ** 2;
         if (d2 > 200 * 200) continue;
         const w = 1 / (d2 + 400);
-        sum += w * elevationAt(layout.elevation, i / n);
+        sum += w * rise[i];
         wsum += w;
       }
       heights.push(wsum ? sum / wsum : 0);

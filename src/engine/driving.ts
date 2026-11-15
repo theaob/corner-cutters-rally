@@ -180,7 +180,7 @@ export const DEFAULT_HANDLING: HandlingParams = {
   drag: 90,
   crashThreshold: 60,
   crashDamage: 0.5,
-  burnTime: 4,
+  burnTime: 8,
   allowReverse: false,
   gravity: 320,
   slopeGravity: 1,

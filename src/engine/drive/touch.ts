@@ -18,6 +18,7 @@
 // thumb, so pointing a new way answers at once.
 
 import { vibrate } from '../haptics';
+import { t } from '../i18n';
 import type { Intent } from './intent';
 import type { Control, DriveStyle, GasMode, SteerSide } from './settings';
 
@@ -82,7 +83,7 @@ export class TouchDriving {
   /** the pedal each thumb on the pedals is on */
   private readonly onPedal = new Map<number, Pedal | undefined>();
   private gas: GasMode = 'manual';
-  /** TOP-DOWN: no pedals (index.html hides them; a thumb on them would brake) */
+  /** TOP-DOWN: no pedals (game.css hides them; a thumb on them would brake) */
   private brakeZone = false;
 
   constructor(host: HTMLElement) {
@@ -93,10 +94,10 @@ export class TouchDriving {
     this.wheel.append(el('span', 'drive-wheel-arrow left', '◀'), el('span', 'drive-wheel-arrow right', '▶'));
     this.knob = el('span', 'drive-wheel-knob');
     this.wheel.append(this.knob);
-    this.hint = el('span', 'drive-hint', 'DRAG TO STEER');
+    this.hint = el('span', 'drive-hint', t('DRAG TO STEER'));
     this.steerZone.append(this.wheel, this.hint);
     this.pedalZone = el('div', 'drive-pedals');
-    this.pedals = { drift: el('div', 'drive-pedal drift', 'DRIFT'), brake: el('div', 'drive-pedal brake', 'BRAKE'), gas: el('div', 'drive-pedal gas', 'GAS') };
+    this.pedals = { drift: el('div', 'drive-pedal drift', t('DRIFT')), brake: el('div', 'drive-pedal brake', t('BRAKE')), gas: el('div', 'drive-pedal gas', t('GAS')) };
     this.pedalZone.append(this.pedals.drift, this.pedals.brake, this.pedals.gas);
     this.el.append(this.steerZone, this.pedalZone);
     host.prepend(this.el);
@@ -115,7 +116,7 @@ export class TouchDriving {
     if (next !== this.control) this.endSteering();
     this.control = next;
     this.el.dataset.control = next;
-    this.hint.textContent = next === 'point' ? 'DRAG THE WAY TO GO' : 'DRAG TO STEER';
+    this.hint.textContent = next === 'point' ? t('DRAG THE WAY TO GO') : t('DRAG TO STEER');
   }
 
   /** What the thumbs ask for now. */

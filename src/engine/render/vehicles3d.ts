@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { carClass, type CarClassId } from '../driving';
+import { mergedByMaterial } from './merge';
 
 const lambert = (extra: THREE.MeshLambertMaterialParameters = {}) => new THREE.MeshLambertMaterial(extra);
 
@@ -108,6 +109,32 @@ function knobs(wr: number, ww: number): THREE.BufferGeometry {
   return mergeGeometries(parts)!;
 }
 
+/** A tyre `wr` px in radius and `ww` wide, its axle along x, with its compound band round the outer edge (`side`: −1 or 1), the band's vertices marked (attribute `mark`: 1). */
+function tyreGeometry(wr: number, ww: number, side: number): THREE.BufferGeometry {
+  const tread = new THREE.CylinderGeometry(wr, wr, ww, 12).rotateZ(Math.PI / 2);
+  const band = new THREE.CylinderGeometry(wr + 0.12, wr + 0.12, 0.8, 12, 1, true).rotateZ(Math.PI / 2).translate(side * (ww / 2 - 0.4), 0, 0);
+  for (const [g, mark] of [[tread, 0], [band, 1]] as const) {
+    g.setAttribute('mark', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count).fill(mark), 1));
+  }
+  return mergeGeometries([tread, band])!;
+}
+
+/** The tyre's material: dark rubber (lit), its marked vertices in `mark`'s colour instead (unlit: a lamp's glow doesn't dim it). */
+function tyreMaterial(mark: THREE.Color): THREE.MeshLambertMaterial {
+  const m = lambert({ color: 0x151515 });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uMark = { value: mark };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float mark; varying float vMark;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMark = mark;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uMark; varying float vMark;')
+      .replace('#include <opaque_fragment>', 'outgoingLight = mix(outgoingLight, uMark, vMark);\n#include <opaque_fragment>');
+  };
+  m.customProgramCacheKey = () => 'tyre-mark';
+  return m;
+}
+
 export const CAR_LOOKS: Record<CarClassId, CarLook> = {
   f1: { body: '#d8323c', stripe: '#f4f4f8' },
 };
@@ -117,7 +144,7 @@ export interface CarMesh extends THREE.Group {
     /** materials whose colour darkens as the car burns */
     paint: THREE.MeshLambertMaterial[];
     /** the coloured band round each tyre's outer edge, marking its compound: set its colour */
-    tyreMark: THREE.MeshBasicMaterial;
+    tyreMark: { color: THREE.Color };
     /** the brake lights over the tail lights: off (hidden) until the car slows */
     brakeLights: THREE.Group;
     /** the parts a big crash can tear off: the nose (with the front wing) and each wheel (front left, front right, rear left, rear right) */
@@ -143,13 +170,14 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
     return m;
   };
   const dark = lambert({ color: 0x111111 });
-  // BoxGeometry faces: +x, −x, +y, −y, +z (back), −z (front)
-  const box = (w: number, h: number, l: number, y: number, z: number, faces: THREE.Material[], on: THREE.Object3D = car) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), faces);
-    m.position.set(0, y, z);
-    m.castShadow = m.receiveShadow = true;
-    on.add(m);
-    return m;
+  // BoxGeometry faces: +x, −x, +y, −y, +z (back), −z (front). The boxes are gathered by the part they're on, and
+  // each part's made one mesh at the end, its faces grouped by material: a draw call a material, not one a face
+  // (a box of six materials is six draw calls, and six again for its shadow; a car of them, too many for a phone)
+  const boxes = new Map<THREE.Object3D, { geometry: THREE.BufferGeometry; faces: THREE.Material[] }[]>();
+  const box = (w: number, h: number, l: number, y: number, z: number, faces: THREE.Material[], on: THREE.Object3D = car, x = 0) => {
+    const list = boxes.get(on) ?? [];
+    list.push({ geometry: new THREE.BoxGeometry(w, h, l).translate(x, y, z), faces });
+    boxes.set(on, list);
   };
   /** a part of its own (one a crash can tear off), its origin at `z` along the car */
   const part = (z: number, x = 0, y = 0) => {
@@ -185,13 +213,11 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   box(W - 3.4, 0.7, 11, 11.7, 3, [body, body, roofTop, dark, body, body]);
   // pillars, so the cabin reads as a car's and not a box of glass
   for (const x of [-(W - 3.2) / 2, (W - 3.2) / 2]) for (const z of [-3.6, 8.6]) {
-    const pillar = box(0.5, 4.4, 1, 9.3, z, [body, body, body, body, body, body]);
-    pillar.position.x = x;
+    box(0.5, 4.4, 1, 9.3, z, [body, body, body, body, body, body], car, x);
   }
   // wheel arches flared out over the tyres, in the trim colour
   for (const z of [-(L / 2 - 7), L / 2 - 7]) for (const x of [-(W / 2 - 0.4), W / 2 - 0.4]) {
-    const arch = box(1.4, 1.2, 8, 6.4, z, [trim, trim, trim, dark, trim, trim]);
-    arch.position.x = x;
+    box(1.4, 1.2, 8, 6.4, z, [trim, trim, trim, dark, trim, trim], car, x);
   }
   // the roof scoop: the driver's own colour on it (yours gold, shining), and the light bar marking a team's second car
   const scoopMat =
@@ -204,21 +230,18 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   // the rear wing on the hatch, on two stays
   box(W - 1.5, 0.7, 3, 13.4, L / 2 - 3, [trim, trim, trim, dark, trim, trim]);
   for (const x of [-(W - 6) / 2, (W - 6) / 2]) {
-    const stay = box(0.6, 2.4, 1.6, 12, L / 2 - 3, [carbon, carbon, carbon, carbon, carbon, carbon]);
-    stay.position.x = x;
+    box(0.6, 2.4, 1.6, 12, L / 2 - 3, [carbon, carbon, carbon, carbon, carbon, carbon], car, x);
   }
   // the front bumper, and the spotlight pod on it (unlit, so the lamps glow)
   box(W - 1.6, 2.6, 2.4, 3, -(L / 2 - 1.2) - noseZ, [carbon, carbon, carbon, dark, carbon, carbon], nose);
   const lamp = new THREE.MeshBasicMaterial({ color: 0xfff2c0, toneMapped: false });
   box(W - 4, 2, 1, 6.2, -(L / 2 - 1.6) - noseZ, [carbon, carbon, carbon, dark, carbon, carbon], nose);
   for (const x of [-4.2, -1.4, 1.4, 4.2]) {
-    const l = box(2, 1.6, 0.4, 6.2, -(L / 2 - 1.05) - noseZ, [lamp, lamp, lamp, lamp, lamp, lamp], nose);
-    l.position.x = x;
+    box(2, 1.6, 0.4, 6.2, -(L / 2 - 1.05) - noseZ, [lamp, lamp, lamp, lamp, lamp, lamp], nose, x);
   }
   // mud flaps behind the rear wheels
   for (const x of [-(W / 2 - 1.5), W / 2 - 1.5]) {
-    const flap = box(3, 2.6, 0.3, 1.6, L / 2 - 2.6, [carbon, carbon, carbon, carbon, carbon, carbon]);
-    flap.position.x = x;
+    box(3, 2.6, 0.3, 1.6, L / 2 - 2.6, [carbon, carbon, carbon, carbon, carbon, carbon], car, x);
   }
 
   // wheels: [z, radius, tyre width, half-track] per axle
@@ -228,21 +251,16 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   ].map(([z, wr, ww, half]) => (offRoad ? [z, wr + OFF_ROAD.radius, ww + OFF_ROAD.width, half + OFF_ROAD.width / 2] : [z, wr, ww, half]));
   // (the tread blocks caked in earth, so the knobbly tread shows against the tyre)
   const tread = offRoad ? lambert({ color: 0x6a5038 }) : undefined;
-  const wheelMat = lambert({ color: 0x151515 });
-  // the compound's colour round the outer edge of each tread (unlit, so it reads from afar and in shade)
-  const tyreMark = new THREE.MeshBasicMaterial({ color: 0xffd21f, toneMapped: false });
+  // a tyre and its compound band are one mesh in one draw call (where they were two): the band's vertices are marked, and
+  // the marked ones are drawn in the band's colour, unlit, so it still reads from afar and in shade
+  const tyreMark = { color: new THREE.Color(0xffd21f) };
+  const wheelMat = tyreMaterial(tyreMark.color);
   const wheels: THREE.Group[] = [];
   for (const [z, wr, ww, half] of axles) {
     for (const x of [-half, half]) {
       // (each wheel a part of its own, centred on its hub)
       const hub = part(z, x, wr);
-      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, ww, 12), wheelMat);
-      wheel.rotation.z = Math.PI / 2;
-      hub.add(wheel);
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(wr + 0.12, wr + 0.12, 0.8, 12, 1, true), tyreMark);
-      band.rotation.z = Math.PI / 2;
-      band.position.x = Math.sign(x) * (ww / 2 - 0.4);
-      hub.add(band);
+      hub.add(new THREE.Mesh(tyreGeometry(wr, ww, Math.sign(x)), wheelMat));
       // (off-road: the knobbly tread, its blocks staggered side to side round the tyre)
       if (tread) hub.add(new THREE.Mesh(knobs(wr, ww), tread));
       wheels.push(hub);
@@ -256,14 +274,18 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   const lit = new THREE.MeshBasicMaterial({ color: 0xff2a2a, toneMapped: false });
   const brakeLights = new THREE.Group();
   for (const x of [-(W / 2 - 2.6), W / 2 - 2.6]) {
-    const lamp = box(3.4, 1.8, 0.6, 6, back, [tailGlass, tailGlass, tailGlass, tailGlass, tailGlass, tailGlass]);
-    lamp.position.x = x;
+    box(3.4, 1.8, 0.6, 6, back, [tailGlass, tailGlass, tailGlass, tailGlass, tailGlass, tailGlass], car, x);
     const glow = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2, 0.4), lit);
     glow.position.set(x, 6, back + 0.25);
     brakeLights.add(glow);
   }
   brakeLights.visible = false;
   car.add(brakeLights);
+  for (const [on, list] of boxes) {
+    const m = mergedByMaterial(list);
+    m.castShadow = m.receiveShadow = true;
+    on.add(m);
+  }
 
   car.userData = { paint, tyreMark, brakeLights, parts: { nose, wheels } };
   return car;

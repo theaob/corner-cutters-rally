@@ -20,6 +20,7 @@ import { newRace, stepRace } from './raceControl';
 import { stageSplits, type Track } from './racing';
 import { CREWS, SCHEMES, crewById, schemeById, type Scheme } from './crews';
 import type { WeatherId } from './weather';
+import { driverName } from './profile';
 
 export const RALLY = {
   /** crews in a rally, you among them */
@@ -141,7 +142,7 @@ export const serviceAfter = (r: Rally, k: number) => rallyEvent(r).service.inclu
 /** A crew's paint (yours too). */
 export const crewScheme = (c: RallyCrew): Scheme => schemeById(c.scheme ?? crewById(c.crew)?.scheme) ?? SCHEMES[0];
 /** A crew's name, as the timing screens show it (yours: YOU). */
-export const crewName = (c: RallyCrew): string => crewById(c.crew)?.name ?? 'YOU';
+export const crewName = (c: RallyCrew): string => crewById(c.crew)?.name ?? driverName();
 
 /**
  * A stage's reference run: one car flat out on the racing line, alone, from a standing start at `start`; its time from

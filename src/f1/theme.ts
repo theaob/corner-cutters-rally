@@ -1,7 +1,7 @@
 // The interface's look in one place: its colours and its five sizes of type.
 // Every screen (the menus, the stage's HUD, the results) takes its colours and
 // type from here, so a change to the look is one edit. The page's CSS has the
-// same colours as variables (index.html's :root: --gold, --text…), set from
+// same colours as variables (game.css's :root: --gold, --text…), set from
 // these at boot (applyTheme), so the stylesheet and the code can't drift apart.
 // Scenery (the cars' paint, the ground, the trees) keeps its own colours.
 
@@ -36,7 +36,7 @@ export const COLOR = {
   dim: 'rgba(14,13,22,.72)',
 } as const;
 
-/** The CSS variables index.html's stylesheet uses, by name, and the colour each is. */
+/** The CSS variables the stylesheet (src/styles/game.css) uses, by name, and the colour each is. */
 export const CSS_VARS: Record<string, string> = {
   '--gold': COLOR.gold,
   '--text': COLOR.text,
@@ -63,7 +63,7 @@ export function pixelFont(px: number, fixed = false): string {
 /** The pixel font at a step of the scale. */
 export const font = (step: TypeStep, fixed = false) => pixelFont(TYPE[step], fixed);
 
-/** Put the theme's colours on the page's root as CSS variables (index.html's stylesheet reads them). */
+/** Put the theme's colours on the page's root as CSS variables (the stylesheet (src/styles/game.css) reads them). */
 export function applyTheme(root: HTMLElement | undefined = globalThis.document?.documentElement): void {
   if (!root) return;
   for (const [name, value] of Object.entries(CSS_VARS)) root.style.setProperty(name, value);

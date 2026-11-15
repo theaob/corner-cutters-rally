@@ -1,0 +1,31 @@
+# A pull request has to bump the game's version (package.json: `npm run bump -- patch|minor|major`), so each build
+# a player can have says which one it is. Fails when the version is the same as the base branch's. A change that
+# isn't the game (the docs, a workflow) can carry the label `no-version-bump` to pass.
+name: Version
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  bumped:
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-version-bump') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Compare with the base branch
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mine="$(node -p "require('./package.json').version")"
+          theirs="$(git show "$BASE:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")"
+          echo "this branch: $mine, base: $theirs"
+          if [ "$mine" = "$theirs" ]; then
+            echo "::error::The version is still $theirs. Run 'npm run bump -- patch' (or minor, major), or label the pull request no-version-bump."
+            exit 1
+          fi

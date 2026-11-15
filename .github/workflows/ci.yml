@@ -1,0 +1,55 @@
+# The checks every change has to pass: dependency advisories, lint, types, a build and the tests. Runs on every push
+# and every pull request. It reads no secret and builds without the Supabase keys, so a pull request's code never sees
+# a key. (The itch.io, Android and Pages workflows publish and run on the default branch.)
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      # dependency install scripts stay off: nothing here needs them
+      - run: npm ci --ignore-scripts
+      # a new advisory in a dependency fails the run; npm audit fix (or a Dependabot pull request) clears it
+      - run: npm audit --audit-level=high
+      - run: npm run lint
+      # the web build (tsc and vite), and the Play variant the store ships
+      - run: npm run build
+      - run: VITE_STORE=play npm run build
+
+  # The tests in two jobs side by side: the quick ones and the race-simulation files. Together they are `npm test`.
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: quick
+            run: npm run test:fast
+          - name: simulations
+            run: npm run test:sims
+    name: tests (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: ${{ matrix.run }}

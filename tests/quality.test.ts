@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { QUALITY_LEVELS, QualityGovernor } from '../src/engine/render/quality';
+import { DEFAULT_GOVERNOR, KEEP_QUALITY_DAYS, QUALITY_LEVELS, QualityGovernor, keptQuality } from '../src/engine/render/quality';
 
 /** Run the governor for `seconds`, each frame taking `ms(level)` milliseconds. */
 function run(g: QualityGovernor, seconds: number, ms: (level: number) => number): void {
@@ -27,7 +27,7 @@ describe('the quality governor', () => {
 
   it('steps down as far as it needs to', () => {
     const g = new QualityGovernor();
-    run(g, 20, (level) => [40, 30, 16.7][level]);
+    run(g, 30, (level) => [40, 30, 25, 16.7][level]);
     expect(g.level).toBe(QUALITY_LEVELS.length - 1);
   });
 
@@ -44,5 +44,40 @@ describe('the quality governor', () => {
     run(g, 30, (level) => (level === 0 ? 40 : 25));
     expect(g.level).toBe(1);
     expect(g.locked).toBe(true);
+  });
+
+  it('starts where a race before settled, and steps on down from there if it has to', () => {
+    const g = new QualityGovernor(DEFAULT_GOVERNOR, { level: 2, locked: false });
+    expect(g.level).toBe(2);
+    run(g, 30, (level) => (level < 3 ? 30 : 16.7));
+    expect(g.level).toBe(3);
+  });
+
+  it('stays put when it started locked', () => {
+    const g = new QualityGovernor(DEFAULT_GOVERNOR, { level: 1, locked: true });
+    run(g, 30, () => 40);
+    expect(g.level).toBe(1);
+  });
+
+  it('keeps shadows on at every level: turning them off makes every shader again mid-race', () => {
+    for (const q of QUALITY_LEVELS) expect(q.shadowMap).toBeGreaterThan(0);
+  });
+});
+
+describe('the kept quality level', () => {
+  const day = 86400000;
+  const now = Date.UTC(2026, 9, 25);
+
+  it('is trusted for a few days in the same version', () => {
+    expect(keptQuality({ level: 2, locked: true, at: now - day, version: '0.2.3' }, now, '0.2.3')).toEqual({ level: 2, locked: true });
+  });
+
+  it('is forgotten once it is old, from another version, or damaged', () => {
+    expect(keptQuality({ level: 2, locked: false, at: now - (KEEP_QUALITY_DAYS + 1) * day, version: '0.2.3' }, now, '0.2.3')).toBeUndefined();
+    expect(keptQuality({ level: 2, locked: false, at: now, version: '0.2.2' }, now, '0.2.3')).toBeUndefined();
+    expect(keptQuality({ level: 9, locked: false, at: now, version: '0.2.3' }, now, '0.2.3')).toBeUndefined();
+    expect(keptQuality({ level: 1, locked: false, at: now + day, version: '0.2.3' }, now, '0.2.3')).toBeUndefined();
+    expect(keptQuality('high', now, '0.2.3')).toBeUndefined();
+    expect(keptQuality(undefined, now, '0.2.3')).toBeUndefined();
   });
 });

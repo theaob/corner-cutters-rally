@@ -22,6 +22,7 @@ export interface Daylight {
   sun: THREE.DirectionalLight;
   /** Keep the sun (and its shadow camera) centred on the action. */
   followSun(focus: THREE.Vector3): void;
+  /** the sun's shadow map (px square); 0: no shadows */
   setShadowMapSize(size: number): void;
   /** Sky colour, ambient light and the sun (or moon) for a time of day. */
   setSky(sky: SkyState): void;
@@ -56,8 +57,10 @@ export function addDaylight(scene: THREE.Scene): Daylight {
       offset.set(sky.keyOffset.x, sky.keyOffset.y, sky.keyOffset.z);
     },
     setShadowMapSize: (size) => {
-      if (sun.shadow.mapSize.x === size) return;
-      sun.shadow.mapSize.set(size, size);
+      // (0: no shadows; the materials made again for it, once)
+      sun.castShadow = size > 0;
+      if (size && sun.shadow.mapSize.x === size) return;
+      if (size) sun.shadow.mapSize.set(size, size);
       sun.shadow.map?.dispose();
       sun.shadow.map = null;
     },

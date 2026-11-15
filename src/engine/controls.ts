@@ -27,7 +27,10 @@ export class Controls {
   press(source: string, button: Button, down: boolean): void {
     const set = this.held.get(source) ?? new Set<Button>();
     if (down) this.last = source;
-    if (down && !this.isDown(button)) this.countPress(button);
+    // a press: the button going down when nothing held it (two sources at once are one press); but a tap on the
+    // screen's own buttons always is one, whatever else holds the button (a source left holding it, as a touch whose
+    // lifting a phone never reported, or a pad the phone lists that isn't one, would otherwise swallow every tap)
+    if (down && !set.has(button) && (!this.isDown(button) || source.startsWith('touch-'))) this.countPress(button);
     if (down) set.add(button);
     else set.delete(button);
     this.held.set(source, set);
@@ -143,18 +146,38 @@ export function readGamepad(pad: { buttons: readonly { pressed: boolean; value: 
   return { buttons: PAD_BUTTONS.filter(([i]) => pad.buttons[i]?.pressed).map(([, b]) => b) };
 }
 
+/**
+ * A pad's buttons less those held since it turned up (`stuck`, kept up to date: each let go of once counts from
+ * then on). Some phones list a part of themselves as a gamepad (a fingerprint reader, a side key) with buttons that
+ * never let go: those would hold the game's buttons down for good, and a real pad's are let go at once.
+ */
+export function unstuck(buttons: Button[], stuck: Set<Button>): Button[] {
+  for (const b of [...stuck]) if (!buttons.includes(b)) stuck.delete(b);
+  return buttons.filter((b) => !stuck.has(b));
+}
+
 /** Poll the first connected gamepad every frame, as the 'gamepad' source. */
 export function bindGamepad(controls: Controls, target: Window = window): void {
   if (!target.navigator.getGamepads) return;
   let had = false;
+  /** the pad being read (its id), and the buttons it had held when it turned up */
+  let which: string | undefined;
+  let stuck = new Set<Button>();
   const poll = () => {
     const pad = [...target.navigator.getGamepads()].find((p) => p && p.connected);
     if (pad) {
-      controls.set('gamepad', readGamepad(pad).buttons);
+      const read = readGamepad(pad);
+      if (pad.id !== which) {
+        which = pad.id;
+        stuck = new Set(read.buttons);
+      }
+      const buttons = unstuck(read.buttons, stuck);
+      controls.set('gamepad', buttons);
       had = true;
     } else if (had) {
       controls.clear('gamepad');
       had = false;
+      which = undefined;
     }
     target.requestAnimationFrame(poll);
   };

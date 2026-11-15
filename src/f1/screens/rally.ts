@@ -24,10 +24,17 @@ import { reportOpen } from '../report';
 import { gridStep, makeTile } from '../menuTiles';
 import { confetti, trophy } from './celebrate';
 import { COLOR, SURFACE_COLOR } from '../theme';
+import { language, t, upper } from '../../engine/i18n';
 
 export type RallyAction = 'stage' | 'abandon' | 'settings' | { start: RallyEvent; scheme: Scheme };
 
-const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'ST' : n % 10 === 2 && n % 100 !== 12 ? 'ND' : n % 10 === 3 && n % 100 !== 13 ? 'RD' : 'TH'}`;
+/** A place as the language writes it: 1ST in English, 1. in German and Turkish, 1º, 1er, 1位. */
+const ORDINAL: Record<string, (n: number) => string> = {
+  en: (n) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'ST' : n % 10 === 2 && n % 100 !== 12 ? 'ND' : n % 10 === 3 && n % 100 !== 13 ? 'RD' : 'TH'}`,
+  de: (n) => `${n}.`, tr: (n) => `${n}.`, es: (n) => `${n}º`, pt: (n) => `${n}º`, it: (n) => `${n}º`,
+  fr: (n) => (n === 1 ? '1ER' : `${n}E`), ja: (n) => `${n}位`,
+};
+export const ordinal = (n: number) => (ORDINAL[language().code] ?? ORDINAL.en)(n);
 
 /** The standings as a table: place, the crew's paint, crew, total or gap; you in gold. */
 function standingsTable(r: Rally): HTMLTableElement {
@@ -73,10 +80,10 @@ export function rallyTile(e: RallyEvent, bestPlace: number | undefined, b: HTMLB
   const facts = document.createElement('span');
   facts.className = 'tile-sub';
   const best = document.createElement('span');
-  best.textContent = bestPlace ? `BEST ${ordinal(bestPlace)}` : 'NOT RUN YET';
+  best.textContent = bestPlace ? t('BEST {place}', { place: ordinal(bestPlace) }) : t('NOT RUN YET');
   if (bestPlace === 1) best.style.color = 'var(--gold)';
-  facts.append(`${e.stages.length} STAGES · `, best);
-  makeTile(b, e.surface, e.name, `${e.surface} · ${e.about}${bestPlace ? ` · best ${ordinal(bestPlace)}` : ''}`, facts);
+  facts.append(`${t('{n} STAGES', { n: e.stages.length })} · `, best);
+  makeTile(b, e.surface, t(e.name), `${t(e.surface)} · ${t(e.about)}${bestPlace ? ` · ${t('BEST {place}', { place: ordinal(bestPlace) })}` : ''}`, facts);
   return b;
 }
 
@@ -117,7 +124,7 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
     if (!rally) {
       // a new rally: your car's paint, then the rallies to pick from
       title.textContent = 'CORNER CUTTERS RALLY';
-      screen.append(panel(line('STAGE BY STAGE AGAINST THE CLOCK, THE CO-DRIVER CALLING THE BENDS: THE LEAST TIME OVERALL WINS', 'var(--accent-b)')));
+      screen.append(panel(line(t('STAGE BY STAGE AGAINST THE CLOCK, THE CO-DRIVER CALLING THE BENDS: THE LEAST TIME OVERALL WINS'), 'var(--accent-b)')));
       const car = optionRow('CAR', SCHEMES, scheme, (s) => ({ name: s.name, about: 'your paint · #1 on the roof', colors: [s.body, s.trim, ...(s.accent ? [s.accent] : [])] }));
       places.push({ el: car.el, step: car.step });
       screen.append(car.el);
@@ -132,7 +139,7 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
       screen.append(grid);
     } else {
       const e = rallyEvent(rally);
-      title.textContent = e.name;
+      title.textContent = t(e.name);
       const k = nextStage(rally);
       if (rallyOver(rally)) {
         const place = yourPlace(rally);
@@ -143,33 +150,33 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
           requestAnimationFrame(() => confetti(host));
         }
         screen.append(panel(
-          line(place === 1 ? 'RALLY WINNER!' : `YOU FINISHED ${ordinal(place)}`, place === 1 ? 'var(--gold)' : 'var(--text)'),
-          line(`${e.surface} · ${e.stages.length} STAGES · FINAL STANDINGS`),
+          line(place === 1 ? t('RALLY WINNER!') : t('YOU FINISHED {place}', { place: ordinal(place) }), place === 1 ? 'var(--gold)' : 'var(--text)'),
+          line(`${t(e.surface)} · ${t('{n} STAGES', { n: e.stages.length })} · ${t('FINAL STANDINGS')}`),
           standingsTable(rally),
         ));
-        screen.append(button('NEW RALLY ▶', () => finish('abandon'), true));
+        screen.append(button(`${t('NEW RALLY')} ▶`, () => finish('abandon'), true));
       } else {
         const next = e.stages[k];
         const layout = layoutById(next.layout);
         const health = Math.round(rally.health * 100);
         const info = panel(
-          line(`SS${k + 1} OF ${e.stages.length} · ${layout?.name.toUpperCase() ?? ''}`, 'var(--gold)'),
-          line(`${(layout?.about ?? '').toUpperCase()} · ${weatherById(next.weather)?.name ?? ''}`, 'var(--accent-b)'),
-          line(`YOUR CAR: ${health}%${health < 100 ? ' · DAMAGED' : ''}${k > 0 && serviceAfter(rally, k - 1) ? ' · FRESH FROM SERVICE' : ''}`, health < 60 ? COLOR.red : 'var(--text)'),
+          line(`${t('SS{n} OF {total}', { n: k + 1, total: e.stages.length })} · ${layout?.name.toUpperCase() ?? ''}`, 'var(--gold)'),
+          line(`${upper(t(layout?.about ?? ''))} · ${t(weatherById(next.weather)?.name ?? '')}`, 'var(--accent-b)'),
+          line(`${t('YOUR CAR: {n}%', { n: health })}${health < 100 ? ` · ${t('DAMAGED')}` : ''}${k > 0 && serviceAfter(rally, k - 1) ? ` · ${t('FRESH FROM SERVICE')}` : ''}`, health < 60 ? COLOR.red : 'var(--text)'),
         );
-        if (k > 0) info.append(line(`STANDINGS AFTER SS${k}: YOU'RE ${ordinal(yourPlace(rally))}`), standingsTable(rally));
-        else info.append(line('THE CO-DRIVER CALLS EVERY BEND: ◀ 1 THE SLOWEST … 6 ▶ BARELY A LIFT'));
+        if (k > 0) info.append(line(t("STANDINGS AFTER SS{n}: YOU'RE {place}", { n: k, place: ordinal(yourPlace(rally)) })), standingsTable(rally));
+        else info.append(line(t('THE CO-DRIVER CALLS EVERY BEND: ◀ 1 THE SLOWEST … 6 ▶ BARELY A LIFT')));
         info.style.borderLeft = `6px solid ${SURFACE_COLOR[e.surface]}`;
         screen.append(info);
-        screen.append(button(`START SS${k + 1} ▶`, () => finish('stage'), true));
-        screen.append(button('RETIRE FROM THE RALLY', () => finish('abandon')));
+        screen.append(button(`${t('START SS{n}', { n: k + 1 })} ▶`, () => finish('stage'), true));
+        screen.append(button(t('RETIRE FROM THE RALLY'), () => finish('abandon')));
       }
     }
     // (SETTINGS in a row of its own, set apart under the rest: not a rally itself)
     const utility = document.createElement('div');
     utility.className = 'menu-utility';
     const settings = button('', () => finish('settings'));
-    makeTile(settings, 'settings', 'SETTINGS', 'controls, the game, sound and accessibility');
+    makeTile(settings, 'settings', t('SETTINGS'), t('controls, the game, sound and accessibility'));
     utility.append(settings);
     screen.append(utility);
     // (framed in another page, as on itch.io, where the browser may hold it to 30 fps: a way to a tab of its own)

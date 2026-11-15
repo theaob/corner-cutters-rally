@@ -37,6 +37,9 @@ export function setInitials(name: string): void {
   if (INITIALS.test(name)) save('profile', 'name', name);
 }
 
+/** What you're called in a race: your initials, or YOU until you pick them. */
+export const driverName = (): string => initials() ?? 'YOU';
+
 /** STATS in the settings: the anonymous play stats sent (on unless turned off). */
 export const statsOn = (): boolean => saved('settings', 'stats') !== false;
 export const setStats = (on: boolean): void => save('settings', 'stats', on);

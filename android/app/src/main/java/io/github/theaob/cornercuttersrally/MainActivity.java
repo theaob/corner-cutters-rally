@@ -1,5 +1,6 @@
 package io.github.theaob.cornercuttersrally;
 
+import android.content.pm.ActivityInfo;
 import android.os.Bundle;
 import android.view.WindowManager;
 import androidx.core.view.WindowCompat;
@@ -13,7 +14,14 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        lockToPortraitOnPhones();
         hideSystemBars();
+    }
+
+    /** Phones stay upright (the on-screen controls are laid out for it); tablets, foldables and desktop windows rotate and resize freely. */
+    private void lockToPortraitOnPhones() {
+        boolean large = getResources().getConfiguration().smallestScreenWidthDp >= 600;
+        setRequestedOrientation(large ? ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED : ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
     }
 
     @Override

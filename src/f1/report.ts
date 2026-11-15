@@ -1,15 +1,17 @@
-// REPORT (the pause screen, the menu's settings): a screenshot of the game as
+// REPORT (the pause screen, the corner of every menu screen): a screenshot of the game as
 // it was, to draw on (to show where) and say what happened under, sent to the
 // game's backend: the picture to the 'reports' storage bucket, the words and
 // where it was to the 'reports' table (supabase/schema.sql). The screenshot is
 // the 3D picture (copied as it's drawn: engine/render/capture.ts) with the HUD
 // over it (html-to-image, loaded only when a report is made).
 
-import { Capacitor } from '@capacitor/core';
+import { platformName, type Platform } from '../engine/platform';
 import { insert, online, upload } from '../engine/backend';
 import { onBack } from '../engine/backButton';
+import { device, latestFrames, lines, note, type Device, type FrameStats } from '../engine/logbook';
 import { nextFrame } from '../engine/render/capture';
 import { playerId } from './profile';
+import { t } from '../engine/i18n';
 
 /** What a report is about: the circuit and the mode, when it's made in a race. */
 export interface ReportAbout {
@@ -26,9 +28,14 @@ export interface Stroke {
 
 /** The pens: red (the default), amber, cyan, white. */
 export const PENS = ['#d8323c', '#f2c14e', '#5fe0d0', '#f4f4f8'];
+/** What each pen is called, for a screen reader (the colour code means nothing read aloud). */
+export const PEN_NAMES = ['red', 'amber', 'cyan', 'white'];
 
 /** The most a report says, in characters (the database's limit too). */
 export const REPORT_TEXT_MAX = 1000;
+
+/** the page's fonts, made ready for a screenshot (the first report's work, kept for the rest) */
+let fontEmbedCSS: string | undefined;
 
 /** px: the longest side of the picture sent */
 const LONGEST = 1280;
@@ -42,12 +49,21 @@ export function reportPath(now: Date, id: string): string {
 }
 
 /** A report's row in the 'reports' table: who (the device's random id), on what, where, what they said, and the picture's path (if it went). */
-export function reportRow(r: { player: string; platform: 'web' | 'android'; version: string; about: ReportAbout; screen: string; text: string; image?: string; picture?: string }) {
+export function reportRow(r: { player: string; platform: Platform; version: string; about: ReportAbout; screen: string; text: string; image?: string; picture?: string; log?: ReportLog }) {
   return {
     player: r.player, platform: r.platform, version: r.version, circuit: r.about.circuit ?? null, mode: r.about.mode ?? null,
     screen: r.screen.slice(0, 20), text: r.text.trim().slice(0, REPORT_TEXT_MAX), image: r.image ?? null,
     picture: r.picture && r.picture.length <= PICTURE_MAX ? r.picture : null,
+    ...(r.log ? { log: r.log } : {}),
   };
+}
+
+/** What a report carries of the logbook (engine/logbook.ts): the device, and the notes of what led up to it. */
+export interface ReportLog {
+  device: Device;
+  notes: string[];
+  /** how the frames were going just before (the latest 5 s judged) */
+  frames?: FrameStats;
 }
 
 /** px: the longest side of the copy of the picture kept with the report, for the dashboard; and its most characters (the database's limit) */
@@ -83,31 +99,48 @@ const randomId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto 
  * longest side.
  */
 async function screenshot(hide: HTMLElement[]): Promise<HTMLCanvasElement> {
+  // (straight away, before the work: a word that it's being taken, kept out of the picture; and a frame for it to show)
+  const note = document.createElement('div');
+  note.className = 'report-taking';
+  note.dataset.report = '';
+  note.textContent = t('TAKING A PICTURE…');
+  document.body.append(note);
+  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
   const was = hide.map((el) => el.style.visibility);
   hide.forEach((el) => (el.style.visibility = 'hidden'));
   const frame = await nextFrame();
-  // (the 3D picture as a still in its canvas's place, as the page is drawn: the canvas itself can't be read now)
+  const ratio = Math.min(window.devicePixelRatio || 1, LONGEST / Math.max(window.innerWidth, window.innerHeight));
+  // (the 3D picture as a still in its canvas's place, as the page is drawn: the canvas itself can't be read now; made
+  // the picture's size first, and a JPEG: a phone's full-size frame as a PNG is a long wait)
   let still: HTMLImageElement | undefined;
   let source: HTMLCanvasElement | undefined;
   if (frame) {
     source = frame.from;
-    still = document.createElement('img');
-    still.src = frame.copy.toDataURL('image/png');
-    still.style.cssText = source.style.cssText;
     const r = source.getBoundingClientRect();
+    const small = document.createElement('canvas');
+    small.width = Math.max(1, Math.round(r.width * ratio));
+    small.height = Math.max(1, Math.round(r.height * ratio));
+    small.getContext('2d')?.drawImage(frame.copy, 0, 0, small.width, small.height);
+    still = document.createElement('img');
+    still.src = small.toDataURL('image/jpeg', 0.92);
+    still.style.cssText = source.style.cssText;
     Object.assign(still.style, { width: `${r.width}px`, height: `${r.height}px` });
     await still.decode().catch(() => {});
     source.after(still);
     source.style.display = 'none';
   }
-  const ratio = Math.min(window.devicePixelRatio || 1, LONGEST / Math.max(window.innerWidth, window.innerHeight));
   let picture: HTMLCanvasElement | undefined;
   try {
-    const { toCanvas } = await import('html-to-image');
-    picture = await toCanvas(document.body, { pixelRatio: ratio, width: window.innerWidth, height: window.innerHeight, filter: (n) => !(n instanceof HTMLElement && n.dataset.report !== undefined) });
+    const { toCanvas, getFontEmbedCSS } = await import('html-to-image');
+    // (only what's on the screen: the menus keep every screen of theirs in the page, hidden, and copying each part's
+    // styles is most of the work; and the fonts made ready once, not each time)
+    const shown = (n: Node) => !(n instanceof HTMLElement && (n.dataset.report !== undefined || getComputedStyle(n).display === 'none'));
+    fontEmbedCSS ??= await getFontEmbedCSS(document.body).catch(() => '');
+    picture = await toCanvas(document.body, { pixelRatio: ratio, width: window.innerWidth, height: window.innerHeight, filter: shown, fontEmbedCSS });
   } catch {
     // (the page couldn't be drawn: the 3D picture alone)
   }
+  note.remove();
   if (still && source) {
     still.remove();
     source.style.display = '';
@@ -162,6 +195,9 @@ const button = (text: string, onPick: () => void, cls = 'menu-button') => {
 export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = [], done?: () => void): Promise<void> {
   if (busy) return;
   busy = true;
+  // (the notes of what led up to it, as REPORT is pressed: not what's done in the report itself)
+  note('report opened');
+  const shotNotes = lines();
   const shot = await screenshot(hide);
   open = true;
   // (the picture sent: at most LONGEST px on its longest side)
@@ -177,10 +213,10 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
   overlay.dataset.report = '';
   overlay.className = 'report';
   const title = document.createElement('h2');
-  title.textContent = 'REPORT';
+  title.textContent = t('REPORT');
   const hint = document.createElement('p');
   hint.className = 'report-hint';
-  hint.textContent = 'DRAW ON THE PICTURE TO SHOW WHERE';
+  hint.textContent = t('DRAW ON THE PICTURE TO SHOW WHERE');
 
   // the picture, drawn on with the pointer (a finger, a mouse, a pen)
   const canvas = document.createElement('canvas');
@@ -221,21 +257,22 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
   // the pens, and undo and clear
   const tools = document.createElement('div');
   tools.className = 'report-tools';
-  const swatches = PENS.map((c) => {
+  const swatches = PENS.map((c, k) => {
     const s = button('', () => {
       pen = c;
       swatches.forEach((x) => x.classList.toggle('on', x === s));
     }, 'report-pen');
     s.style.background = c;
-    s.setAttribute('aria-label', `pen ${c}`);
+    s.setAttribute('aria-label', t('{colour} pen', { colour: t(PEN_NAMES[k]) }));
+    s.title = t(PEN_NAMES[k]);
     return s;
   });
   swatches[0].classList.add('on');
-  const undo = button('UNDO', () => {
+  const undo = button(t('UNDO'), () => {
     strokes.pop();
     redraw();
   }, 'menu-button report-small');
-  const clear = button('CLEAR', () => {
+  const clear = button(t('CLEAR'), () => {
     strokes.length = 0;
     redraw();
   }, 'menu-button report-small');
@@ -245,7 +282,7 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
   text.className = 'report-text';
   text.maxLength = REPORT_TEXT_MAX;
   text.rows = 3;
-  text.placeholder = 'WHAT HAPPENED?';
+  text.placeholder = t('WHAT HAPPENED?');
 
   const status = document.createElement('p');
   status.className = 'report-status';
@@ -259,8 +296,8 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
     busy = false;
     done?.();
   };
-  const cancel = button('CANCEL', close);
-  const send = button('SEND', () => void sendIt());
+  const cancel = button(t('CANCEL'), close);
+  const send = button(t('SEND'), () => void sendIt());
   actions.append(cancel, send);
   overlay.append(title, hint, canvas, tools, text, actions, status);
   document.body.append(overlay);
@@ -271,27 +308,29 @@ export async function openReport(about: ReportAbout = {}, hide: HTMLElement[] = 
 
   const sendIt = async () => {
     if (!online()) {
-      status.textContent = "REPORTS AREN'T SET UP IN THIS BUILD";
+      status.textContent = t("REPORTS AREN'T SET UP IN THIS BUILD");
       return;
     }
     send.disabled = true;
-    status.textContent = 'SENDING…';
+    status.textContent = t('SENDING…');
     const picture = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
     const path = reportPath(new Date(), randomId());
     // (the picture first; the words go even if it doesn't)
     const sentPicture = picture ? await upload('reports', path, picture) : 'refused';
     const row = reportRow({
-      player: playerId(), platform: Capacitor.isNativePlatform() ? 'android' : 'web', version: version(), about,
+      player: playerId(), platform: platformName(), version: version(), about,
       screen: `${window.innerWidth}x${window.innerHeight}`, text: text.value, image: sentPicture === 'ok' ? path : undefined, picture: pictureOf(canvas),
+      log: { device: device(), notes: shotNotes, frames: latestFrames() },
     });
     let sent = await insert('reports', [row]);
-    // (refused: a project whose schema is older than the picture's column takes it without)
-    if (sent === 'refused' && row.picture) sent = await insert('reports', [{ ...row, picture: undefined }]);
+    // (refused: a project whose schema is older than the log's column, or the picture's, takes it without them)
+    if (sent === 'refused') sent = await insert('reports', [{ ...row, log: undefined }]);
+    if (sent === 'refused' && row.picture) sent = await insert('reports', [{ ...row, log: undefined, picture: undefined }]);
     if (sent === 'ok') {
-      status.textContent = 'SENT · THANK YOU!';
+      status.textContent = t('SENT · THANK YOU!');
       setTimeout(close, 1200);
     } else {
-      status.textContent = sent === 'offline' ? "COULDN'T SEND: NO CONNECTION. TRY AGAIN" : "COULDN'T SEND. TRY AGAIN";
+      status.textContent = t(sent === 'offline' ? "COULDN'T SEND: NO CONNECTION. TRY AGAIN" : "COULDN'T SEND. TRY AGAIN");
       send.disabled = false;
     }
   };

@@ -5,8 +5,8 @@ import { gapColor, gradeBand, gradeColor, splitColor } from '../src/f1/access';
 import { gradeTone, hasVoice } from '../src/f1/race/rallyView';
 
 describe('the theme', () => {
-  it("index.html's colour variables are the theme's (the stylesheet's first paint matches what applyTheme sets)", () => {
-    const html = readFileSync('index.html', 'utf8');
+  it("the stylesheet's colour variables are the theme's (the stylesheet's first paint matches what applyTheme sets)", () => {
+    const html = readFileSync('src/styles/game.css', 'utf8');
     for (const [name, value] of Object.entries(CSS_VARS)) {
       const m = html.match(new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, 'i'));
       expect(m?.[1].toLowerCase(), name).toBe(value);

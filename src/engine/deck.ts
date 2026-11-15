@@ -4,6 +4,7 @@
 
 import type { Button, Controls } from './controls';
 import { vibrate } from './haptics';
+import { t } from './i18n';
 
 /** A tick under the finger on a button press (if vibration is on). */
 const buzz = () => vibrate(8);
@@ -49,6 +50,8 @@ export function bindDeck(deck: HTMLElement, controls: Controls): void {
     };
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      // (a press before it was let go, its lifting never reported: let go of that one first, so this one counts)
+      if (held !== undefined) release();
       held = e.pointerId;
       controls.press(source, button, true);
       el.classList.add('pressed');
@@ -133,12 +136,13 @@ export class Hud {
   /** What `button` does now ('' for nothing: it's hidden), named under it and drawn on it. */
   setLabel(button: DeckButton, text: string): void {
     const label = this.el(`label-${button}`);
-    if (!label || label.textContent === text) return;
-    label.textContent = text;
+    const shown = t(text);
+    if (!label || label.textContent === shown) return;
+    label.textContent = shown;
     const key = this.deck.querySelector<HTMLElement>(`[data-button="${button}"]`);
     const icon = this.el(`icon-${button}`);
     if (icon) icon.innerHTML = DECK_ICONS[text] ? `<svg viewBox="0 0 24 24" aria-hidden="true">${DECK_ICONS[text]}</svg>` : '';
-    key?.setAttribute('aria-label', text || button);
+    key?.setAttribute('aria-label', shown || button);
     // (the button, and on the face its column with the name under it)
     (key?.closest('.col') ?? key)?.classList.toggle('idle', !text);
   }

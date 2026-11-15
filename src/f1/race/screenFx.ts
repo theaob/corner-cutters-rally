@@ -1,25 +1,37 @@
 // The race's effects drawn over the picture, each on a canvas of its own: the
-// rush of speed (pale streaks flowing past the screen's edges near top speed
-// and in a tow, the way the car's going), the rain (streaks falling at a slant),
+// rain (streaks falling at a slant)
 // and your chequered flag (a big waving one for a few seconds as you cross the
 // line).
 
 import { style } from './dom';
 
-/** The rush of speed: streaks round the edges of the screen (none in the middle, where the racing is). */
+/** A canvas's size on the screen (CSS px), kept as it changes: read each frame, it would make the page lay itself out again each frame. */
+function sizeOf(el: HTMLCanvasElement): { w: number; h: number } {
+  const size = { w: 0, h: 0 };
+  new ResizeObserver(([e]) => {
+    size.w = Math.round(e.contentRect.width);
+    size.h = Math.round(e.contentRect.height);
+  }).observe(el);
+  return size;
+}
+
+/** The rush of speed: streaks past the screen's edges (rally keeps them: its camera holds its framing, SIGHT, rather than zooming out). */
 export function createStreaks() {
   const el = document.createElement('canvas');
   style(el, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: '1', pointerEvents: 'none' });
   const ctx = el.getContext('2d')!;
   const streakAt = () => ({ x: Math.random(), y: Math.random(), len: 0.05 + Math.random() * 0.07, v: 1.4 + Math.random() * 1.4 });
   const list = Array.from({ length: 28 }, streakAt);
+  const size = sizeOf(el);
+  /** whether there's anything on it to clear */
+  let drawn = false;
   /** Draw the streaks for `rush` (0…1), flowing back from the way the car's going on the screen (`dx`, `dy`, a unit vector). */
   const draw = (dt: number, rush: number, dx: number, dy: number) => {
-    const w = el.clientWidth;
-    const h = el.clientHeight;
+    const { w, h } = size;
     if (el.width !== w || el.height !== h) [el.width, el.height] = [w, h];
-    ctx.clearRect(0, 0, w, h);
-    if (rush < 0.02) return;
+    if (drawn) ctx.clearRect(0, 0, w, h);
+    drawn = rush >= 0.02;
+    if (!drawn) return;
     ctx.strokeStyle = `rgba(244,242,250,${(0.5 * rush).toFixed(3)})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -47,13 +59,15 @@ export function createRain() {
   const ctx = el.getContext('2d')!;
   // (as many drops as the heaviest rain has: as many of them drawn as it's raining now)
   const drops = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), v: 0.9 + Math.random() * 0.6 }));
+  const size = sizeOf(el);
   /** Draw the rain for `rain` (0…1: how hard it's raining). */
   const draw = (dt: number, rain: number) => {
     const falling = Math.round(drops.length * rain);
     el.style.display = falling > 0 ? 'block' : 'none';
     if (falling <= 0) return;
-    const w = (el.width = el.clientWidth);
-    const h = (el.height = el.clientHeight);
+    // (sized again only when the screen is: setting a canvas's size, even to the same, makes it anew)
+    const { w, h } = size;
+    if (el.width !== w || el.height !== h) [el.width, el.height] = [w, h];
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = 'rgba(210,220,236,.45)';
     ctx.lineWidth = 1;
