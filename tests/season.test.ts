@@ -3,7 +3,7 @@ import { NORMAL } from '../src/f1/difficulty';
 import { aiStage, nextStage, rallyById, rallyOver, recordStage, newRally, parseRally, stageOrder, standings, type Rally } from '../src/f1/rally';
 import { SCHEMES } from '../src/f1/crews';
 import {
-  ROUNDS, SEASON, YOU, currentSeason, loadSeason, newSeason, opensAt, parseSeason, recordRound, roundOpen, roundResult, roundsToDrive,
+  ROUNDS, SEASON, YOU, currentSeason, loadSeason, newSeason, opensAt, parseSeason, recordRound, retireRound, roundOpen, roundResult, roundsToDrive,
   saveSeason, seasonOver, seasonPlace, seasonStandings, type Season,
 } from '../src/f1/season';
 import { useSave } from '../src/engine/save';
@@ -104,5 +104,36 @@ describe('a season', () => {
     expect(parseSeason({ ...s, results: { nowhere: s.results.forests } })).toBeUndefined();
     // (a round's rally keeps which season it's of)
     expect(parseRally(JSON.parse(JSON.stringify(drive(s, 'winter', 25))))?.season).toBe(s.id);
+  });
+});
+
+describe('retiring from a round', () => {
+  it('scores it 0 points for you, ends it for the season, and the rivals score as they stood (no Power Stage bonus)', () => {
+    const s = newSeason(5);
+    const r = drive(s, 'forests', 25);
+    // (two stages run of four, then retired)
+    const part = newRally({ event: rallyById('forests')!, seed: 11, scheme: SCHEMES[0], difficulty: 'normal', season: { id: s.id, rivals: s.rivals } });
+    for (let k = 0; k < 2; k++) recordStage(part, k, { time: 25, health: 1 }, aiStage(part, k, 30, NORMAL));
+    expect(retireRound(s, part)).toBe(true);
+    const res = s.results.forests;
+    expect(res.place).toBe(0);
+    expect(res.points[YOU]).toBe(0);
+    expect(res.power).toEqual({});
+    const rivalsInOrder = standings(part).map((o) => o.crew).filter((i) => i !== part.you).map((i) => part.crews[i].crew!);
+    rivalsInOrder.forEach((key, k) => expect(res.points[key]).toBe(SEASON.points[k]));
+    // (over for the season: neither finishing it nor retiring again counts)
+    expect(recordRound(s, r)).toBe(false);
+    expect(retireRound(s, part)).toBe(false);
+    expect(seasonStandings(s).find((c) => c.key === YOU)?.points).toBe(0);
+    expect(parseSeason(JSON.parse(JSON.stringify(s)))?.results.forests.place).toBe(0);
+  });
+
+  it('before any stage, gives the rivals the points by their pace', () => {
+    const s = newSeason(6);
+    const r = newRally({ event: rallyById('winter')!, seed: 3, scheme: SCHEMES[0], difficulty: 'normal', season: { id: s.id, rivals: s.rivals } });
+    expect(retireRound(s, r)).toBe(true);
+    const quickest = s.rivals.find((c) => c.rank === 0)!.crew!;
+    expect(s.results.winter.points[quickest]).toBe(SEASON.points[0]);
+    expect(s.results.winter.points[YOU]).toBe(0);
   });
 });

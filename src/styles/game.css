@@ -632,6 +632,11 @@ html.no-pause-blur .pause-settings {
   flex: none;
   color: var(--gold);
 }
+/* (RETIRE, pressed once in a season's round: the second press ends the round for 0 points) */
+.circuit-menu button.danger {
+  border-color: var(--red);
+  color: var(--red);
+}
 /* (a season's round already driven, or not open yet: there, but quiet) */
 .circuit-menu .rally-tile.tile-off {
   opacity: 0.62;

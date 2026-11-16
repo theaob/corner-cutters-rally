@@ -779,5 +779,9 @@ export const ja: Language = {
   'POWER STAGE · BONUS POINTS FOR THE TOP 5': 'パワーステージ · トップ5にボーナスポイント',
   'SEASON STANDINGS': 'シーズン順位',
   'YOU FINISHED THE SEASON {place}': 'シーズン{place}で終了',
+  'RETIRED': 'リタイア',
+  'RETIRE': 'リタイア',
+  'IF YOU RETIRE, THIS ROUND SCORES 0 POINTS AND IS OVER FOR THIS SEASON': 'リタイアするとこのラウンドは0ポイントになり、今シーズンは再挑戦できません',
+  'PRESS RETIRE AGAIN TO CONFIRM': 'もう一度リタイアを押して確定',
   },
 };
