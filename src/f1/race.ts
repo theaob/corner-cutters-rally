@@ -30,6 +30,7 @@ import { RESCUE, newRescue, stepRescue } from './rescue';
 import { SIGHT, autoSpeed, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
+import { DustLayer, dustKindOf } from '../engine/render/dust';
 import { CarFx, DebrisLayer, makeFireLights, Particles, SkidLayer } from '../engine/render/effects';
 import { borrowView, returnView } from '../engine/render/sharedView';
 import { disposeDeep } from '../engine/render/dispose';
@@ -84,6 +85,8 @@ type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 const RESUME_COUNT = 3;
 const deg = THREE.MathUtils.degToRad;
 const LOOK = HD2D_VIEW;
+/** How much dust the cars throw up at each quality level (high … minimum): a big puff is a lot of see-through pixels */
+const DUST_DENSITY = [1, 1, 0.75, 0.5];
 /** the TOP view: its zoom, its pitch (degrees down from level), and px it looks ahead of the car at top speed (half
  * that standing), which puts the car low on the screen */
 const TOP_VIEW = { zoom: 0.7, pitch: 58, lead: 180 };
@@ -131,11 +134,14 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   /** how the road looks now (wetness and rain), last put on the scene, so it's only redone as it changes */
   let shownLook = { wetness: -1, rain: -1 };
   const skids = new SkidLayer((x, y) => groundAt(grid, x, y).h);
-  // (a bigger pool in the wet, and on dirt: the car throws up spray, or dust)
+  // (a bigger pool in the wet, and on dirt: the car throws up spray, or mud)
   const particles = new Particles(weather.spray || layout.dirt ? 220 : 90);
+  // the dust the cars throw up, coloured for the stage's ground
+  const dust = new DustLayer();
+  const dustKind = dustKindOf(layout);
   // parts torn off in big crashes: the bumper, and wheels off a wreck
   const debris = new DebrisLayer();
-  world.scene.add(skids.group, particles.group, debris.group);
+  world.scene.add(skids.group, particles.group, dust.mesh, debris.group);
   /** a wheel torn off lies on its side */
   const onItsSide = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
 
@@ -390,6 +396,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     notice = { text: '', color: '', until: 0 };
     skids.clear();
     particles.clear();
+    dust.clear();
     debris.clear();
     paceCard.hush();
     results.style.display = 'none';
@@ -585,6 +592,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
         hitMe: (health: number) => (pendingHit = health),
         /** parts torn off in crashes, flying or lying on the ground now */
         debris: () => debris.count,
+        /** puffs of dust in the air now */
+        dust: () => dust.count,
         /** the music track playing (or loading) */
         music: () => musicPlaying(),
         skip: (seconds: number) => (race.clock += seconds),
@@ -1035,7 +1044,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       else if (e.kind === 'track' && race.clock >= notice.until) announce(`${tl('ROAD {state}', { state: tl(e.condition.toUpperCase()) })} · ${tl(COMPOUNDS[tyreFor(e.condition, race.track.dirt)].name)}`, COLOR.sky, 2);
     }
     // your car (race/drawCars.ts)
-    drawCars({ race, looks, events: cars, track, grid, skids, particles, pose: (i) => pose(race.entrants[i].car, i, alpha), dt });
+    drawCars({ race, looks, events: cars, track, grid, skids, particles, dust, dustKind, pose: (i) => pose(race.entrants[i].car, i, alpha), dt });
     const clock = race.clock;
     // (the km you drive: your car's way, live, between frames; not a jump of a restart)
     {
@@ -1124,6 +1133,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     }
 
     particles.update(dt);
+    // (fewer puffs at the lower quality levels: a slow phone's)
+    dust.density = DUST_DENSITY[governor.level] ?? 1;
+    dust.update(dt);
     debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);
     rain.draw(dt, race.rain);
     {

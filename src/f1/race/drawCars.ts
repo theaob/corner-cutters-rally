@@ -1,10 +1,12 @@
 // Every car on the screen each frame: where it is (between its last two steps),
 // tilted on the ground, its skid marks, smoke
-// and fire as it's damaged, dust off the grass (mud off a dirt track), its tyres' compound colour,
+// and fire as it's damaged, the dust it throws up (off a dirt road, or the grass beside a sealed one; mud off wet
+// gravel, and stones off dry), its tyres' compound colour,
 // its brake lights (lit while it slows), sparks off a hit or
 // a hard landing, and spray off a wet track.
 
 import { bodyTilt, condition, speedOf, type StepEvents } from '../../engine/driving';
+import type { DustKind, DustLayer } from '../../engine/render/dust';
 import type { CarFx, Particles, SkidLayer } from '../../engine/render/effects';
 import type { CarMesh } from '../../engine/render/vehicles3d';
 import type { Grid } from '../../engine/sim';
@@ -33,6 +35,9 @@ export interface CarsFrame {
   grid: Grid;
   skids: SkidLayer;
   particles: Particles;
+  dust: DustLayer;
+  /** the dust off this stage's ground */
+  dustKind: DustKind;
   /** car `i` drawn between its last two steps */
   pose: (i: number) => { x: number; y: number; z: number; heading: number };
   dt: number;
@@ -41,12 +46,20 @@ export interface CarsFrame {
 /** Mud off a dirt track: clods a second behind a car at full speed, and more while it slides */
 const MUD = { rate: 12, slide: 16 };
 
+/**
+ * The dust: px/s a car kicks it up from, px/s sideways that's a full slide, and how much more it throws off the road
+ * (on a dirt stage). The road dries it out: none from damp on (`wetness` 2/3 and up), but snow's powder is always dry.
+ */
+const DUST_FROM = { speed: 30, slide: 140, offRoad: 1.3, wetOut: 1.5 };
+
 export function drawCars(f: CarsFrame): void {
-  const { race, looks, grid, skids, particles, dt } = f;
+  const { race, looks, grid, skids, particles, dust, dustKind, dt } = f;
   // (spray off a damp or wet road)
   const spray = race.wetness > 0.4;
-  // (mud off a dirt road: its earth's wet)
-  const muddy = !!race.track.dirt && !spray;
+  // (mud off a gravel road: its earth's wet; drier, it's stones, fewer)
+  const muddy = dustKind === 'gravel' && !spray;
+  const dry = dustKind === 'snow' ? 1 : Math.max(0, 1 - race.wetness * DUST_FROM.wetOut);
+  const mudRate = dry > 0.5 ? 0.5 : 1;
   race.entrants.forEach((e, i) => {
     const l = looks[i];
     if (!running(e)) {
@@ -63,7 +76,14 @@ export function drawCars(f: CarsFrame): void {
     l.mesh.position.set(at.x, at.z + tilt.lift, at.y);
     l.mesh.rotation.set(tilt.pitch, -at.heading, tilt.roll, 'YXZ');
     const speed = speedOf(e.car);
-    l.fx.update(dt, condition(e.car), particles, ev.onRough && speed > 25 ? Math.min(1, speed / 120) : 0);
+    l.fx.update(dt, condition(e.car), particles);
+    // the dust: off its rear wheels, more the faster it goes and the more it slides, and a cloud where it lands hard
+    if (dry > 0 && !ev.airborne && speed > DUST_FROM.speed && (dustKind !== 'grass' || ev.onRough)) {
+      const side = Math.abs(e.car.vx * Math.cos(e.car.heading) + e.car.vy * Math.sin(e.car.heading));
+      const pace = dustKind === 'grass' ? Math.min(1, speed / 120) : Math.min(1, speed / e.car.cls.topSpeed) * (ev.onRough ? DUST_FROM.offRoad : 1);
+      dust.kick(i, dustKind, at.x, at.y, at.z, at.heading, e.car.vx, e.car.vy, pace * dry, Math.min(1, side / DUST_FROM.slide) * dry, dt, e.car.cls);
+    }
+    if (dry > 0 && ev.landed > 120) dust.burst(dustKind, at.x, at.y, at.z, Math.min(10, 3 + ev.landed / 40) * dry);
     // the tyres' compound colour, and spray off a wet road from behind the car at speed
     l.mesh.userData.tyreMark.color.set(COMPOUNDS[e.tyres.compound].color);
     // the brake lights: lit while the car slows
@@ -83,7 +103,7 @@ export function drawCars(f: CarsFrame): void {
       particles.spray(e.car.x - Math.sin(e.car.heading) * 14, e.car.y + Math.cos(e.car.heading) * 14, e.car.z);
     }
     // on dirt, mud flung up behind it at speed: the faster, the more, and a spray of it sliding through a bend
-    if (muddy && !ev.airborne && speed > 50 && Math.random() < dt * (MUD.rate * Math.min(1, speed / 250) + (ev.skidding ? MUD.slide : 0))) {
+    if (muddy && !ev.airborne && speed > 50 && Math.random() < dt * mudRate * (MUD.rate * Math.min(1, speed / 250) + (ev.skidding ? MUD.slide : 0))) {
       particles.mud(e.car.x - Math.sin(e.car.heading) * 15, e.car.y + Math.cos(e.car.heading) * 15, e.car.z);
     }
   });
