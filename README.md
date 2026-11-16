@@ -7,7 +7,7 @@ An arcade rally in the HD-2D look, grown out of [Corner Cutters](https://github.
 **Home is the rally's screen** (`src/f1/screens/rally.ts`). Rally cars drive the Shakedown behind it. With no rally under way, it shows:
 
 - **CAR**, your paint scheme. Swipe or tap to change it.
-- The season's four rounds: each one's number and how it stands (your place and points, OPEN NOW, or the day it opens).
+- The season's five rounds: each one's number and how it stands (your place and points, OPEN NOW, or the day it opens).
 - The season's standings, once a round has been driven.
 - **SETTINGS**.
 
@@ -32,6 +32,7 @@ With `?debug`, `?seasonday=<n>` sets the calendar to `n` days after the first ro
 | WINTER RALLY | snow | Glacier Road, Frozen Pass, Ice Lake |
 | DESERT RALLY | sand | Dune Run, Red Canyon, Salt Flats |
 | TARMAC RALLY | tarmac | Mountain Col, Vineyards, Coast Road (damp), Castle Hill |
+| RIVIERA RALLY | tarmac | Les Lacets, Col du Mistral (damp), Corniche Bleue |
 
 ### The stages
 
@@ -43,6 +44,14 @@ Each stage also gets:
 - a jump here and there in the middle of a long straight;
 - an opening straight up to the start line;
 - a run-out past the finish to the stop at the road's end.
+
+**The Riviera** (`src/f1/riviera.ts`) is a mountainside falling south into the sea, and its three stages are tight roads cut into it:
+
+- **Tight:** their pieces are short straights, slow bends and many hairpins (`pieces` in a stage's spec), and the roadside is a wall right by the road on both sides, with room to run wide only on the outside of a tight bend. Corniche Bleue is kept to a band along the shore (`band`).
+- **The sea:** the shore follows the road's southernmost stretches, so wherever the road is the last thing before the sea it runs along the cliff's edge above it. The land climbs north from the shore and the road with it, so going north is going up.
+- **Cliffs:** where the road runs across the slope it is a ledge, with a rock face rising north of it and a stone parapet and a drop south of it. The camera looks from the south, so the faces stand behind the road and nothing tall stands in front of it.
+- **Tunnels:** on straights and fast bends, clear of the start, the finish and each other, the road goes through the rock. The walls are right at the road's edge, and the roof fades to glass while your car is under it (`src/f1/tunnels3d.ts`). The co-driver calls **TUNNEL** before each mouth.
+- Cypresses, pines and olives grow over the slopes, palms along the shore, and villas stand by the road.
 
 The same seed always gives the same stage, grown the first time it's driven. The engine's tracks can be open roads for this: `open` in `buildTrack` and `smoothLoop` (`src/f1/racing.ts`), and `stage` in a layout (`src/f1/layouts.ts`).
 
@@ -67,7 +76,7 @@ On gravel, snow and sand the car runs off-road tyres and slides; on tarmac it gr
 **The co-driver** (`src/f1/paceNotes.ts`, `src/f1/race/rallyView.ts`) reads the stage's pace notes off the road itself:
 
 - every bend is graded by how tight it is, 6 (barely a lift) down to 1 (the slowest), with HAIRPIN for the tightest that turn right round;
-- LONG, TIGHTENS and OPENS where they apply, OVER JUMP for a jump, and FLYING FINISH at the end;
+- LONG, TIGHTENS and OPENS where they apply, OVER JUMP for a jump, TUNNEL for a tunnel's mouth, and FLYING FINISH at the end;
 - bends close together are linked (LEFT 4 › RIGHT 3; the card shows two, then › …, while the voice reads them all), and a long run to the next note gets its distance called (· 300).
 
 Each call comes far enough ahead to be ready for it (further ahead the faster you're going). It's shown on a card at the top of the screen (a big arrow and grade, the call in full under it) and read out where the device has a voice (the Web Speech API, at the sound's volume).

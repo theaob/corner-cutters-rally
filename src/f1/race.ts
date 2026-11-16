@@ -385,7 +385,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const rivals = aiStage(rallyRun.rally, rallyRun.stage, reference.time, difficulty).times;
     const leader = Math.min(...rivals.filter((x): x is number => x !== undefined));
     stage = {
-      caller: newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at))), reference, leader, rivals, sector: 0, startHealth: race.entrants[you].car.health,
+      caller: newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at), (layout.tunnels ?? []).map((u) => u.from))), reference, leader, rivals, sector: 0, startHealth: race.entrants[you].car.health,
     };
     // (TOP-DOWN: how far along the stage, a bar across the top with the splits on it, in place of KM TO GO)
     if (progressBar()) setProgressMarks(stageSplits(track).map((m) => m / finishAt));
@@ -400,7 +400,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     // (no countdown: straight off)
     onTheLine(-LIGHTS, 1);
     learn = { o: newOnboarding(), bends: 0, lastIdx: race.entrants[0].progress.idx };
-    tutorCaller = newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at)));
+    tutorCaller = newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at), (layout.tunnels ?? []).map((u) => u.from)));
     // (the bends, for the prompts that wait for one: the middle of each the co-driver calls)
     tutorApexes = tutorCaller.notes.filter((n) => n.dir).map((n) => Math.round((n.at + n.end) / 2 / track.spacing));
   };

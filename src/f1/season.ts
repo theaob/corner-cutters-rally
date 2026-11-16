@@ -22,7 +22,7 @@ export const SEASON = {
   /** days from one round's opening to the next's */
   every: 7,
   /** the rounds, in order (rallies' ids) */
-  rounds: ['forests', 'winter', 'desert', 'tarmac'],
+  rounds: ['forests', 'winter', 'desert', 'tarmac', 'riviera'],
   /** points for the top ten overall at the end of a round */
   points: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1],
   /** the Power Stage's bonus, for its five quickest */

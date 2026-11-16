@@ -44,7 +44,7 @@ export function makeTile(b: HTMLButtonElement, icon: TileIcon, name: string, abo
   b.replaceChildren(tileIcon(icon), label, ...(sub ? [sub] : []));
 }
 
-/** Tiles to a row (four rallies: two by two). */
+/** Tiles to a row (the rallies two by two). */
 export const TILE_COLUMNS = 2;
 
 /**
