@@ -216,11 +216,6 @@ export class Particles {
     }
   }
 
-  /** A low brown cloud kicked up on rough ground. */
-  dust(x: number, z: number, base = 0): void {
-    this.spawn(x, z, base + 4, Math.random() < 0.5 ? 0xe0cca4 : 0xc8a878, 1.0, 10, 6, false);
-  }
-
   /** Mud flung up off a wet dirt track: dark clods, low, falling back quickly. */
   mud(x: number, z: number, base = 0): void {
     const p = this.spawn(x, z, base + 3, Math.random() < 0.5 ? 0x4a3020 : 0x5e3d28, 0.55, 6, 30, false);
@@ -281,7 +276,6 @@ export function makeFireLights(scene: THREE.Scene, count: number): THREE.PointLi
 export class CarFx {
   private readonly original: THREE.Color[];
   private emit = 0;
-  private dustEmit = 0;
 
   /** `light`: its fire light, one of `makeFireLights`' (left out for cars that have none). */
   constructor(readonly mesh: CarMesh, private readonly light?: THREE.PointLight) {
@@ -299,14 +293,8 @@ export class CarFx {
    * The fire light is always in the scene (intensity 0 when off) so turning it
    * on doesn't recompile shaders mid-drive.
    */
-  /** `dust` (0…1): how hard the car is kicking up dust on rough ground (0 = none). */
-  update(dt: number, condition: 'ok' | 'smoking' | 'burning' | 'wrecked', particles: Particles, dust = 0): void {
+  update(dt: number, condition: 'ok' | 'smoking' | 'burning' | 'wrecked', particles: Particles): void {
     const { x, y, z } = this.mesh.position;
-    this.dustEmit -= dt;
-    if (dust > 0 && this.dustEmit <= 0) {
-      particles.dust(x, z, y);
-      this.dustEmit = 0.2 - dust * 0.15;
-    }
     this.emit -= dt;
     if (this.emit <= 0 && condition !== 'ok') {
       if (condition === 'smoking') {
