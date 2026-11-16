@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { deckLabels, type DeckState } from '../src/f1/race/deckLabels';
 import { bannerMessage, evenLines, lessonMessage, type BannerState } from '../src/f1/race/banner';
-import { blocks, gapValue, readoutRows, readoutText, topDownReadout, tyreText } from '../src/f1/race/readout';
+import { blocks, gapValue, readoutRows, topDownReadout } from '../src/f1/race/readout';
 import { ICON_ART } from '../src/f1/race/icons';
 
 const deck = (s: Partial<DeckState> = {}): DeckState => ({
@@ -70,22 +70,10 @@ describe('the banner', () => {
 });
 
 describe('the readout', () => {
-  it('the stage clock, your best on the stage, and the car and the tyres as five blocks', () => {
+  it('the clock, the gap at the last split and the car as five blocks: no best, no tyres', () => {
     expect(blocks(1)).toBe('■■■■■');
     expect(blocks(0.41)).toBe('■■■□□');
-    expect(readoutText({ time: 12.5, best: 301.2, health: 0.5, wrecked: false })).toBe('TIME 0:12.50\nBEST 5:01.20\nCAR  ■■■□□\n');
-    const wrecked = readoutText({ health: 0, wrecked: true });
-    expect(wrecked).toContain('TIME –');
-    expect(wrecked).toContain('CAR  WRECKED');
-    // (WORN on a line of its own, lined up with the labels: beside the blocks it widened the readout)
-    expect(tyreText('SFT', 0.8, true)).toBe('TYRE SFT ■□□□□ 20%\nWORN\n');
-    expect(tyreText('SFT', 0.8, false)).toBe('TYRE SFT ■□□□□\nWORN\n');
-    expect(tyreText('MED', 0, false)).toBe('TYRE MED ■■■■■\n');
-  });
-});
-
-describe("TOP-DOWN's readout", () => {
-  it('the clock, the gap at the last split and the car: no best, no tyres', () => {
+    expect(topDownReadout({ splits: false, health: 0, wrecked: true })).toContain('CAR  WRECKED');
     expect(topDownReadout({ time: 12.5, splits: true, health: 0.5, wrecked: false })).toBe('TIME 0:12.50\nGAP  –\nCAR  ■■■□□\n');
     expect(topDownReadout({ time: 30, gap: -0.42, splits: true, health: 1, wrecked: false })).toContain('GAP  −0.42');
     expect(gapValue(1.1)).toBe('+1.10');
@@ -97,12 +85,11 @@ describe("TOP-DOWN's readout", () => {
 
 describe("the readout's rows", () => {
   it('each line an icon, its label and its value; a word alone a value under the values; long labels across both columns', () => {
-    expect(readoutRows(readoutText({ time: 31.2, health: 0.8, wrecked: false }))).toEqual([
+    expect(readoutRows(topDownReadout({ time: 31.2, splits: false, health: 0.8, wrecked: false }))).toEqual([
       { icon: 'watch', label: 'TIME', value: '0:31.20' },
-      { icon: 'star', label: 'BEST', value: '–' },
       { icon: 'car', label: 'CAR', value: '■■■■□' },
     ]);
-    expect(readoutRows(tyreText('SFT', 0.8, false))).toEqual([
+    expect(readoutRows('TYRE SFT ■□□□□\nWORN\n')).toEqual([
       { icon: 'tyre', label: 'TYRE', value: 'SFT ■□□□□' },
       { label: '', value: 'WORN' },
     ]);

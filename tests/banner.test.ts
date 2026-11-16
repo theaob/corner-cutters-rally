@@ -24,13 +24,11 @@ describe("the banner's message on two lines", () => {
   it("every controls-lap prompt: its two lines within a few letters of each other, unless a ' · ' splits it", () => {
     for (const device of ['touch', 'keys', 'pad'] as const) {
       for (const step of STEPS) {
-        for (const gas of ['manual', 'auto'] as const) {
-          const text = prompt(step, device, gas);
-          if (!text.includes(' ')) continue;
-          const [a, b] = lines(text);
-          expect(a.length && b.length).toBeTruthy();
-          if (!text.includes(' · ')) expect(Math.abs(a.length - b.length)).toBeLessThanOrEqual(8);
-        }
+        const text = prompt(step, device);
+        if (!text.includes(' ')) continue;
+        const [a, b] = lines(text);
+        expect(a.length && b.length).toBeTruthy();
+        if (!text.includes(' · ')) expect(Math.abs(a.length - b.length)).toBeLessThanOrEqual(8);
       }
     }
   });

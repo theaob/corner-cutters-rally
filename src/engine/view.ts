@@ -3,7 +3,6 @@
 
 import type { Services } from './services';
 import type { ScreenFit } from './layout';
-import type { ParamSpec, Values } from './tuning';
 
 /** What a mounted view exposes back to the page. */
 export interface StandaloneView {
@@ -14,7 +13,5 @@ export interface StandaloneView {
 export type MountStandalone = (args: {
   host: HTMLElement;
   services: Services;
-  /** live TUNE values; undefined when a game runs without the TUNE panel (its defaults) */
-  tuning?: Values<ParamSpec>;
   fit: ScreenFit;
 }) => Promise<StandaloneView>;

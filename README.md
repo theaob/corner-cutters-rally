@@ -87,24 +87,13 @@ A big crash tears off the bumper and its lamps, and a wreck loses a wheel or two
 
 ### Controls
 
-The driving (`src/engine/drive/`) works the same way on every device: you ask for a steering wheel position, gas, brake and the handbrake, and whichever device you used last drives.
+The controls are Corner Cutters' own (its AUTO): one scheme, and whichever device you used last drives (`src/engine/controls.ts`, `src/engine/deck.ts`, `playerInput` and `wheelInput` in `src/f1/racing.ts`).
 
-- **The steering wheel:** whatever you steer with sets where you want the wheel. The wheel turns toward it at its own rate, and comes back to the middle a little quicker, so a key tapped is a nudge and held is a bend. The tyres turn on a curve of the wheel: softly round the middle, for fine corrections on fast roads, and full lock at the ends. Flat out the lock closes a little, never below what the racing line uses, since the rivals' times come from it.
-- **Touch:** one thumb steers. Put it down anywhere on its half of the lower screen and drag across: where it lands is the middle, and full lock is a thumb's width away. A wheel drawn under the thumb shows the steering. The other thumb has the pedals in its corner: GAS, BRAKE beside it, and DRIFT (the handbrake) above them. A thumb can roll from one pedal to the next without lifting. Held on BRAKE once stopped, the car backs up.
-- **Keyboard:** ← → (A, D) steer, ↑ (W) is the gas, ↓ (S) the brake, and Shift or X the handbrake. Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, C changes the view, and V switches between the handheld and wide layouts.
-- **Gamepad:** the left stick steers, past a dead zone and on a gentle curve. The right trigger is the gas, the left the brake, and A or RB the handbrake. Start pauses, Y restarts, and Back is SELECT.
+- **Touch:** a floating thumbstick. Put a thumb down anywhere on the stick's side of the lower screen and the stick comes to it. Push the way you want to go on the screen (up the screen is north, whichever way the car faces): the car turns to go that way, and how far you push is how much gas. Ease the stick in to slow; let go and the car coasts. The stick sits on the right unless STICK in the settings moves it left. On dirt the deck has a DRIFT button opposite the stick (the handbrake).
+- **Keyboard:** ↑ (W) is the gas, ↓ (S) the brake (held once stopped, it backs up), ← → (A, D) steer the car, and X or Shift drifts. Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, and V switches between the handheld and wide layouts.
+- **Gamepad:** the left stick steers the car, the right trigger is the gas, the left the brake, and A drifts. Start pauses, Y restarts, and Back is SELECT.
 
-The driving settings:
-
-- **STYLE** (`src/f1/style.ts`): TOP-DOWN (the default) or SIM.
-  - **TOP-DOWN** is made for one thumb on a phone. The camera is always the CLASSIC view (high, north up), pulled further back and looking further ahead of the car the way it's going; there's no camera button. The gas is always on, there's no brake, and the car is as quick as SIM's (a little quicker off the line). It keeps three quarters of its speed and grip off the road (SIM's car keeps a quarter). The roadside forgives: hits do about a third of the damage, small knocks none, and the car never rolls. Its stage times are kept apart from SIM's, and the rivals' times come from a run in the same car, so they're fair either way.
-  - **SIM** is the stage as it was: your VIEW and GAS, the full-speed car, and hard trees.
-- **One thumb** (TOP-DOWN; `src/engine/drive/point.ts`): you point the way you want to go on the screen, and the car turns to go that way. Up the screen is up, whichever way the car faces. On a touch screen the thumb lands anywhere across the lower screen and drags, and a ring under it shows the way. The arrow keys (WASD) point too, two together for the way between, and Space brakes. On a gamepad the left stick points. If you point roughly down the road, the road takes your aim, pulling it along the road and toward its middle (as much as ASSIST gives). If you point well away from it, for example across the inside of a bend, you go exactly where you point. Let go and the car holds its course.
-  - **Drift:** point hard (the thumb out at the ring's edge, which turns gold, or the stick all the way) well off the way the car's nose is, at speed, and it drifts: the tyres let go sideways, the nose comes round quicker, and it scrubs off little speed (`DRIFT` in `src/engine/driving.ts`). Every stage's bends can be taken flat out drifting. The car only slows itself for a bend tighter than a drift can take (`AUTO_SPEED` in `src/f1/style.ts`).
-- **GAS** (SIM): MANUAL (a pedal) or AUTO (always on unless you brake). With AUTO the gas is on from before GO: an ordinary start, never a jump start or a launch.
-- **STEERING** (wherever the wheel steers): GENTLE, NORMAL or QUICK, for how fast and how far the wheel turns.
-- **ASSIST:** OFF, LIGHT or STRONG. A hand on the wheel steers toward where the road goes a little ahead, and back toward its middle. It gives way to you: the harder you steer, the less it does, and at full lock nothing. It never touches the gas or the brakes, and it lets go when reversing or turned away from the road.
-- **SIDES** (on a touch screen): STEER LEFT (the default: pedals right) or STEER RIGHT.
+**The stage** (`src/f1/style.ts`) is made for a phone. The camera is the one view, CLASSIC (high, north up), pulled back and looking ahead of the car the way it's going. The car is quick off the line and keeps three quarters of its speed and grip off the road. The roadside forgives: hits do about a third of the damage, small knocks none, and the car never rolls. Stopped off the road a while, you're put back on it at a cost (`src/f1/rescue.ts`). The rivals' times come from a run in the same car.
 
 **SETTINGS** (from home, and from the pause screen; `src/f1/menu.ts`, `src/f1/settingsRows.ts`):
 
@@ -112,9 +101,7 @@ The driving settings:
 - SCREEN, on a device with a mouse or trackpad;
 - TEXT: NORMAL or LARGE;
 - COLOURS: STANDARD or COLOUR-SAFE, for the splits;
-- STYLE: TOP-DOWN or SIM (above);
-- VIEW: the camera (SIM's);
-- GAS, STEERING, ASSIST, and SIDES on a touch screen (above);
+- STICK (on a touch screen): the thumbstick on the LEFT or the RIGHT;
 - VIBRATION, SCREEN SHAKE, SOUND and MUSIC;
 - STATS, only when the build has a backend.
 
@@ -130,8 +117,6 @@ All are remembered.
 
 **Sound and music:** sound is synthesised with Web Audio (`src/engine/audio.ts`, `src/f1/sounds.ts`): the engine, tyre squeal, rough ground and gravel, hits and scrapes, rain, the countdown's beeps, and a fanfare at your flag. The theme plays at home and the stage's own track on the road (`public/music/`, `src/f1/music.ts`).
 
-**Cameras:** VIEW in the settings picks the camera, remembered (`src/f1/view.ts`): CHASE (low, behind the car; SIM's default), TOP (high, turns with the road, looking well ahead), ROAD (high, turns with the road ahead), HEADING (high, turns with the car), BONNET, CLASSIC (the HD-2D view, high, north up; TOP-DOWN's) and ISO (a fixed diagonal). Mid-stage, the camera button under PAUSE (top right on a phone) or C on the keys goes to the next view, named on the banner a moment. `&cam=` in the address still tries one out, until the view is changed in the game.
-
 **Fixed-step simulation:** the stage runs in steps of exactly 1/60 s, however fast or slow the screen draws (`src/engine/fixedStep.ts`), so a run comes out the same on any screen and in the headless tests.
 
 **Reports and play stats:** REPORT (top right of home and the settings, and on the pause screen) takes a screenshot to draw on, with a note on what's wrong (`src/f1/report.ts`). Anonymous counts of how the game is played (launches, stages started and finished, km driven, time in the game) go to the game's Supabase project when the build has one (`src/f1/metrics.ts`, [`supabase/README.md`](supabase/README.md)). STATS in the settings turns them off. The totals are on the stats dashboard (`stats.html`).
@@ -140,7 +125,7 @@ All are remembered.
 
 - `?mode=rally` opens home.
 - `?debug` exposes `window.__cc` for tests: `__cc.stage()` gives the stage's notes, reference run, rival leader, co-driver card and result; `__cc.autopilot(pace)` drives your car on the racing line; `__cc.look(x, y)` holds the camera on a point.
-- `?cam=` picks a camera, `?inputlog` lists the input events, and `?desktop` / `?mobile` force a layout.
+- `?inputlog` lists the input events, and `?desktop` / `?mobile` force a layout.
 
 ## Run it
 
@@ -186,7 +171,7 @@ base64 -w0 release.keystore      # the value for ANDROID_KEYSTORE_BASE64
 
 Then add the repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`.
 
-**Tested on Android:** `.github/workflows/android-e2e.yml` builds a debug APK on every push, installs it on an emulated Pixel 6 (Android 14) and runs `tools/android-e2e.mjs` on it. That script drives the shakedown with the phone's own touch input (the steering drag, the pedals, both SIDES and GAS on AUTO), reads the car's speed and heading back from the game, goes through the views with the camera button, and opens the settings. The phone's screenshots and `results.json` are the run's **android-e2e** download. With a phone on adb and a debug build installed, the same script runs locally (`npm install --no-save playwright-core && node tools/android-e2e.mjs out`).
+**Tested on Android:** `.github/workflows/android-e2e.yml` builds a debug APK on every push, installs it on an emulated Pixel 6 (Android 14) and runs `tools/android-e2e.mjs` on it. That script drives the shakedown with the phone's own touch input (the floating thumbstick on either side, and DRIFT on dirt), reads the car's speed and heading back from the game, and opens the settings. The phone's screenshots and `results.json` are the run's **android-e2e** download. With a phone on adb and a debug build installed, the same script runs locally (`npm install --no-save playwright-core && node tools/android-e2e.mjs out`).
 
 Locally (with the Android SDK and JDK 21): `npm run android:apk` builds `android/app/build/outputs/apk/release/app-release.apk`, and `npm run android:play` the Play AAB. `npm run android:art` redraws the game's icon, the gravel hairpin, into the launcher icons, the splash screens and the web icons in `public/` (`tools/android-art.py`, needs Pillow).
 
@@ -204,7 +189,7 @@ stats.html        The play-stats dashboard (src/stats/)
 src/
   main.ts         The entry: the host made ready, then app.ts
   app.ts          Routes in the page: home, the settings, a stage (?circuit=<id>&mode=rally), the controls lap
-  engine/         the driving (drive/: the steering wheel, assist, touch, keys, gamepad), the menus' buttons and deck, layout, storage, save, TUNE panel, driving physics (driving.ts), ground and
+  engine/         the controls (keys, gamepad, the deck's thumbstick and buttons), layout, storage, save, driving physics (driving.ts), ground and
                   collision (sim.ts), render/ (HD-2D pipeline, quality, effects, car models, daylight, textures)
   f1/             The rally game (the folder keeps its old name): uses only engine/
     stages.ts     The stages, grown from their seeds

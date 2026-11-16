@@ -32,8 +32,8 @@ be uploaded by hand now or by `fastlane supply` later). The steps that need your
 | Feature graphic | `featureGraphic.png` | 1024 × 500 |
 | Phone screenshots (2 to 8) | `phoneScreenshots/1…6` | 1080 × 1920 (9:16) |
 
-The screenshots are taken from the game itself in TOP-DOWN, the default style (the CLASSIC view, the one-thumb ring
-under the thumb, the co-driver's card): a gravel hairpin in the forests, snow, sand and tarmac stages, home with the
+The screenshots are taken from the game itself in its one view (CLASSIC, north up), with the co-driver's card. They
+show the one-thumb ring of before; retake them with the thumbstick: a gravel hairpin in the forests, snow, sand and tarmac stages, home with the
 four rallies, and the standings after a stage. A promo video is optional (a YouTube link); add it later.
 
 ## App content (Policy → App content)

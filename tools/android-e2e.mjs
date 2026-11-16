@@ -1,7 +1,6 @@
-// The touch controls and the views, tried on Android: the app (a debug build, its WebView open to DevTools) on an
-// emulator or a phone over adb, driven down the shakedown with the phone's own touch input (src/engine/drive/touch.ts:
-// the steering drag and the pedals, with GAS on MANUAL and AUTO, TOP-DOWN's one thumb (pointing, drifting, no pedals),
-// and steering on either side)
+// The touch controls, tried on Android: the app (a debug build, its WebView open to DevTools) on an emulator or a
+// phone over adb, driven down the shakedown with the phone's own touch input (src/engine/deck.ts: Corner Cutters'
+// floating thumbstick, pointed the way to go and pushed further for more speed, on either side, and DRIFT on dirt)
 // (`input motionevent`: a real finger down, moved, lifted), and the car's speed and heading read back from the game's
 // debug hook. Run by .github/workflows/android-e2e.yml; locally, with a device on adb and the app installed:
 //   npm install --no-save playwright-core && node tools/android-e2e.mjs out-dir
@@ -48,7 +47,7 @@ if (BROWSER) {
   webviewVersion = (await sh(`dumpsys package com.google.android.webview | grep -m1 versionName`)).trim();
   // (no "isn't responding" dialogs over the game: the emulator's software GPU is slow enough to raise them)
   await sh('settings put global hide_error_dialogs 1');
-  // (nor Android's one-time "viewing full screen" banner: it sits over the top of the screen, the camera button under it,
+  // (nor Android's one-time "viewing full screen" banner: it sits over the top of the screen, PAUSE under it,
   // and takes the presses there until it's dismissed; a player taps its GOT IT once)
   await sh('settings put secure immersive_mode_confirmations confirmed');
   [screenW, screenH] = (await sh('wm size')).trim().split('\n').pop().split(':').pop().trim().split('x').map(Number);
@@ -112,16 +111,6 @@ const tap = async (p) => {
   await sleep(120);
   await up(p);
 };
-/** Where the page's last pointerdown landed, and on what (to see a press that missed its target). */
-const watchPresses = () =>
-  page.evaluate(() => {
-    window.__downs = [];
-    addEventListener('pointerdown', (e) => window.__downs.push(`${Math.round(e.clientX)},${Math.round(e.clientY)} on ${e.target.getAttribute?.('class') || e.target.tagName}`), true);
-  });
-const presses = () => page.evaluate(() => window.__downs.splice(0));
-/** The window that has the screen's input now (on Android): the game's, or something over it. */
-const focus = async () => (BROWSER ? 'the page' : (await sh('dumpsys window | grep -E "mCurrentFocus|mFocusedApp"')).trim().replace(/\s+/g, ' '));
-
 /** Where a real tap in the middle of the screen lands in the page (swallowed before the game sees it). */
 async function calibrate() {
   if (BROWSER) return;
@@ -142,16 +131,6 @@ async function calibrate() {
   const dpr = await page.evaluate(() => devicePixelRatio);
   map = { dpr, x: sx / dpr - cal[0], y: sy / dpr - cal[1] };
   console.log(`screen ${screenW}x${screenH} · page px ×${dpr} · WebView at (${map.x.toFixed(1)}, ${map.y.toFixed(1)}) css px`);
-}
-
-/** Two fingers at once (TAP's both halves), held while `during` runs: `input` has one finger, so these go in through
- * the WebView's DevTools. */
-async function twoFingers(a, b, during) {
-  cdp ??= await page.context().newCDPSession(page);
-  const pts = [a, b].map(([x, y], id) => ({ x, y, id }));
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pts });
-  await during();
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 }
 
 // ---------------------------------------------------------------- the game
@@ -178,10 +157,10 @@ async function open(path, settings) {
   await page.goto(new URL(path, page.url()).href);
 }
 
-/** The shakedown under the chase camera with the driving settings `drive` (the save's keys; SIM unless they say), once the car can go. */
+/** The shakedown with the settings `drive` (the save's keys), once the car can go. */
 async function stage(drive = {}) {
   await launch();
-  await open('/?debug&circuit=ss-shakedown&mode=tutorial', { view: 'chase', driveStyle: 'sim', driveGas: 'manual', driveSide: 'left', driveAssist: 'off', driveSteering: 'normal', ...drive });
+  await open('/?debug&circuit=ss-shakedown&mode=tutorial', drive);
   await page.waitForFunction(() => window.__cc?.phase?.() === 'racing', null, { timeout: 180000 });
   await sleep(1500);
 }
@@ -217,115 +196,67 @@ async function hold(at, sec, speed, to) {
 const turned = (r) => `turned ${fmt(r.turn)} rad`;
 const slowed = (r) => `speed ${fmt(r.from.speed)} → ${fmt(r.to.speed)}`;
 
-/** The steering half's middle, low down (where a thumb rests), and a point `dx` px across from it. */
-const steerSpot = async (dx = 0) => {
-  const [x, y] = await centre('.drive-steer');
+/** Where a thumb lands on the stick's zone (low on its side of the screen), and a point (dx, dy) px from there. */
+const stickSpot = async (dx = 0, dy = 0) => {
+  const [x] = await centre('.stick-zone');
   const [, h] = await viewport();
-  return [x + dx, Math.min(h - 60, y + 120)];
+  return [x + dx, h - 140 + dy];
 };
 const pressed = (sel) => page.evaluate((sel) => document.querySelector(sel).classList.contains('pressed'), sel);
+const shown = (sel) => page.evaluate((sel) => { const e = document.querySelector(sel); return !!e && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden'; }, sel);
 
-/** Each part of the run: the driving settings it's driven with, and what it tries. */
+/** Each part of the run: the settings it's driven with, and what it tries. */
 const schemes = {
-  manual: {
-    drive: { driveGas: 'manual', driveSide: 'left' },
+  stick: {
+    // (STICK: RIGHT, the default)
+    drive: {},
     async run() {
-      const deck = await page.evaluate(() => ({ cls: document.getElementById('deck').className, ...document.querySelector('.drive').dataset }));
-      check('MANUAL: the driving layer is up, steering left, pedals right', deck.cls.includes('driving') && deck.side === 'left' && deck.gas === 'manual', JSON.stringify(deck));
-      const gas = await centre('.drive-pedal.gas');
-      const brake = await centre('.drive-pedal.brake');
-      const drift = await centre('.drive-pedal.drift');
       const [w] = await viewport();
-      check('MANUAL: GAS on the right, steering on the left', gas[0] > w / 2 && (await steerSpot())[0] < w / 2, `GAS at ${gas.map(Math.round)}`);
-      const go = await hold(gas, 2, 0);
-      check('MANUAL: holding GAS goes', go.to.speed > 15, slowed(go));
-      const at = await steerSpot();
-      const right = await hold(at, 0.6, 150, [at[0] + 60, at[1]]);
-      check('MANUAL: dragging right turns right', right.turn > 0.03, turned(right));
-      const left = await hold(at, 0.6, 150, [at[0] - 60, at[1]]);
-      check('MANUAL: dragging left turns left', left.turn < -0.03, turned(left));
-      const stop = await hold(brake, 0.3, 200);
-      check('MANUAL: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
-      // a thumb rolled from GAS onto BRAKE without lifting
-      const roll = await hold(gas, 0.3, 200, brake);
-      check('MANUAL: rolling from GAS onto BRAKE brakes', roll.to.speed < roll.from.speed * 0.8, slowed(roll));
+      const deck = await page.evaluate(() => document.getElementById('deck').className);
+      check('STICK: on the right, the deck driving', deck.includes('stick-right') && deck.includes('driving'), deck);
+      const zone = await centre('.stick-zone');
+      check("STICK: its zone is the right of the screen's lower half", zone[0] > w / 2, `zone at ${zone.map(Math.round)}`);
+      check('one view: no camera button', !(await shown('#deck [data-view]')), 'camera button');
+      check('one way to drive: no steering layer or pedals', !(await shown('.drive')), 'driving layer');
+      // (the car's going east along the opening straight; up the screen is north)
+      await placeCar(0);
+      await game(1);
+      const still = await me();
+      check('STICK: no thumb, no gas', still.speed < 15, `speed ${fmt(still.speed)}`);
+      const at = await stickSpot();
+      const go = await hold(at, 2, 0, [at[0] + 40, at[1]]);
+      check('STICK: pushed the way the car faces, it goes', go.to.speed > 15, slowed(go));
+      const lifted = await pressed('[data-dpad]');
+      check('STICK: let go, the stick lets go', !lifted, `pressed: ${lifted}`);
+      const upward = await hold(at, 0.6, 120, [at[0], at[1] - 40]);
+      check('STICK: pushed up, the car turns up the screen', upward.turn < -0.03, turned(upward));
+      const downward = await hold(at, 0.6, 120, [at[0], at[1] + 40]);
+      check('STICK: pushed down, it turns down the screen', downward.turn > 0.03, turned(downward));
+      const easy = await hold(at, 1, 250, [at[0] + 10, at[1]]);
+      check('STICK: pushed only a little, it slows', easy.to.speed < easy.from.speed, slowed(easy));
+      // DRIFT on dirt (the shakedown's gravel): a button opposite the stick
+      check('DRIFT: on the deck, on dirt', await shown('[data-button="b"]'), 'DRIFT button');
+      const drift = await centre('[data-button="b"]');
+      check('DRIFT: opposite the stick', drift[0] < w / 2, `DRIFT at ${drift.map(Math.round)}`);
       await placeCar(150);
       await down(drift);
       await game(0.2);
-      const on = await pressed('.drive-pedal.drift');
-      await shot('manual');
+      const on = await pressed('[data-button="b"]');
+      await shot('stick');
       await up(drift);
-      check('MANUAL: DRIFT takes a press', on, `pressed: ${on}`);
+      check('DRIFT: takes a press', on, `pressed: ${on}`);
     },
   },
-  auto: {
-    drive: { driveGas: 'auto', driveSide: 'left' },
-    async run() {
-      const gasShown = await page.evaluate(() => getComputedStyle(document.querySelector('.drive-pedal.gas')).display !== 'none');
-      check('AUTO: no GAS pedal', !gasShown, `GAS shown: ${gasShown}`);
-      await placeCar(0);
-      await game(2);
-      const a = await me();
-      check('AUTO: goes by itself', a.speed > 15, `speed ${fmt(a.speed)}`);
-      const at = await steerSpot();
-      const left = await hold(at, 0.6, 150, [at[0] - 60, at[1]]);
-      check('AUTO: dragging left turns left', left.turn < -0.03, turned(left));
-      const stop = await hold(await centre('.drive-pedal.brake'), 0.3, 200);
-      check('AUTO: BRAKE slows', stop.to.speed < stop.from.speed * 0.8, slowed(stop));
-      await shot('auto');
-    },
-  },
-  topdown: {
-    // (GAS saved as MANUAL: TOP-DOWN's gas is on whatever it says)
-    drive: { driveStyle: 'topdown', driveGas: 'manual', driveSide: 'left' },
-    async run() {
-      const gasShown = await page.evaluate(() => getComputedStyle(document.querySelector('.drive-pedal.gas')).display !== 'none');
-      check('TOP-DOWN: no GAS pedal', !gasShown, `GAS shown: ${gasShown}`);
-      await placeCar(0);
-      await game(2);
-      const a = await me();
-      check('TOP-DOWN: goes by itself', a.speed > 15, `speed ${fmt(a.speed)}`);
-      // one thumb, anywhere: no pedals at all, no camera button (CLASSIC only)
-      const pedalsShown = await page.evaluate(() => getComputedStyle(document.querySelector('.drive-pedals')).display !== 'none');
-      check('TOP-DOWN: no brake area (no pedals at all)', !pedalsShown, `pedals shown: ${pedalsShown}`);
-      const camShown = await page.evaluate(() => { const b = document.querySelector('#deck .view-btn'); return !!b && getComputedStyle(b).display !== 'none'; });
-      check('TOP-DOWN: no camera button (CLASSIC only)', !camShown, `camera button shown: ${camShown}`);
-      // (pointing: the car's going east along the opening straight; up the screen is north, down is south)
-      const at = await steerSpot();
-      const upward = await hold(at, 0.6, 120, [at[0], at[1] - 40]);
-      check('TOP-DOWN: dragging up points the car up the screen', upward.turn < -0.03, turned(upward));
-      const downward = await hold(at, 0.6, 120, [at[0], at[1] + 40]);
-      check('TOP-DOWN: dragging down points it down the screen', downward.turn > 0.03, turned(downward));
-      const driftShown = await page.evaluate(() => getComputedStyle(document.querySelector('.drive-pedal.drift')).display !== 'none');
-      check('TOP-DOWN: no DRIFT button', !driftShown, `DRIFT shown: ${driftShown}`);
-      // a drag right out (past the ring's edge) well off the nose, at speed: the tail steps out
-      await placeCar(300);
-      await down(at);
-      await move([at[0], at[1] - 90]);
-      let slip = 0;
-      const t0 = (await me()).clock;
-      while ((await me()).clock - t0 < 0.4) {
-        const m = await me();
-        if (m.speed > 60) slip = Math.max(slip, Math.abs(turnOf(m.heading, Math.atan2(m.vx, -m.vy))));
-        await sleep(30);
-      }
-      await up([at[0], at[1] - 90]);
-      check('TOP-DOWN: a hard drag into a turn drifts (the car slides)', slip > 0.12, `slip ${fmt(slip)} rad`);
-      await shot('topdown');
-    },
-  },
-  sides: {
-    drive: { driveGas: 'manual', driveSide: 'right' },
+  left: {
+    drive: { stickSide: 'left' },
     async run() {
       const [w] = await viewport();
-      const at = await steerSpot();
-      const gas = await centre('.drive-pedal.gas');
-      check('STEER RIGHT: steering on the right, GAS on the left', at[0] > w / 2 && gas[0] < w / 2, `steer at ${at.map(Math.round)} · GAS at ${gas.map(Math.round)}`);
-      const go = await hold(gas, 2, 0);
-      check('STEER RIGHT: holding GAS goes', go.to.speed > 15, slowed(go));
-      const right = await hold(at, 0.6, 150, [at[0] + 60, at[1]]);
-      check('STEER RIGHT: dragging right turns right', right.turn > 0.03, turned(right));
-      await shot('sides');
+      const zone = await centre('.stick-zone');
+      check("STICK LEFT: its zone is the left of the screen's lower half", zone[0] < w / 2, `zone at ${zone.map(Math.round)}`);
+      const at = await stickSpot();
+      const go = await hold(at, 2, 0, [at[0] + 40, at[1]]);
+      check('STICK LEFT: pushed the way the car faces, it goes', go.to.speed > 15, slowed(go));
+      await shot('stick-left');
     },
   },
 };
@@ -360,38 +291,10 @@ for (const [name, { run }] of Object.entries(schemes)) {
   }
 }
 
-// ---------------------------------------------------------------- the views
-try {
-  await stage({ driveGas: 'auto' });
-  console.log(`\nVIEW · game runs at ×${fmt(await pace())} real time`);
-  const button = await centre('[data-view]');
-  await watchPresses();
-  console.log(`camera button at ${button.map(Math.round).join(',')} css px → ${toScreen(button).join(',')} on the screen`);
-  const views = [];
-  for (let i = 0; i < 7; i++) {
-    const a = await me();
-    await tap(button);
-    await sleep(1200);
-    const v = await page.evaluate(() => JSON.parse(localStorage.getItem('ccr:save')).data.settings.view);
-    const b = await me();
-    views.push(v);
-    const landed = (await presses()).join(' · ');
-    console.log(`  press ${i + 1}: ${landed || `no pointerdown reached the page (input to: ${await focus()})`} → view ${v}`);
-    await shot(`view-${i + 1}-${v}`);
-    // (a press on it is the camera's alone: it mustn't steer)
-    if (i === 0) check('VIEW: the camera button doesn\'t steer', Math.abs(turnOf(a.heading, b.heading)) < 0.15, `turned ${fmt(turnOf(a.heading, b.heading))} rad`);
-  }
-  check('VIEW: the camera button goes through every view', new Set(views).size === 7 && views[6] === 'chase', views.join(' → '));
-} catch (err) {
-  check('VIEW: ran', false, String(err).split('\n')[0]);
-  await shot('view-error').catch(() => {});
-  await crashLog().catch(() => {});
-}
-
 // ---------------------------------------------------------------- the settings
 try {
   await launch();
-  await open('/?debug', { view: 'chase' });
+  await open('/?debug', {});
   console.log('\nSETTINGS');
   // (the title splash first: TAP TO START, on a touch screen)
   await page.waitForFunction(() => /TAP TO START|PRESS ANY KEY|SETTINGS/.test(document.body.innerText), null, { timeout: 120000 });
@@ -417,8 +320,9 @@ try {
   await tapLabel('CONTROLS');
   await shot('settings');
   const rows = await page.evaluate(() => document.body.innerText);
-  const want = ['STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES'];
-  check('SETTINGS: the STYLE, VIEW and driving rows', want.every((r) => rows.includes(r)), `missing: ${want.filter((r) => !rows.includes(r)).join(', ') || 'none'}`);
+  check('SETTINGS: CONTROLS has STICK and VIBRATION', ['STICK', 'VIBRATION'].every((r) => rows.includes(r)), rows.split('\n').slice(0, 12).join(' | '));
+  const gone = ['STYLE', 'VIEW', 'STEERING', 'ASSIST', 'SIDES'].filter((r) => rows.split('\n').some((l) => l.trim() === r));
+  check('SETTINGS: no driving style, camera or steering rows', gone.length === 0, `still there: ${gone.join(', ') || 'none'}`);
 } catch (err) {
   check('SETTINGS: ran', false, String(err).split('\n')[0]);
   await shot('settings-error').catch(() => {});
