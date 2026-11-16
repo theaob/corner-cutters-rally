@@ -50,10 +50,10 @@ describe('the first save, from the keys of before', () => {
     expect(saved('settings', 'stickSide')).toBe('right');
     expect(saved('settings', 'layout')).toBe('desktop');
     expect(savedSection('choices')).toEqual({ circuit: 'silver-heath', team: 'maas', difficulty: 'hard', weather: 'wet' });
-    expect(saveVersion()).toBe(2);
+    expect(saveVersion()).toBe(3);
     // one save now, the old keys gone; dev tools' own keys and other games' keys untouched
     expect([...s.items.keys()].sort()).toEqual(['cc:save', 'cc:tune:f1', 'other:records']);
-    expect(stored(s).version).toBe(2);
+    expect(stored(s).version).toBe(3);
   });
 
   it("starts empty on a new device, with the defaults where they're read", () => {
@@ -61,13 +61,25 @@ describe('the first save, from the keys of before', () => {
     useSave(CC_SAVE, s);
     expect(saved('settings', 'sound')).toBeUndefined();
     expect(loadStageBests()).toEqual({});
-    expect(stored(s)).toEqual({ version: 2, data: { settings: {}, choices: {} } });
+    expect(stored(s)).toEqual({ version: 3, data: { settings: {}, choices: {} } });
   });
 
   it('starts clean from a damaged old record and an odd old value', () => {
     useSave(CC_SAVE, fakeStore({ 'cc:records': '{broken', 'cc:sound': 'loud' }));
     expect(loadStageBests()).toEqual({});
     expect(saved('settings', 'sound')).toBeUndefined();
+  });
+});
+
+describe('the driving and camera settings of before', () => {
+  it('are dropped on load (STYLE, GAS, STEERING, ASSIST, SIDES, CONTROL, VIEW), keeping the rest', () => {
+    const old = { version: 2, data: { settings: { sound: 0.5, stickSide: 'right', driveStyle: 'sim', driveGas: 'manual', driveSteering: 'quick', driveAssist: 'off', driveSide: 'right', driveControl: 'wheel', view: 'chase' }, rally: { stages: { 'ss-old-mill@topdown': 300 } } } };
+    const s = fakeStore({ 'cc:save': JSON.stringify(old) });
+    useSave(CC_SAVE, s);
+    expect(savedSection('settings')).toEqual({ sound: 0.5, stickSide: 'right' });
+    expect(loadStageBests()['ss-old-mill@topdown']).toBe(300);
+    flushSave();
+    expect(stored(s).version).toBe(3);
   });
 });
 
@@ -119,7 +131,7 @@ describe("a save it can't read", () => {
     useSave(CC_SAVE, s);
     expect(saved('choices', 'team')).toBe('maas');
     expect(s.items.get('cc:save.bad')).toBe('{"version":1,"data":');
-    expect(stored(s).version).toBe(2);
+    expect(stored(s).version).toBe(3);
   });
 
   it('from a newer version of the game is read but never written over', () => {

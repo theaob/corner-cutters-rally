@@ -63,14 +63,16 @@ describe('the settings in pages, as in Corner Cutters', () => {
   it('CONTROLS, GAME, SOUND and ACCESSIBILITY, every row on one', async () => {
     const { ROW_SECTION, SETTINGS_SECTIONS, SECTION_NAME } = await import('../src/f1/settingsRows');
     expect(SETTINGS_SECTIONS.map((s) => SECTION_NAME[s])).toEqual(['CONTROLS', 'GAME', 'SOUND', 'ACCESSIBILITY']);
-    for (const label of ['DIFFICULTY', 'STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES', 'VIBRATION', 'SCREEN', 'TEXT', 'COLOURS', 'SCREEN SHAKE', 'SOUND', 'MUSIC', 'STATS', 'PRIVACY', 'TERMS']) {
+    for (const label of ['DIFFICULTY', 'STICK', 'VIBRATION', 'SCREEN', 'TEXT', 'COLOURS', 'SCREEN SHAKE', 'SOUND', 'MUSIC', 'STATS', 'PRIVACY', 'TERMS']) {
       expect(ROW_SECTION[label], label).toBeDefined();
     }
-    expect(ROW_SECTION.STYLE).toBe('controls');
+    expect(ROW_SECTION.STICK).toBe('controls');
+    // (one way to drive and one view: no driving style, camera or steering rows)
+    for (const gone of ['STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES']) expect(ROW_SECTION[gone], gone).toBeUndefined();
     expect(ROW_SECTION.DIFFICULTY).toBe('game');
     expect(ROW_SECTION.COLOURS).toBe('access');
   });
-  it("a page's places are its rows shown (not VIEW and GAS in TOP-DOWN), then BACK", async () => {
+  it("a page's places are its rows shown, then BACK", async () => {
     const { pagePlaces } = await import('../src/f1/settingsRows');
     const rows = [{}, { shown: () => false }, { shown: () => false }, { shown: () => true }, {}];
     expect(pagePlaces(rows)).toEqual([0, 3, 4, 5]);

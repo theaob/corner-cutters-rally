@@ -96,11 +96,11 @@ export function createPaceCard() {
     call(call: PaceNote[], now: number, facing?: number) {
       const first = call[0];
       // (the bend's colour, by its grade: access.ts; a jump or the finish in gold)
-      const color = first.grade !== undefined && !first.finish && !first.jump ? gradeColor(first.grade) : COLOR.gold;
+      const color = first.grade !== undefined && !first.finish && !first.jump && !first.tunnel ? gradeColor(first.grade) : COLOR.gold;
       big.style.color = color;
       el.style.borderTopColor = color;
       el.dataset.color = color;
-      if (first.finish || first.jump) big.replaceChildren(first.finish ? '▣ FINISH ▣' : '▲ JUMP ▲');
+      if (first.finish || first.jump || first.tunnel) big.replaceChildren(first.finish ? '▣ FINISH ▣' : first.tunnel ? '◖ TUNNEL ◗' : '▲ JUMP ▲');
       else {
         const { rotate, sweep } = cardArrow(first, facing);
         const shape = arrowShape(sweep);

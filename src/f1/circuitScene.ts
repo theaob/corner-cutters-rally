@@ -15,6 +15,8 @@ import { buildForest } from './forest3d';
 import { buildCamels } from './camels';
 import { buildDressing, stopAt } from './stageDressing';
 import { buildSpectators } from './spectators';
+import { buildTunnels } from './tunnels3d';
+import { RIVIERA, shoreAt } from './riviera';
 
 export interface CircuitScene extends Daylight {
   scene: THREE.Scene;
@@ -70,6 +72,13 @@ const SAND_ROAD: typeof DIRT = {
 /** The colours of a dirt road: gravel and earth, unless it's on snow or in the desert. */
 const dirtOf = (layout: { snow?: boolean; desert?: boolean }): typeof DIRT => (layout.snow ? SNOW_ROAD : layout.desert ? SAND_ROAD : DIRT);
 const ROCK_STEEP = 0.45;
+/** The Riviera's colours: the sea from the shallows out to deep water and the foam along the shore; the cliffs' red
+ * rock, in strata; the maquis on the slopes, dry in patches; the beach; the dusty verge by the road; and a tunnel's lamps */
+export const RIVIERA_LOOK = {
+  sea: ['#49c6cc', '#2fa5c8', '#2283bd'], foam: '#eefcff', deep: '#2283bd',
+  rock: '#c58a5c', rockDot: ['#a36c44', '#dba878'], strata: '#9c6540', maquis: '#7d8a4a', maquisDot: ['#5f6f3a', '#a39a5c', '#6c7a40'],
+  beach: '#e6d7ae', beachDot: '#cdbd92', verge: ['#d9cba6', '#d2c39c'], vergeDot: '#bfae86', lamp: '#ffd27a',
+};
 
 /** samples either side of each that its painted normal is averaged over */
 const NORMAL_SPAN = 4;
@@ -124,6 +133,9 @@ function paint(circuit: Circuit): HTMLCanvasElement {
   const snowy = !!circuit.layout.snow;
   const dirt = !!circuit.layout.dirt;
   const D = dirtOf(circuit.layout);
+  const riviera = circuit.layout.riviera;
+  const L = RIVIERA_LOOK;
+  const { sea, offset: { x: ox, y: oy } } = circuit;
   /** a tile's height (its corners' average) and steepness (its corners' spread over its width) */
   const relief = (i: number, j: number) => {
     const hs = circuit.grid.heights!;
@@ -144,6 +156,35 @@ function paint(circuit: Circuit): HTMLCanvasElement {
         for (let k = 0; k < 10; k++) {
           x.fillStyle = desert ? DESERT.gravelDot[r() < 0.5 ? 0 : 1] : r() < 0.5 ? '#c4ae82' : '#e6d6b0';
           x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), 1, 1);
+        }
+      } else if (riviera && sea?.[j * W + i]) {
+        // the sea: turquoise in the shallows, deeper blue further out (in bands, their edges broken up), foam along the shore
+        const out = py + oy - shoreAt(riviera, px + ox) + 40 + (r() - 0.5) * 36;
+        x.fillStyle = L.sea[out < 30 ? 0 : out < 90 ? 1 : 2];
+        x.fillRect(px, py, T, T);
+        const shore = [[i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]].some(([a, b]) => a >= 0 && b >= 0 && a < W && b < H && !sea[b * W + a]);
+        for (let k = 0; k < (shore ? 9 : 1); k++) {
+          if (!shore && r() < 0.6) continue;
+          x.fillStyle = shore ? L.foam : L.sea[0];
+          x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), shore ? 3 : 4, 1);
+        }
+      } else if (riviera) {
+        // the Riviera's land: red rock where it's steep (the cliffs), a beach low by the sea, maquis on the slopes;
+        // by the road, its dusty verge
+        const { h, steep } = relief(i, j);
+        const wall = cell === 'wall';
+        const rock = wall && steep > ROCK_STEEP;
+        const beach = wall && !rock && h < 12;
+        x.fillStyle = !wall ? L.verge[(i + j) % 4 < 2 ? 0 : 1] : rock ? L.rock : beach ? L.beach : L.maquis;
+        x.fillRect(px, py, T, T);
+        // (the rock's strata: lines across it, drawn out down a cliff's face)
+        if (rock) {
+          x.fillStyle = L.strata;
+          for (let k = (j * 7) % 5; k < T; k += 5) x.fillRect(px, py + k, T, 1);
+        }
+        for (let k = 0; k < (rock ? 5 : 3); k++) {
+          x.fillStyle = !wall ? L.vergeDot : rock ? L.rockDot[r() < 0.6 ? 0 : 1] : beach ? L.beachDot : L.maquisDot[Math.floor(r() * 3)];
+          x.fillRect(px + Math.floor(r() * T), py + Math.floor(r() * T), rock ? 4 : wall ? 2 : 1, 1);
         }
       } else if (dirt && !snowy && !desert) {
         // on dirt, dry earth: the run-off graded in stripes; past the treeline rougher, stones strewn over it
@@ -313,6 +354,24 @@ function paint(circuit: Circuit): HTMLCanvasElement {
       x.restore();
     }
   }
+  // the tunnels: dark inside, a row of lamps down each wall
+  if (circuit.tunnel) {
+    const inside = circuit.tunnel;
+    for (let i = 0; i < n; i++) {
+      if (!inside[i] || inside[i - 1]) continue;
+      let end = i;
+      while (end + 1 < n && inside[end + 1]) end++;
+      x.strokeStyle = 'rgba(10, 10, 22, 0.55)';
+      x.lineWidth = (HALF_WIDTH + RIVIERA.wall + 2) * 2;
+      path(pts.slice(i, end + 1), false);
+      x.stroke();
+      x.fillStyle = L.lamp;
+      for (let k = i + 3; k < end; k += 6) {
+        for (const side of [-1, 1]) x.fillRect(Math.round(pts[k].x + normal[k].x * side * (HALF_WIDTH - 1)) - 1, Math.round(pts[k].y + normal[k].y * side * (HALF_WIDTH - 1)) - 1, 2, 2);
+      }
+      i = end;
+    }
+  }
   return c;
 }
 
@@ -332,11 +391,23 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, sta
   const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: pixelTexture(paint(circuit)), color: tint }));
   ground.position.set((W * T) / 2, 0, (H * T) / 2);
   ground.receiveShadow = true;
-  const outerColor = new THREE.Color(circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.dirt ? DIRT.ground : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
+  const riviera = circuit.layout.riviera;
+  const outerColor = new THREE.Color(riviera ? RIVIERA_LOOK.deep : circuit.layout.forest ? FOREST_FLOOR : circuit.layout.desert ? DESERT.sand : circuit.layout.snow ? SNOWFIELD.snow : circuit.layout.dirt ? DIRT.ground : circuit.layout.mountain ? MOUNTAIN.meadow : 0x4b9444);
   const outer = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: outerColor.clone().multiply(tint) }));
   outer.position.set((W * T) / 2, -1, (H * T) / 2);
   outer.receiveShadow = true;
   scene.add(ground, outer);
+  // (the Riviera: the sea all round past the map, and north of the shore the land going on)
+  const landColor = new THREE.Color(RIVIERA_LOOK.maquis);
+  let land: THREE.Mesh | undefined;
+  if (riviera) {
+    const { x: ox, y: oy } = circuit.offset;
+    const shore = Math.min(shoreAt(riviera, ox), shoreAt(riviera, ox + W * T)) - oy - 60;
+    land = new THREE.Mesh(new THREE.PlaneGeometry(9000, 4500).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: landColor.clone().multiply(tint) }));
+    land.position.set((W * T) / 2, -0.5, shore - 2250);
+    land.receiveShadow = true;
+    scene.add(land);
+  }
 
   // the trees and rocks along the road (its edges: what a car hits), and the forest, mountains or desert past them
   buildForest(scene, circuit);
@@ -346,7 +417,8 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, sta
   // the start and finish, and the crowds along the road
   const dressing = buildDressing(circuit, stageName);
   const crowd = buildSpectators(circuit);
-  scene.add(dressing.group, crowd.group);
+  const tunnels = buildTunnels(circuit);
+  scene.add(dressing.group, crowd.group, tunnels.group);
   let lastT: number | undefined;
 
   return {
@@ -355,12 +427,14 @@ export function createCircuitScene(circuit: Circuit, weather: Weather = DRY, sta
     animate: (t, cars = []) => {
       camels?.animate(t);
       crowd.animate(t, lastT === undefined ? 0 : t - lastT, cars);
+      tunnels.animate(lastT === undefined ? 0 : t - lastT, cars);
       lastT = t;
     },
     setStartClock: dressing.setClock,
     setGroundTint: (t) => {
       (ground.material as THREE.MeshLambertMaterial).color.setHex(t);
       (outer.material as THREE.MeshLambertMaterial).color.copy(outerColor).multiply(new THREE.Color(t));
+      if (land) (land.material as THREE.MeshLambertMaterial).color.copy(landColor).multiply(new THREE.Color(t));
     },
   };
 }

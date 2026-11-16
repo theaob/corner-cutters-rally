@@ -11,23 +11,15 @@ import type { Button } from '../engine/controls';
 import { applyDamage, newCar, speedOf, type Car, type DriveInput, type StepEvents } from '../engine/driving';
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { groundAt } from '../engine/sim';
-import { aiInput, lateralOffset, newProgress, lineCornerSpeed, lineDecel, stageSplits } from './racing';
+import { aiInput, keysWheel, lateralOffset, newProgress, lineCornerSpeed, lineDecel, playerInput, stageSplits, wheelInput } from './racing';
 import { stopAt } from './stageDressing';
 import { NORMAL, handlingFor, type Difficulty } from './difficulty';
 import { DRY, lookAt as weatherLook, type Weather } from './weather';
 import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
-import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, stepsFor, type Device, type Onboarding } from './onboarding';
-import { Driver, forwardSpeed } from '../engine/drive/driver';
-import { KeyDriving } from '../engine/drive/keys';
-import { readPad } from '../engine/drive/pad';
-import { driveSettings } from '../engine/drive/settings';
-import { TouchDriving } from '../engine/drive/touch';
-import { screenToMap } from '../engine/drive/point';
-import type { Intent } from '../engine/drive/intent';
-import { isView, nextView, setView, viewSetting, type ViewId } from './view';
+import { advance as nextPrompt, apexesPassed, newOnboarding, pointsOn, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { RESCUE, newRescue, stepRescue } from './rescue';
-import { SIGHT, autoSpeed, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
+import { SIGHT, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { DustLayer, dustKindOf } from '../engine/render/dust';
@@ -45,7 +37,6 @@ import { t as tl } from '../engine/i18n';
 import { isTouchScreen, type ScreenFit } from '../engine/layout';
 import { loadVehicleEdits } from '../engine/vehicleEdits';
 import type { MountStandalone } from '../engine/view';
-import { defaults } from '../engine/tuning';
 import { TILE, buildCircuit } from './circuit';
 import { vibrate } from '../engine/haptics';
 import { newRumble, rumble } from './rumble';
@@ -62,25 +53,23 @@ import { createCircuitScene } from './circuitScene';
 import { createHud } from './race/hud';
 import { kmOf, track as noteStat } from './metrics';
 import { drawCars, type CarLook } from './race/drawCars';
-import { readoutText, topDownReadout, tyreText } from './race/readout';
+import { topDownReadout } from './race/readout';
 import { paintRows } from './race/readoutView';
 import { bannerMessage, evenLines, lessonMessage } from './race/banner';
 import { gapColor, motionReduced, splitColor } from './access';
 import { deckLabels as labelsFor } from './race/deckLabels';
 import { createFlagOverlay, createRain, createStreaks } from './race/screenFx';
-import { F1_TUNING } from './tuning';
 import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
 import { loadSeason, recordRound, saveSeason } from './season';
-import { aiStage, loadStageBests, rallyEvent, recordBest, recordStage, recordStageBest, referenceStage, saveRally, stageOrder, type Rally } from './rally';
+import { aiStage, rallyEvent, recordBest, recordStage, recordStageBest, referenceStage, saveRally, stageOrder, type Rally } from './rally';
 import { newCaller, paceNotes, screenFacing, stepCaller, type Caller } from './paceNotes';
 import { createPaceCard, renderStageResults } from './race/rallyView';
 import { formatTime as fmt } from './time';
 import { SCHEMES, liveryOf, type Scheme } from './crews';
 import { COLOR } from './theme';
 
-type F1Tuning = Record<keyof typeof F1_TUNING, number>;
 /** s of count (3, 2, 1) after RESUME before the stage goes on */
 const RESUME_COUNT = 3;
 const deg = THREE.MathUtils.degToRad;
@@ -89,7 +78,6 @@ const LOOK = HD2D_VIEW;
 const DUST_DENSITY = [1, 1, 0.75, 0.5];
 /** the TOP view: its zoom, its pitch (degrees down from level), and px it looks ahead of the car at top speed (half
  * that standing), which puts the car low on the screen */
-const TOP_VIEW = { zoom: 0.7, pitch: 58, lead: 180 };
 
 /** How a stage is set up. */
 export interface StageOptions {
@@ -107,17 +95,15 @@ export interface StageOptions {
  * The stage on `layout` with `options`; `onQuit` runs when the player leaves (EXIT on the deck, SELECT inside), and
  * after the controls lap.
  */
-export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: StageOptions = {}): MountStandalone => async ({ host, services, tuning, fit }) => {
+export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: StageOptions = {}): MountStandalone => async ({ host, services, fit }) => {
   const { scheme = SCHEMES[0], difficulty = NORMAL, weather = DRY, mode = 'rally' } = options;
   const rallyRun = mode === 'rally' ? options.rally : undefined;
-  const t = (tuning ?? defaults(F1_TUNING)) as F1Tuning;
   const { controls, hud } = services;
   loadVehicleEdits(); // (any saved stat edits apply to the car)
-  // STYLE (style.ts): TOP-DOWN's slower car and forgiving roadside, or SIM's; the stage keeps the one it started in
-  const style = driveSettings().style;
-  const f1 = rallyCar(style);
+  // the stage's car and its forgiving roadside (style.ts)
+  const f1 = rallyCar();
   // the difficulty sets how much a crash costs and how quick the rival crews are
-  const HANDLING = styleHandling(handlingFor(difficulty), style);
+  const HANDLING = styleHandling(handlingFor(difficulty));
   // the racing line: flat out wherever the car can follow the bend
   const circuit = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(f1, HANDLING), decel: lineDecel(f1) });
   // (on dirt, the touch deck has a DRIFT button too: game.css)
@@ -256,7 +242,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   let done = false;
   const you = 0;
   /** TOP-DOWN on a rally's stage: a bar across the top for how far along you are (hud.ts), in place of KM TO GO */
-  const progressBar = () => style === 'topdown' && !!rallyRun;
+  const progressBar = () => !!rallyRun;
   /** The readout's panel lit up in `color` a moment (a split: ahead or behind). */
   const flashReadout = (color: string) => {
     if (calm() || typeof readout.animate !== 'function') return;
@@ -283,31 +269,10 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   let pendingHit = 0;
   /** your start off the line (judged once) */
   let launch = newLaunch();
-  // the driving (src/engine/drive/): on a touch screen its own layer over the deck, the keys, a gamepad; whichever you used
-  // last drives, through the steering wheel and the assist
-  const deckHost = document.getElementById('deck');
-  const touchDrive = deckHost && isTouchScreen() ? new TouchDriving(deckHost) : undefined;
-  const keyDrive = new KeyDriving();
-  /** CONTROL: POINT (TOP-DOWN's): the way pointed on the screen turned into the way on the map, through the camera
-   * (north up and pitched in TOP-DOWN's own view; turned with the car or the road in another) */
-  const onMap = <T extends Intent | undefined>(i: T): T => {
-    if (!i?.point) return i;
-    const squash = camYaw === undefined ? Math.sin(deg(LOOK.pitch)) : 1;
-    return { ...i, point: screenToMap(i.point.x, i.point.y, camYaw ?? 0, squash) };
-  };
-  const pointing = () => driveSettings().control === 'point';
-  const driver = new Driver({ touch: touchDrive && (() => onMap(touchDrive.intent())), keys: () => onMap(keyDrive.intent(pointing())), pad: () => onMap(readPad()) }, driveSettings);
-  /** CONTROL: POINT's own speed: how fast the car can go at each point of the road and still take what's ahead */
-  const safeAt = autoSpeed(track, f1, HANDLING);
   const setPaused = (on: boolean, count = true) => {
     if (on === paused) return;
     paused = on;
     note(on ? 'paused' : 'resumed');
-    // (nothing held carries over a pause)
-    if (on) {
-      touchDrive?.release();
-      keyDrive.release();
-    }
     // (back from a pause: three seconds of count first, the stage and its sounds held)
     resumeLeft = !on && count && !done ? RESUME_COUNT : 0;
     if (on || !resumeLeft) setAudioPaused(on);
@@ -335,10 +300,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   let session: 'rally' | 'tutorial' = mode;
   /** the controls lap: the prompt you're on, the bends you've been through, and where you were last frame */
   let learn: { o: Onboarding; bends: number; lastIdx: number } | undefined;
-  /** TOP-DOWN's way back onto the road (rescue.ts) */
+  /** the way back onto the road (rescue.ts) */
   const rescue = newRescue();
-  /** the controls lap's steps (TOP-DOWN's are fewer: onboarding.ts) */
-  const lapSteps = stepsFor(style);
   /** the controls lap's bends (their middles, as samples) */
   let tutorApexes: number[] = [];
   /**
@@ -355,8 +318,6 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   } | undefined;
   /** the co-driver on the controls lap too */
   let tutorCaller: Caller | undefined;
-  /** your best time on this stage, kept on the device */
-  let best = loadStageBests()[bestKey(layout.id, style)];
 
   /** Your car on the road in your paint, your number on the roof. */
   // (your car's fire light, in the scene from the start: a light coming or going makes every shader compile again, a
@@ -383,7 +344,6 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     lastAt = undefined;
     shake = newShake();
     launch = newLaunch();
-    driver.reset();
     // (a new run from the pause screen: no count back into it)
     setPaused(false, false);
     resetClock(simClock);
@@ -432,7 +392,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const rivals = aiStage(rallyRun.rally, rallyRun.stage, reference.time, difficulty).times;
     const leader = Math.min(...rivals.filter((x): x is number => x !== undefined));
     stage = {
-      caller: newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at))), reference, leader, rivals, sector: 0, startHealth: race.entrants[you].car.health,
+      caller: newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at), (layout.tunnels ?? []).map((u) => u.from))), reference, leader, rivals, sector: 0, startHealth: race.entrants[you].car.health,
     };
     // (TOP-DOWN: how far along the stage, a bar across the top with the splits on it, in place of KM TO GO)
     if (progressBar()) setProgressMarks(stageSplits(track).map((m) => m / finishAt));
@@ -447,7 +407,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     // (no countdown: straight off)
     onTheLine(-LIGHTS, 1);
     learn = { o: newOnboarding(), bends: 0, lastIdx: race.entrants[0].progress.idx };
-    tutorCaller = newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at)));
+    tutorCaller = newCaller(paceNotes(track, (layout.jumps ?? []).map((j) => j.at), (layout.tunnels ?? []).map((u) => u.from)));
     // (the bends, for the prompts that wait for one: the middle of each the co-driver calls)
     tutorApexes = tutorCaller.notes.filter((n) => n.dir).map((n) => Math.round((n.at + n.end) / 2 / track.spacing));
   };
@@ -497,9 +457,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     noteStat('race_finish', { circuit: layout.id, mode: 'rally', data: { place: time === undefined ? null : place, stage: rallyRun.stage } });
     if (time === undefined) return;
     // your best on this stage
-    const kept = recordStageBest(bestKey(layout.id, style), time);
+    const kept = recordStageBest(bestKey(layout.id), time);
     if (kept.best) {
-      best = time;
       if (kept.had !== undefined) {
         announce(`${tl('STAGE BEST {time}', { time: fmt(time) })} · −${(kept.had - time).toFixed(2)}`, splitColor('record'), 1.8);
         sounds.record();
@@ -697,36 +656,28 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const onKey = (e: KeyboardEvent) => {
     if (e.repeat || e.target instanceof HTMLInputElement || reportOpen()) return;
     if ((e.code === 'Escape' || e.code === 'KeyP') && !done) setPaused(!paused);
-    // (C: the next view)
-    if (e.code === 'KeyC' && !paused) cycleView();
   };
   window.addEventListener('keydown', onKey);
 
   /** The device you're driving with (before you've driven at all: what you last pressed, else a touch screen's touch). */
   const device = (): Device => {
-    const d = driver.source();
-    if (d === 'touch' || d === 'keys' || d === 'pad') return d;
     const s = controls.lastSource();
     if (s === 'keyboard') return 'keys';
     if (s === 'gamepad') return 'pad';
+    if (s === 'dpad') return 'touch';
     return isTouchScreen() ? 'touch' : 'keys';
   };
 
   /** What each deck button does just now (race/deckLabels.ts). */
   const deckLabels = () => labelsFor({
     settings: pauseSettingsOn, resultsUp: results.style.display === 'block', tutorial: session === 'tutorial', learnt: learn?.o.step === 'done', done, paused,
-    // (on a touch screen DRIFT is the driving layer's, not the deck's; TOP-DOWN has none: the brake slides)
-    drift: device() !== 'touch' && style !== 'topdown',
+    // (DRIFT: on the keys and a gamepad; on a touch screen the deck shows it on dirt only: game.css)
+    drift: true,
   });
   const deckEl = document.getElementById('deck');
   const showDeckLabels = () => {
-    // the driving layer while you drive (game.css: #deck.driving), set out as the settings say, its wheel turned
+    // (while you drive: game.css, #deck.driving)
     deckEl?.classList.toggle('driving', !paused && !done && results.style.display !== 'block');
-    if (touchDrive) {
-      const ds = driveSettings();
-      touchDrive.setOptions(ds.side, ds.gas, ds.style, ds.control);
-      touchDrive.showWheel(driver.wheelPos());
-    }
     const labels = deckLabels();
     for (const k of ['a', 'b', 'start', 'select'] as const) hud.setLabel(k, labels[k]);
     // with the results up, RESTART and EXIT go under the table, big (on a phone: game.css)
@@ -750,37 +701,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const target = new THREE.Vector3();
   /** the camera held on a point of the map (a debug hook, for looking at the scenery) */
   let lookAt: { x: number; y: number } | undefined;
-  /**
-   * The cameras, VIEW in the settings (view.ts; chase, low behind the car, unless another was picked): classic (the
-   * HD-2D view, north up), heading (the same, turned with the car so it drives up the screen), road (turned with the
-   * road ahead instead, steady through a slide), bonnet (from the front of the car) and iso (a fixed diagonal). One
-   * tried out with ?cam= holds until the view is changed in the game.
-   */
-  const camParam = new URLSearchParams(window.location.search).get('cam');
-  let camTry: ViewId | undefined = isView(camParam) ? camParam : undefined;
-  // (TOP-DOWN: CLASSIC, always; no camera button, game.css)
-  const camMode = (): ViewId => (style === 'topdown' ? 'classic' : camTry ?? viewSetting());
-  document.documentElement.classList.toggle('topdown', style === 'topdown');
-  /** The next view (the deck's camera button, or C), named on the banner a moment, and remembered (SIM only). */
-  const cycleView = () => {
-    if (style === 'topdown') return;
-    const v = nextView(camMode());
-    camTry = undefined;
-    setView(v);
-    announce(`${tl('VIEW')} · ${tl(v.toUpperCase())}`, COLOR.white, 1.2);
-  };
-  const viewButton = document.querySelector<HTMLElement>('#deck [data-view]');
-  const onViewButton = (e: PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!paused && !done) cycleView();
-  };
-  viewButton?.addEventListener('pointerdown', onViewButton);
-  /** the way a turning camera looks (eased), radians */
-  let camYaw: number | undefined;
-  /** px the TOP-DOWN camera looks ahead of the car (eased) */
-  let topLead = TOP_VIEW.lead / 2;
-  /** the way TOP-DOWN's camera frames the road for (radians, eased; style.ts: SIGHT) */
+  /** the way the camera frames the road for (radians, eased; style.ts: SIGHT) */
   let sightWay: number | undefined;
   const setFov = (fov: number) => {
     if (camera.fov === fov) return;
@@ -903,23 +824,25 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     }
 
     // the stage: you drive, the rules run
-    // what you're asking for, from whatever you drove with last (src/engine/drive/)
-    driver.sample();
-    /** the road a little ahead of your car (further the faster it goes), and how far right of its middle the car is: for the assist */
-    const roadAhead = (car: Car) => {
-      const at = race.entrants[you].progress.idx;
-      const ahead = Math.min(track.samples.length - 1, at + 6 + Math.round((Math.max(0, forwardSpeed(car)) * 0.35) / track.spacing));
-      return { dir: track.samples[ahead].dir, lateral: lateralOffset(track, at, car.x, car.y), safe: safeAt(at, car.tyreGrip) };
-    };
+    // the device you last used decides how you drive (Corner Cutters' controls): the touch stick points the way to go
+    // (pushed further for more speed), the keys and a gamepad steer the car itself (up or the right trigger is the gas,
+    // down or the left trigger the brake); B drifts
+    const pad = { stick: controls.direction(), a: controls.isDown('a'), b: controls.isDown('b') };
+    const source = controls.lastSource();
+    const drive = source === 'gamepad' ? controls.drive('gamepad') : undefined;
+    const points = pointsOn(device());
     /** your car's input for one fixed step */
-    const driveInput = (car: Car): DriveInput => driver.step(car, SIM_DT, roadAhead(car));
+    const driveInput = (car: Car): DriveInput =>
+      points ? playerInput(drive ? { ...pad, stick: drive.stick ?? { x: 0, y: 0 } } : pad)
+      : drive ? wheelInput({ ...drive, drift: pad.b }, car)
+      : wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car);
     /** past the flying finish (or the controls lap's end): on the brakes to the stop */
     const pastFinish = () => done || race.entrants[you].progress.idx * track.spacing >= finishAt;
     // the start: going in the last of the countdown is a jump start; after GO, your reaction is judged
     if (session === 'rally') {
       const car = race.entrants[you].car;
-      // (with GAS on AUTO the gas is on from before GO: an ordinary start, never a jump start nor a launch)
-      const gas = driver.intent().throttle;
+      const input = driveInput(car);
+      const gas = input.wheel ? (input.wheel.reverse ? 0 : input.wheel.gas) : Math.hypot(input.steer?.x ?? 0, input.steer?.y ?? 0);
       const verdict = stepLaunch(launch, race.phase === 'lights' && race.clock >= 0, race.phase === 'racing' ? race.clock : undefined, gas);
       if (verdict === 'jump') {
         race.entrants[you].progress.penalty += LAUNCH.jumpPenalty;
@@ -977,21 +900,20 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       fitTyres(me.tyres, me.car, race.wetness);
       learn.bends += apexesPassed(tutorApexes, learn.lastIdx, p.idx, track.samples.length);
       learn.lastIdx = p.idx;
-      const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: driver.intent().handbrake, canDrift: true, lapDone: pastFinish() };
-      if (nextPrompt(learn.o, facts, lapSteps)) sounds.record();
+      const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: pad.b, canDrift: device() !== 'touch' || !!layout.dirt, lapDone: pastFinish() };
+      if (nextPrompt(learn.o, facts)) sounds.record();
       if (me.car.wrecked) startTutorial();
     }
     const me = race.entrants[you];
     const p = me.progress;
-    // TOP-DOWN: stopped off the road a while, back on it where you left it, facing down it, at a cost (rescue.ts)
-    if (style === 'topdown' && race.phase === 'racing' && steps > 0 && !pastFinish() && !me.car.wrecked && running(me)) {
+    // stopped off the road a while, back on it where you left it, facing down it, at a cost (rescue.ts)
+    if (race.phase === 'racing' && steps > 0 && !pastFinish() && !me.car.wrecked && running(me)) {
       const out = lateralOffset(track, p.idx, me.car.x, me.car.y);
       if (stepRescue(rescue, out, speedOf(me.car), steps * SIM_DT)) {
         const q = track.samples[p.idx];
         Object.assign(me.car, { x: q.x, y: q.y, heading: q.dir, vx: 0, vy: 0, spin: 0 });
         me.car.z = groundAt(grid, q.x, q.y).h;
         before = undefined;
-        driver.reset();
         if (session === 'rally') p.penalty += RESCUE.cost;
         announce(session === 'rally' ? tl('BACK ON THE ROAD · +{n} S', { n: RESCUE.cost }) : 'BACK ON THE ROAD', COLOR.gold, 2);
       }
@@ -1073,12 +995,12 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     if (caller && !done && race.phase === 'racing' && running(me)) {
       const call = stepCaller(caller, p.idx * track.spacing, speedOf(me.car));
       // (the card's arrow drawn the way the bend goes on the screen, in a view that doesn't turn with the car)
-      if (call) paceCard.call(call, clock, screenFacing(lookAt ? 'classic' : camMode()));
+      if (call) paceCard.call(call, clock, screenFacing('classic'));
     }
     paceCard.update(clock, done);
     const bar = progressBar();
     hud.setPosition(bar ? '' : rallyRun ? `SS${rallyRun.stage + 1}/${rallyEvent(rallyRun.rally).stages.length}` : tl('SHAKEDOWN'));
-    hud.setLap(learn ? `${Math.min(lapSteps.length - 1, lapSteps.indexOf(learn.o.step) + 1)}/${lapSteps.length - 1}`
+    hud.setLap(learn ? `${Math.min(STEPS.length - 1, STEPS.indexOf(learn.o.step) + 1)}/${STEPS.length - 1}`
       : stage?.result ? (stage.result.time === undefined ? tl('DNF') : `P${stage.result.place}`)
       : race.phase === 'lights' ? tl('ON THE LINE')
       // (with the bar up, the stage's number; without it, the km to go)
@@ -1105,7 +1027,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       const state = {
         out: me.car.wrecked || !!p.retired, done, finishedPlace: stage?.result?.place || undefined, clean: stage?.result?.clean, resultsUp: results.style.display === 'block',
         wrongWay: p.wrongWay, clock, notice,
-        learn: learn && { text: prompt(learn.o.step, device(), driveSettings().gas, style, driveSettings().control), last: learn.o.step === 'done' },
+        learn: learn && { text: prompt(learn.o.step, device()), last: learn.o.step === 'done' },
       };
       const [text, color] = bannerMessage(state);
       showBanner(text);
@@ -1122,15 +1044,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     }
     const stageTime = stage?.result ? stage.result.time : race.phase === 'racing' && !done ? clock : undefined;
     const health = me.car.health / me.car.cls.health;
-    if (style === 'topdown') {
-      // (TOP-DOWN's: the clock, the gap at the last split, your car; no tyres: you never pick them)
-      paintRows(mainLines, topDownReadout({ time: stageTime, gap: stage?.gap, splits: !!stage, health, wrecked: me.car.wrecked }));
-      paintRows(tyreLine, '');
-    } else {
-      paintRows(mainLines, readoutText({ time: stageTime, best, health, wrecked: me.car.wrecked }));
-      paintRows(tyreLine, tyreText(COMPOUNDS[me.tyres.compound].short, me.tyres.wear, !phoneHud));
-      tyreLine.style.color = COMPOUNDS[me.tyres.compound].color;
-    }
+    // (the clock, the gap at the last split, your car; no tyres: you never pick them)
+    paintRows(mainLines, topDownReadout({ time: stageTime, gap: stage?.gap, splits: !!stage, health, wrecked: me.car.wrecked }));
+    paintRows(tyreLine, '');
 
     particles.update(dt);
     // (fewer puffs at the lower quality levels: a slow phone's)
@@ -1151,7 +1067,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     // camera: follow your car, looking ahead along its motion
     const c = me.car;
     const drawn = pose(c, you, alpha);
-    // (TOP-DOWN's framing, for the way the car's going, eased: style.ts)
+    // (the framing, for the way the car's going, eased: style.ts)
     const moving = speedOf(c) > 30;
     const way = moving ? Math.atan2(c.vx, -c.vy) : c.heading;
     // (snapped to it after a restart)
@@ -1162,8 +1078,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
       focus.copy(target);
     } else {
-      // (TOP-DOWN looks further ahead: further still, and pulled back, with the road running across or down the screen)
-      const lead = style === 'topdown' ? framing.lead : t.lead;
+      // (looking ahead: further still, and pulled back, with the road running across or down the screen)
+      const lead = framing.lead;
       target.set(drawn.x + (c.vx / c.cls.topSpeed) * lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * lead);
     }
     focus.lerp(target, 1 - Math.exp(-dt * 6));
@@ -1171,52 +1087,13 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     // (the rush of speed pulls the camera back a touch)
     const rushWant = running(me) ? rushOf(speedOf(me.car), me.car.cls.topSpeed) : 0;
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
-    // (TOP-DOWN's pulled back further)
-    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / (style === 'topdown' ? framing.zoom : t.zoom)) * (1 + RUSH.pullBack * rushNow);
-    // (the chase camera, or another tried out with ?cam=: CAMERAS; held on a point of the map, the classic view)
-    const mode = lookAt ? 'classic' : camMode();
-    if (mode === 'classic') {
-      setFov(LOOK.fov);
-      camera.up.set(0, 0, -1);
-      camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
-      camera.lookAt(focus.x, focus.y, focus.z);
-      camYaw = undefined;
-    } else {
-      camera.up.set(0, 1, 0);
-      // the way the view looks: the car's heading (eased), the road's a little ahead, or a fixed diagonal
-      const n = track.samples.length;
-      const roadAhead = track.samples[track.open ? Math.min(n - 1, p.idx + 25) : (p.idx + 25) % n].dir;
-      const want = mode === 'road' || mode === 'top' ? roadAhead : mode === 'iso' ? -Math.PI / 4 : drawn.heading;
-      camYaw = camYaw === undefined ? want : lerpAngle(camYaw, want, 1 - Math.exp(-dt * (mode === 'chase' ? 2.5 : 3)));
-      const fx = Math.sin(camYaw);
-      const fz = -Math.cos(camYaw);
-      if (mode === 'bonnet') {
-        // on the front of the car, looking down the road
-        setFov(62);
-        const hx = Math.sin(drawn.heading);
-        const hz = -Math.cos(drawn.heading);
-        camera.position.set(drawn.x + hx * 17, drawn.z + 11, drawn.y + hz * 17);
-        camera.lookAt(drawn.x + hx * 260, drawn.z + 2, drawn.y + hz * 260);
-      } else if (mode === 'top') {
-        // high, turned with the road, looking well ahead of the car (further the faster), so it sits low on the screen
-        setFov(LOOK.fov);
-        const pp = deg(TOP_VIEW.pitch);
-        const d = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / TOP_VIEW.zoom) * (1 + RUSH.pullBack * rushNow);
-        const ahead = TOP_VIEW.lead * (0.5 + 0.5 * Math.min(1, speedOf(c) / c.cls.topSpeed));
-        topLead += (ahead - topLead) * Math.min(1, dt * 2);
-        const aim = { x: drawn.x + fx * topLead, y: drawn.z * 0.5, z: drawn.y + fz * topLead };
-        camera.position.set(aim.x - fx * Math.cos(pp) * d, aim.y + Math.sin(pp) * d, aim.z - fz * Math.cos(pp) * d);
-        camera.lookAt(aim.x, aim.y, aim.z);
-      } else {
-        const chase = mode === 'chase';
-        setFov(chase ? 50 : LOOK.fov);
-        const pp = chase ? deg(20) : mode === 'iso' ? deg(42) : pitch;
-        const d = chase ? 130 / t.zoom : dist;
-        const aim = chase ? { x: drawn.x + fx * 50, y: drawn.z + 6, z: drawn.y + fz * 50 } : focus;
-        camera.position.set(aim.x - fx * Math.cos(pp) * d, aim.y + Math.sin(pp) * d, aim.z - fz * Math.cos(pp) * d);
-        camera.lookAt(aim.x, aim.y, aim.z);
-      }
-    }
+    // (pulled back as far as the framing asks)
+    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / framing.zoom) * (1 + RUSH.pullBack * rushNow);
+    // the one view: CLASSIC (high, north up: the HD-2D view)
+    setFov(LOOK.fov);
+    camera.up.set(0, 0, -1);
+    camera.position.set(focus.x, focus.y + Math.sin(pitch) * dist, focus.z + Math.cos(pitch) * dist);
+    camera.lookAt(focus.x, focus.y, focus.z);
     // the shake: the camera moved across and up its own view (SCREEN SHAKE off in the settings: still)
     if (shakeOn()) {
       const o = shakeOffset(shake);
@@ -1321,7 +1198,6 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     step(noteDriven);
     step(offHidden);
     step(() => window.removeEventListener('keydown', onKey));
-    step(() => viewButton?.removeEventListener('pointerdown', onViewButton));
     step(() => setAudioPaused(false));
     step(() => sounds.dispose());
     step(() => paceCard.hush());
@@ -1331,9 +1207,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       deckEl?.classList.remove('results-up');
       deckEl?.classList.remove('driving');
     });
-    step(() => touchDrive?.dispose());
-    step(() => keyDrive.dispose());
-    step(() => document.documentElement.classList.remove('results-up', 'paused', 'dirt', 'topdown', 'no-pause-blur'));
+    step(() => document.documentElement.classList.remove('results-up', 'paused', 'dirt', 'no-pause-blur'));
     delete (window as { __cc?: unknown }).__cc;
     // the renderer given back for the next screen (its canvas out of the page, its compiled shaders kept), then
     // everything of this stage's on the GPU: the scene's meshes, materials and textures

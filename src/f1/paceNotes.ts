@@ -3,7 +3,8 @@
 // crews grade them, 6 (barely a lift) down to 1 (the slowest), and HAIRPIN
 // for the tightest that turn right round; LONG for a bend that goes on and
 // on, TIGHTENS and OPENS for one that closes up or opens out toward its exit.
-// A jump is a note of its own (OVER JUMP). Notes close together are linked
+// A jump is a note of its own (OVER JUMP), and so is a tunnel's mouth (TUNNEL):
+// the bends inside it are called as any others. Notes close together are linked
 // (LEFT 4 INTO RIGHT 3), and a note before a long run to the next says how
 // far it is (RIGHT 5 · 300). The co-driver calls each note far enough ahead
 // to be ready for it: further ahead the faster you're going. Engine-free and
@@ -48,6 +49,8 @@ export interface PaceNote {
   dir?: 'left' | 'right';
   grade?: Grade;
   jump?: boolean;
+  /** a tunnel's mouth: the road goes under the rock here */
+  tunnel?: boolean;
   /** a rally stage's flying finish */
   finish?: boolean;
   mods: Modifier[];
@@ -62,8 +65,8 @@ export interface PaceNote {
 
 const DEG = 180 / Math.PI;
 
-/** The notes for `track` (one lap of it from the line; a rally's stage from its start to its finish), with jumps at `jumps` px along it. */
-export function paceNotes(track: Track, jumps: number[] = []): PaceNote[] {
+/** The notes for `track` (one lap of it from the line; a rally's stage from its start to its finish), with jumps at `jumps` px along it and tunnels' mouths at `tunnels`. */
+export function paceNotes(track: Track, jumps: number[] = [], tunnels: number[] = []): PaceNote[] {
   const { samples, spacing, length } = track;
   const n = samples.length;
   // runs of bending road, each one way
@@ -123,6 +126,7 @@ export function paceNotes(track: Track, jumps: number[] = []): PaceNote[] {
     notes.push({ at: r.from * spacing, end: r.to * spacing, dir: turn > 0 ? 'right' : 'left', grade, mods, heading: samples[r.from].dir, turn });
   }
   for (const at of jumps) notes.push({ at, end: at, jump: true, mods: [] });
+  for (const at of tunnels) notes.push({ at, end: at, tunnel: true, mods: [] });
   // a rally's stage: its bends from the start line to the flying finish, and the finish itself
   const stage = track.stage;
   if (stage) {
@@ -144,6 +148,7 @@ export function paceNotes(track: Track, jumps: number[] = []): PaceNote[] {
 /** A note as the co-driver's card shows it: 'LEFT 4 LONG', 'HAIRPIN RIGHT', 'OVER JUMP'. */
 export function noteText(note: PaceNote): string {
   if (note.jump) return 'OVER JUMP';
+  if (note.tunnel) return 'TUNNEL';
   if (note.finish) return 'FLYING FINISH';
   const dir = note.dir === 'left' ? 'LEFT' : 'RIGHT';
   const head = note.grade === 'hairpin' ? `HAIRPIN ${dir}` : `${dir} ${note.grade}`;
@@ -173,7 +178,7 @@ export function shown(notes: PaceNote[], most = Infinity): string {
   const bends = notes.filter((n) => n.dir && n.grade !== undefined);
   if (notes.length > most && bends.length >= 2) {
     const tightest = bends.map((n) => n.grade!).reduce((a, b) => (a === 'hairpin' || (b !== 'hairpin' && a <= b) ? a : b));
-    const extra = [notes.some((n) => n.jump) && 'JUMP', notes.some((n) => n.finish) && 'FINISH'].filter(Boolean);
+    const extra = [notes.some((n) => n.jump) && 'JUMP', notes.some((n) => n.tunnel) && 'TUNNEL', notes.some((n) => n.finish) && 'FINISH'].filter(Boolean);
     return [`${bends.length} BENDS`, `TIGHTEST ${gradeText(tightest)}`, ...extra].join(' · ');
   }
   if (notes.length > most) return notes.slice(0, most).map(noteText).join(' › ') + ' › …';

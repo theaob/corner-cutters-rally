@@ -24,6 +24,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { groundAt } from '../engine/sim';
 import { HALF_WIDTH, ROADSIDE, RUNOFF, TILE as T, edgeTiles, type Circuit } from './circuit';
 import { HD2D_VIEW } from '../engine/look';
+import { slopeAt } from './riviera';
 
 /** Ground hidden behind (north of) something, per px of its height, from the camera looking down from the south. */
 export const HIDES = 1 / Math.tan((HD2D_VIEW.pitch * Math.PI) / 180);
@@ -33,7 +34,8 @@ export interface Tree {
   y: number;
   /** px tall, from the ground at its foot */
   h: number;
-  kind: 'spruce' | 'broadleaf' | 'palm' | 'rock' | 'blossom';
+  /** (a cypress: a dark spire; a block: a stone of a parapet, a tile square; a villa: a house, its roof tiled) */
+  kind: 'spruce' | 'broadleaf' | 'palm' | 'rock' | 'blossom' | 'cypress' | 'block' | 'villa';
   /** its crown's colour */
   color: number;
   /** laden with snow (a spruce: a cap of it on each tier) */
@@ -94,6 +96,41 @@ export const MOUNTAIN = {
   /** px out past the edge of the map they go on */
   beyond: 300,
 };
+
+export const RIVIERA_TREES = {
+  /** px between the spots a tree may stand (before a random nudge), and the share of them that have one */
+  spacing: 44,
+  trees: 0.62,
+  /** of those: the share that are cypresses, and (the rest but for the bushes) umbrella pines and olives; near the sea, palms */
+  cypresses: 0.24,
+  bushes: 0.25,
+  palms: 0.4,
+  /** px up (the ground's height) to which the palms grow: along the shore */
+  palmLine: 46,
+  /** px tall: a cypress at most, a pine or an olive, and a bush of the maquis */
+  cypress: 54,
+  pine: 34,
+  bush: 15,
+  /** a cypress's width, as a share of its height */
+  spire: 0.15,
+  /** no tree where the ground's steeper than this (rise per px): the cliffs are bare rock */
+  steep: 0.4,
+  /** px out past the edge of the map they go on */
+  beyond: 300,
+  /** the parapet: px high */
+  parapet: 7,
+  /** the villas: a cluster every this many px of road (or so), of up to `most` houses within `spread` px, each px tall (from…to), `apart` px from the next */
+  every: 1500,
+  most: 6,
+  spread: 70,
+  villa: [15, 22] as const,
+  apart: 30,
+};
+const CYPRESS = [0x1f3d2a, 0x25472f, 0x1a3626];
+const OLIVE = [0x5d7a3a, 0x6b8442, 0x4f6b34, 0x7a8c50, 0x3f6a36];
+const MAQUIS = [0x4f6332, 0x5f6f3a, 0x6c7a40];
+const STONE = [0xd9d0bd, 0xcfc5b0, 0xe2dac8];
+const VILLA = [0xf2e2c0, 0xf4d9a0, 0xf0c8a0, 0xf6ead8, 0xe8b890, 0xf3d0b4];
 
 const SPRUCE = [0x24492a, 0x2d5a32, 0x1f4026, 0x335f38];
 /** spruces under snow: their greens darker, against it */
@@ -244,7 +281,21 @@ export function roadsideOf(circuit: Circuit): Tree[] {
       if (h < FOREST.shortest) return rock();
       out.push({ x, y, h, kind, color: palette[Math.floor(tone * palette.length)], ...(kind === 'spruce' && snow ? { snowy: true } : {}) });
     };
-    if (layout.desert) {
+    if (layout.riviera) {
+      // on the Riviera: a parapet's stone, but under the rock: a tunnel's walls, and the face north of the road
+      const [a, b] = [Math.floor(x / T), Math.floor(y / T)];
+      const { heights, width: W } = grid;
+      const top = Math.max(heights![b * (W + 1) + a], heights![b * (W + 1) + a + 1], heights![(b + 1) * (W + 1) + a], heights![(b + 1) * (W + 1) + a + 1]);
+      // (the road's level here: the open ground's beside it)
+      let road = -Infinity;
+      for (const [di, dj] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const [u, v] = [a + di, b + dj];
+        if (u >= 0 && v >= 0 && u < circuit.width && v < circuit.height && circuit.cells[v * circuit.width + u] !== 'wall') road = Math.max(road, groundAt(grid, (u + 0.5) * T, (v + 0.5) * T).h);
+      }
+      const [cx, cy] = [(i + 0.5) * T, (j + 0.5) * T];
+      // (a stone as high as stands the parapet's height over the road, however far the ground falls away under it)
+      if (top - road < RIVIERA_TREES.parapet + 3) out.push({ x: cx, y: cy, h: RIVIERA_TREES.parapet + Math.max(0, road - groundAt(grid, cx, cy).h), kind: 'block', color: STONE[Math.floor(tone * STONE.length)] });
+    } else if (layout.desert) {
       if (pick < EDGE.desertPalms) tree('palm', PALMS.tallest, PALMS.crown, FRONDS);
       else rock();
     } else if (layout.mountain) {
@@ -260,6 +311,7 @@ export function roadsideOf(circuit: Circuit): Tree[] {
 /** The forest's trees (none for a circuit that isn't in one); in the desert, its palms. */
 export function treesOf(circuit: Circuit): Tree[] {
   if (circuit.layout.desert) return palmsOf(circuit);
+  if (circuit.layout.riviera) return rivieraOf(circuit);
   if (circuit.layout.mountain) return mountainOf(circuit);
   if (!circuit.layout.forest) return [];
   const W = circuit.width * T;
@@ -318,6 +370,74 @@ function mountainOf(circuit: Circuit): Tree[] {
       if (h < M.rockSize[0] * 0.8) continue;
       const palette = snow || groundAt(circuit.grid, x, y).h > M.snowLine ? SNOWY_ROCK : ROCK;
       out.push({ x, y, h, kind: 'rock', color: palette[Math.floor(pick * palette.length)] });
+    }
+  }
+  return out;
+}
+
+/** The Riviera's: cypresses, umbrella pines and olives over the maquis, palms along the shore, and villas by the road; none on the cliffs or in the sea. */
+function rivieraOf(circuit: Circuit): Tree[] {
+  const R = RIVIERA_TREES;
+  const W = circuit.width * T;
+  const H = circuit.height * T;
+  const { grid, track, offset } = circuit;
+  const riviera = circuit.layout.riviera!;
+  const grow = growth(circuit, FOREST.clear);
+  const r = rng(71);
+  const out: Tree[] = [];
+  /** the ground at a spot: its height (past the map's edge, the mountainside's own), or none where it's sea or cliff */
+  const land = (x: number, y: number): number | undefined => {
+    if (x < 0 || y < 0 || x >= W || y >= H) {
+      const h = slopeAt(riviera, x + offset.x, y + offset.y);
+      return h > 6 ? h : undefined;
+    }
+    const g = groundAt(grid, x, y);
+    return g.h > 3 && Math.hypot(g.gx, g.gy) <= R.steep ? g.h : undefined;
+  };
+  // the villas: clusters by the road, each house as tall as it may be without hiding it
+  const n = track.samples.length;
+  const villas: Tree[] = [];
+  for (let s = R.every * 0.6; s < track.length - 400; s += R.every * (0.7 + r() * 0.6)) {
+    const p = track.samples[Math.min(n - 1, Math.round(s / track.spacing))];
+    const side = r() < 0.5 ? -1 : 1;
+    const off = HALF_WIDTH + 60 + r() * 60;
+    const cx = p.x + Math.cos(p.dir) * off * side;
+    const cy = p.y + Math.sin(p.dir) * off * side;
+    const count = 2 + Math.floor(r() * (R.most - 1));
+    for (let k = 0, tries = 0; k < count && tries < 30; tries++) {
+      const a = r() * Math.PI * 2;
+      const d = Math.sqrt(r()) * R.spread;
+      const [x, y] = [cx + Math.cos(a) * d, cy + Math.sin(a) * d];
+      const want = R.villa[0] + r() * (R.villa[1] - R.villa[0]);
+      const tone = r();
+      if (x < 0 || y < 0 || x >= W || y >= H || land(x, y) === undefined || villas.some((v) => Math.hypot(v.x - x, v.y - y) < R.apart)) continue;
+      const h = grow(x, y, want, 0.7);
+      if (h < R.villa[0] * 0.8) continue;
+      villas.push({ x, y, h, kind: 'villa', color: VILLA[Math.floor(tone * VILLA.length)] });
+      k++;
+    }
+  }
+  out.push(...villas);
+  // the trees
+  for (let gy = -R.beyond; gy < H + R.beyond; gy += R.spacing) {
+    for (let gx = -R.beyond; gx < W + R.beyond; gx += R.spacing) {
+      const x = gx + (r() - 0.5) * R.spacing * 0.8;
+      const y = gy + (r() - 0.5) * R.spacing * 0.8;
+      const keep = r() < R.trees;
+      const pick = r();
+      const size = 0.6 + 0.4 * r();
+      const tone = r();
+      const palm = r() < R.palms;
+      const ground = keep ? land(x, y) : undefined;
+      if (ground === undefined || villas.some((v) => Math.hypot(v.x - x, v.y - y) < v.h)) continue;
+      const plant = (kind: Tree['kind'], tallest: number, crown: number, palette: number[], least = FOREST.shortest) => {
+        const h = grow(x, y, tallest * size, crown);
+        if (h >= least) out.push({ x, y, h, kind, color: palette[Math.floor(tone * palette.length)] });
+      };
+      if (ground < R.palmLine && palm) plant('palm', PALMS.tallest, PALMS.crown, FRONDS);
+      else if (pick < R.cypresses) plant('cypress', R.cypress, R.spire, CYPRESS);
+      else if (pick < R.cypresses + R.bushes) plant('broadleaf', R.bush, FOREST.crown, MAQUIS, 8);
+      else plant('broadleaf', R.pine, FOREST.crown, OLIVE);
     }
   }
   return out;
@@ -408,7 +528,13 @@ function shapes() {
   const dates = new THREE.IcosahedronGeometry(0.035, 0).translate(top.x, top.y - 0.03, top.z);
   // (a boulder: a rough lump, wider than it's high, sunk a little into the ground)
   const rock = new THREE.DodecahedronGeometry(0.62, 0).scale(1, 0.62, 0.86).translate(0, 0.22, 0);
-  return { spruce, snow, broadleaf, trunk, palm, palmTrunk, dates, rock };
+  // a cypress: a slender spire down to the ground; a parapet's block: a stone a px square at its foot, a px high; a
+  // villa: its walls, and over them its tiled roof (hipped, a little wider than the walls)
+  const cypress = new THREE.ConeGeometry(RIVIERA_TREES.spire, 0.96, 6).translate(0, 0.52, 0);
+  const block = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  const villa = new THREE.BoxGeometry(1.1, 0.64, 0.9).translate(0, 0.32, 0);
+  const tiles = new THREE.ConeGeometry(0.86, 0.36, 4).rotateY(Math.PI / 4).scale(1, 1, 0.84).translate(0, 0.82, 0);
+  return { spruce, snow, broadleaf, trunk, palm, palmTrunk, dates, rock, cypress, block, villa, tiles };
 }
 
 /** Plant the roadside and the forest in `scene`, in chunks. Gives back their trees. */
@@ -421,6 +547,7 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): Tree[] {
   const palmBark = new THREE.MeshLambertMaterial({ color: 0x9a7a52 });
   const dates = new THREE.MeshLambertMaterial({ color: 0x8a4a22 });
   const snow = new THREE.MeshLambertMaterial({ color: 0xf2f6fa });
+  const tiles = new THREE.MeshLambertMaterial({ color: 0xc8623c });
   const chunks = new Map<string, Tree[]>();
   for (const t of trees) {
     const key = `${Math.floor(t.x / FOREST.chunk)},${Math.floor(t.y / FOREST.chunk)}`;
@@ -433,6 +560,9 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): Tree[] {
   for (const list of chunks.values()) {
     const palms = list.filter((t) => t.kind === 'palm').length;
     const rocks = list.filter((t) => t.kind === 'rock').length;
+    const count = (kind: Tree['kind']) => list.filter((t) => t.kind === kind).length;
+    // (no trunk under a palm (its own), a rock, a parapet's block or a villa)
+    const trunkless = (t: Tree) => t.kind === 'palm' || t.kind === 'rock' || t.kind === 'block' || t.kind === 'villa';
     const meshes = {
       spruce: new THREE.InstancedMesh(geo.spruce, crown, list.filter((t) => t.kind === 'spruce').length),
       broadleaf: new THREE.InstancedMesh(geo.broadleaf, crown, list.filter((t) => t.kind === 'broadleaf').length),
@@ -440,13 +570,17 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): Tree[] {
       rock: new THREE.InstancedMesh(geo.rock, crown, rocks),
       // (a cherry tree: a broadleaf's crown, in blossom)
       blossom: new THREE.InstancedMesh(geo.broadleaf, crown, list.filter((t) => t.kind === 'blossom').length),
-      trunk: new THREE.InstancedMesh(geo.trunk, bark, list.length - palms - rocks),
+      cypress: new THREE.InstancedMesh(geo.cypress, crown, count('cypress')),
+      block: new THREE.InstancedMesh(geo.block, crown, count('block')),
+      villa: new THREE.InstancedMesh(geo.villa, crown, count('villa')),
+      tiles: new THREE.InstancedMesh(geo.tiles, tiles, count('villa')),
+      trunk: new THREE.InstancedMesh(geo.trunk, bark, list.filter((t) => !trunkless(t)).length),
       palmTrunk: new THREE.InstancedMesh(geo.palmTrunk, palmBark, palms),
       dates: new THREE.InstancedMesh(geo.dates, dates, palms),
       snow: new THREE.InstancedMesh(geo.snow, snow, list.filter((t) => t.snowy).length),
     };
     let snowed = 0;
-    const n = { spruce: 0, broadleaf: 0, palm: 0, rock: 0, blossom: 0, trunk: 0 };
+    const n = { spruce: 0, broadleaf: 0, palm: 0, rock: 0, blossom: 0, cypress: 0, block: 0, villa: 0, trunk: 0 };
     list.forEach((t) => {
       const foot = groundAt(circuit.grid, t.x, t.y).h;
       // (each turned its own way, a little wider or narrower)
@@ -458,7 +592,13 @@ export function buildForest(scene: THREE.Scene, circuit: Circuit): Tree[] {
         m.compose(new THREE.Vector3(t.x, foot - 1, t.y), q, new THREE.Vector3(t.h, t.h, t.h));
         meshes.palmTrunk.setMatrixAt(n.palm, m);
         meshes.dates.setMatrixAt(n.palm, m);
-      } else if (t.kind !== 'rock') meshes.trunk.setMatrixAt(n.trunk++, m);
+      } else if (t.kind === 'block') {
+        // (a parapet's stones stand square on their tiles, side by side: a wall)
+        m.compose(new THREE.Vector3(t.x, foot - 1, t.y), q.identity(), new THREE.Vector3(T + 0.5, t.h + 1, T + 0.5));
+      } else if (t.kind === 'villa') {
+        m.compose(new THREE.Vector3(t.x, foot - 1, t.y), q, new THREE.Vector3(t.h, t.h, t.h));
+        meshes.tiles.setMatrixAt(n.villa, m);
+      } else if (!trunkless(t)) meshes.trunk.setMatrixAt(n.trunk++, m);
       if (t.snowy) meshes.snow.setMatrixAt(snowed++, m);
       meshes[t.kind].setMatrixAt(n[t.kind], m);
       meshes[t.kind].setColorAt(n[t.kind]++, c.set(t.color));

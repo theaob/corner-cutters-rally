@@ -4,6 +4,7 @@
 // their seeds (stages.ts).
 
 import type { Pt } from './racing';
+import type { Riviera } from './riviera';
 import { stageById } from './stages';
 
 export interface CircuitLayout {
@@ -32,6 +33,10 @@ export interface CircuitLayout {
   dirt?: boolean;
   /** in the mountains: rock and alpine meadow past the treeline, snow up high, pines below the tree line and boulders */
   mountain?: boolean;
+  /** on the Riviera (riviera.ts): a mountainside falling south into the sea, the road a ledge cut into it, its shore here */
+  riviera?: Riviera;
+  /** tunnels (the Riviera's): the road through the rock from `from` px along it to `to`, roofed over, its walls close in */
+  tunnels?: { from: number; to: number }[];
   /**
    * a rally's stage: a road with two ends (its points from one to the other, not round a loop), the start line `start`
    * px along it and the flying finish `finish` px along (the road runs on past it, to the stop at its end)

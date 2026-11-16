@@ -83,6 +83,11 @@ export const RALLIES: RallyEvent[] = [
     ],
     service: [1],
   },
+  {
+    id: 'riviera', name: 'RIVIERA RALLY', surface: 'TARMAC', about: 'tight cliff roads above the sea, and tunnels through the rock',
+    stages: [{ layout: 'ss-les-lacets', weather: 'dry' }, { layout: 'ss-col-du-mistral', weather: 'damp' }, { layout: 'ss-corniche-bleue', weather: 'dry' }],
+    service: [1],
+  },
 ];
 
 export const rallyById = (id: string | null | undefined) => RALLIES.find((r) => r.id === id);
