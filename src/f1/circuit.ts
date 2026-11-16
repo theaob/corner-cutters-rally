@@ -9,6 +9,7 @@
 import type { Grid } from '../engine/sim';
 import type { CircuitLayout } from './layouts';
 import { buildTrack, type Track } from './racing';
+import { RIVIERA, inTunnel, ledgeLift, slopeAt } from './riviera';
 
 export const TILE = 16;
 /** px from the centreline to the track edge */
@@ -23,6 +24,12 @@ export const RUNOFF = 72;
  * it (`lone`; `apex` on a tight bend's inside).
  */
 export const ROADSIDE = { verge: 14, near: 24, wave: 280, inside: 34, outside: 46, ease: 48, lone: 0.02, apex: 0.1 };
+/**
+ * A tight road's side (the Riviera's: a rock face one side, a parapet the other, right by the road): the wall from
+ * `near` px past the road's edge to `far` at most, no further than `inside` on a tight bend's inside; its outside
+ * keeps ROADSIDE's room to run wide.
+ */
+export const TIGHT_ROADSIDE = { near: 14, far: 24, inside: 20 };
 /**
  * The barrier between two stretches side by side: tiles from px past the track's edge, within px of the line midway
  * between them (a band a tile or so wide, so no gap is left where it runs at a slant across the grid)
@@ -141,9 +148,10 @@ function noise(a: number, b: number, seed: number): number {
  * px past the road's edge to the treeline at each of `track`'s samples, each side: [the side along +(cos dir, sin
  * dir), the other] (see ROADSIDE).
  */
-export function treeline(track: Track, seed: number): [number[], number[]] {
+export function treeline(track: Track, seed: number, tight = false): [number[], number[]] {
   const n = track.samples.length;
-  const { near, wave, inside, outside, ease } = ROADSIDE;
+  const { wave, outside, ease } = ROADSIDE;
+  const { near, far, inside } = tight ? TIGHT_ROADSIDE : { near: ROADSIDE.near, far: RUNOFF, inside: ROADSIDE.inside };
   const reach = Math.round(ease / track.spacing);
   const sides = [1, -1].map((side, k) =>
     track.samples.map((p) => {
@@ -152,7 +160,7 @@ export function treeline(track: Track, seed: number): [number[], number[]] {
       const a = noise(Math.floor(at), k, seed);
       const b = noise(Math.floor(at) + 1, k, seed);
       const t = (1 - Math.cos((at - Math.floor(at)) * Math.PI)) / 2;
-      return near + (RUNOFF - near) * (a + (b - a) * t);
+      return near + (far - near) * (a + (b - a) * t);
     }).map((d, i) => {
       // (a tight bend nearby: in on its inside, out on its outside)
       let bend = 0;
@@ -199,6 +207,11 @@ export interface Circuit {
   slots: { x: number; y: number; heading: number }[];
   /** px the layout was moved by to put the map at (0, 0): a point of the layout (scaled) is here at its own minus this */
   offset: { x: number; y: number };
+  /** on a road with tunnels: whether each of the track's samples is in one, and whether each tile is road under a tunnel's roof */
+  tunnel?: boolean[];
+  roof?: boolean[];
+  /** on the Riviera: whether each tile is sea */
+  sea?: boolean[];
 }
 
 export interface CircuitOptions {
@@ -279,7 +292,12 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   };
   const kerbs = kerbed(track);
   const seed = hashOf(layout.id);
-  const [along, against] = treeline(track, seed);
+  const riviera = layout.riviera;
+  const [along, against] = treeline(track, seed, !!riviera);
+  // (a tunnel: its walls right by the road, a roof over it)
+  const tunnel = layout.tunnels?.length ? track.samples.map((p) => inTunnel(layout.tunnels, p.s)) : undefined;
+  if (tunnel) for (let i = 0; i < n; i++) if (tunnel[i]) along[i] = against[i] = RIVIERA.wall;
+  const roof = tunnel ? new Array<boolean>(W * H).fill(false) : undefined;
   const cells: CircuitCell[] = [];
   for (let ty = 0; ty < H; ty++) {
     for (let tx = 0; tx < W; tx++) {
@@ -310,8 +328,13 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
         cells.push('wall');
         continue;
       }
+      if (tunnel?.[i]) {
+        roof![ty * W + tx] = true;
+        cells.push(d <= HALF_WIDTH - 6 || !kerb ? 'track' : 'kerb');
+        continue;
+      }
       // a tree or a rock alone, between the verge and the treeline (clear of both)
-      if (d - TILE / 2 > HALF_WIDTH + ROADSIDE.verge && d < edge - 1.5 * TILE && noise(tx, ty, seed) < (tight && !outside ? ROADSIDE.apex : ROADSIDE.lone)) {
+      if (!riviera && d - TILE / 2 > HALF_WIDTH + ROADSIDE.verge && d < edge - 1.5 * TILE && noise(tx, ty, seed) < (tight && !outside ? ROADSIDE.apex : ROADSIDE.lone)) {
         cells.push('wall');
         continue;
       }
@@ -326,7 +349,7 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
   const rise = track.samples.map((_, i) => elevationAt(layout.elevation, i / n));
   // heights at tile corners: blended from the centreline's elevation nearby
   const heights: number[] = [];
-  for (let cy = 0; cy <= H; cy++) {
+  for (let cy = 0; cy <= H && !riviera; cy++) {
     for (let cx = 0; cx <= W; cx++) {
       const x = cx * TILE;
       const y = cy * TILE;
@@ -342,6 +365,66 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
       }
       heights.push(wsum ? sum / wsum : 0);
     }
+  }
+  // the Riviera: the mountainside (riviera.ts), the road's own height on and beside the road, a ledge cut into the
+  // slope where it runs across it (a rock face north of it, a drop south), rock over its tunnels; under the sea, flat
+  let sea: boolean[] | undefined;
+  if (riviera) {
+    const smooth = (a: number, b: number, v: number) => {
+      const t = Math.max(0, Math.min(1, (v - a) / (b - a)));
+      return t * t * (3 - 2 * t);
+    };
+    const side = HALF_WIDTH + TIGHT_ROADSIDE.far;
+    const far = RIVIERA.run + RIVIERA.ease + side;
+    for (let cy = 0; cy <= H; cy++) {
+      for (let cx = 0; cx <= W; cx++) {
+        const x = cx * TILE;
+        const y = cy * TILE;
+        const slope = slopeAt(riviera, x + ox, y + oy);
+        let sum = 0;
+        let wsum = 0;
+        let lift = 0;
+        let lsum = 0;
+        let best = -1;
+        let bestD = Infinity;
+        for (const i of near(x, y, far)) {
+          const p = track.samples[i];
+          const d2 = (p.x - x) ** 2 + (p.y - y) ** 2;
+          if (d2 < bestD) [best, bestD] = [i, d2];
+          if (d2 <= 200 * 200) {
+            const w = 1 / (d2 + 400);
+            sum += w * rise[i];
+            wsum += w;
+          }
+          // (the ledge: each stretch's nearby, the nearest counting by far the most, so two stretches' meet smoothly between them)
+          if (i % 3 === 0 && d2 <= far * far) {
+            const d = Math.sqrt(d2);
+            const w = 1 / (d2 + 400) ** 2;
+            lift += w * ledgeLift(d - side, d > 0 ? (p.y - y) / d : 0);
+            lsum += w;
+          }
+        }
+        const d = Math.sqrt(bestD);
+        const road = wsum ? sum / wsum : slope;
+        let h = road + (slope - road) * smooth(120, 200, d);
+        // (the open ground stays the road's own: the rock starts at the first corner with solid tiles all round it)
+        let open = false;
+        for (let b = Math.max(0, cy - 1); b <= Math.min(H - 1, cy); b++) for (let a = Math.max(0, cx - 1); a <= Math.min(W - 1, cx); a++) open ||= cells[b * W + a] !== 'wall';
+        if (open) {
+          heights.push(Math.max(0, h));
+          continue;
+        }
+        if (best >= 0 && tunnel?.[best]) {
+          // (rock all round a tunnel, up to its roof and over; the face goes on up north of it)
+          h += RIVIERA.roof * (1 - smooth(HALF_WIDTH + 40, HALF_WIDTH + 80, d));
+          h += Math.max(0, lsum ? lift / lsum : 0);
+        } else if (d > side) h += lsum ? lift / lsum : 0;
+        heights.push(Math.max(0, h));
+      }
+    }
+    sea = new Array<boolean>(W * H).fill(false);
+    const row = W + 1;
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) sea[j * W + i] = heights[j * row + i] + heights[j * row + i + 1] + heights[(j + 1) * row + i] + heights[(j + 1) * row + i + 1] <= 0;
   }
   // the jumps: each crest laid over the smoothed ground, across the track and its run-off, easing out beyond
   if (layout.jumps?.length) {
@@ -382,5 +465,5 @@ export function buildCircuit(layout: CircuitLayout, opts: CircuitOptions): Circu
     return { x: p.x + Math.cos(p.dir) * lane, y: p.y + Math.sin(p.dir) * lane, heading: p.dir };
   });
 
-  return { layout, width: W, height: H, cells, grid, track, slots, offset: { x: ox, y: oy } };
+  return { layout, width: W, height: H, cells, grid, track, slots, offset: { x: ox, y: oy }, ...(tunnel ? { tunnel, roof } : {}), ...(sea ? { sea } : {}) };
 }

@@ -3,11 +3,12 @@ Five, four, three, two, one, GO. Corner Cutters Rally is an arcade rally in a cr
 THE CO-DRIVER CALLS EVERY BEND
 Your co-driver reads the road ahead and calls it out loud: LEFT 4, RIGHT 2 TIGHTENS, HAIRPIN, OVER JUMP. Every bend is graded from 6 (barely a lift) to 1 (the slowest), and a card at the top of the screen shows the call. Listen, trust the notes, and keep it flat.
 
-FOUR RALLIES, FOURTEEN STAGES
+FIVE RALLIES, SEVENTEEN STAGES
 - Rally of the Forests: gravel roads over the hills and through the pines
 - Winter Rally: snow and ice up in the mountains
 - Desert Rally: sand and dust under the desert sun
 - Tarmac Rally: sealed mountain roads, vineyards, the coast and a castle hill
+- Riviera Rally: tight cliff roads above the sea, hairpins and tunnels through the rock
 Every stage is a long point-to-point road of its own, with jumps, crowds at the hairpins and a flying finish.
 
 BEAT NINE RIVAL CREWS

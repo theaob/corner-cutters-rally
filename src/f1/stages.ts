@@ -12,6 +12,7 @@
 import { seededRandom } from '../engine/rng';
 import type { CircuitLayout } from './layouts';
 import type { Pt } from './racing';
+import { coastOf, slopeAt } from './riviera';
 
 export type StageSurface = 'gravel' | 'snow' | 'sand' | 'tarmac';
 
@@ -27,8 +28,17 @@ export interface StageSpec {
   jumps?: number;
   /** px the hills rise to, at most */
   hills?: number;
-  /** the scenery: a forest's trees all round, or the mountains' meadow, rock and pines (snow and sand bring their own) */
-  scenery?: 'forest' | 'mountain';
+  /**
+   * the scenery: a forest's trees all round, the mountains' meadow, rock and pines (snow and sand bring their own), or
+   * the Riviera's mountainside above the sea (riviera.ts): a tight, twisting road cut into it, its heights the slope's own
+   */
+  scenery?: 'forest' | 'mountain' | 'riviera';
+  /** tunnels on it, at most (the Riviera's: the road through the rock) */
+  tunnels?: number;
+  /** the road's pieces: the Riviera's tight ones, or its tightest (hairpin after hairpin); the usual mix if not said */
+  pieces?: 'tight' | 'hairpins';
+  /** px from the map's north edge to its south, if less than the whole of it: a road kept to a band along the shore */
+  band?: number;
 }
 
 export const ROAD = {
@@ -62,6 +72,37 @@ const PIECES: { radius?: number; turn?: [number, number]; straight?: [number, nu
   { radius: 72, turn: [165, 180], weight: 0.05 }, // a hairpin
 ];
 
+type Pieces = typeof PIECES;
+/** A tight road's pieces: short straights, few fast bends, slow ones and hairpins often. */
+const TIGHT_PIECES: Pieces = [
+  { straight: [100, 420], weight: 0.2 },
+  { radius: 700, turn: [15, 40], weight: 0.06 },
+  { radius: 420, turn: [20, 70], weight: 0.12 },
+  { radius: 260, turn: [25, 90], weight: 0.16 },
+  { radius: 165, turn: [30, 100], weight: 0.16 },
+  { radius: 110, turn: [40, 110], weight: 0.13 },
+  { radius: 80, turn: [50, 110], weight: 0.08 },
+  { radius: 72, turn: [165, 180], weight: 0.09 },
+];
+/** And its tightest: a hairpin every few bends, one above the other up the slope. */
+const HAIRPIN_PIECES: Pieces = TIGHT_PIECES.map((p) => (p.turn?.[0] === 165 ? { ...p, weight: 0.2 } : p.radius === 700 ? { ...p, weight: 0.02 } : p));
+const piecesOf = (spec: Pick<StageSpec, 'pieces'>): Pieces => (spec.pieces === 'hairpins' ? HAIRPIN_PIECES : spec.pieces === 'tight' ? TIGHT_PIECES : PIECES);
+
+/** A tunnel: where it may go (px along the road), how long it is, and how far it keeps from everything else. */
+export const TUNNEL = {
+  /** the gentlest bend a tunnel takes (px of radius): it goes on straights and fast bends only */
+  radius: 400,
+  /** px long: at least, and at most */
+  shortest: 260,
+  longest: 520,
+  /** px of open road kept at each end of the gentle stretch it's on */
+  lead: 40,
+  /** px clear of the start line and the flying finish, of the next tunnel, and of every other stretch of the road */
+  ends: 500,
+  between: 1800,
+  apart: 300,
+};
+
 interface Piece {
   /** the points it adds */
   count: number;
@@ -70,16 +111,16 @@ interface Piece {
 }
 
 /** A stage's road (points `ROAD.step` apart, from the start of the road to its end) and its straights. */
-export function growRoad(spec: Pick<StageSpec, 'seed' | 'length'>): { points: Pt[]; straights: { at: number; length: number }[] } {
+export function growRoad(spec: Pick<StageSpec, 'seed' | 'length' | 'pieces' | 'band'>): { points: Pt[]; straights: { at: number; length: number }[]; gentle: { at: number; length: number }[] } {
   // (a road that boxes itself in is let go soon, and another grown in its place: most come quickly)
   for (let attempt = 0; attempt < 400; attempt++) {
-    const road = tryRoad(spec.seed * 101 + attempt, spec.length);
+    const road = tryRoad(spec.seed * 101 + attempt, spec.length, piecesOf(spec), spec.band ?? ROAD.box);
     if (road) return road;
   }
   throw new Error(`no road for stage seed ${spec.seed}`);
 }
 
-function tryRoad(seed: number, length: number) {
+function tryRoad(seed: number, length: number, PIECES: Pieces, band: number) {
   const rng = seededRandom(seed >>> 0 || 1);
   const { step, box, edge, apart, near } = ROAD;
   const xs: number[] = [];
@@ -103,7 +144,7 @@ function tryRoad(seed: number, length: number) {
   };
   /** Whether a point at (x, y), `j`th along the road, is clear of the road already there. */
   const clear = (x: number, y: number, j: number) => {
-    if (x < edge || y < edge || x > box - edge || y > box - edge) return false;
+    if (x < edge || y < edge || x > box - edge || y > band - edge) return false;
     const bx = Math.floor(x / apart);
     const by = Math.floor(y / apart);
     for (let i = bx - 1; i <= bx + 1; i++) {
@@ -140,19 +181,22 @@ function tryRoad(seed: number, length: number) {
   };
   // the start: by the edge of the map, heading in across it
   const side = Math.floor(rng() * 4);
-  const along = edge + 200 + rng() * (box - 2 * edge - 400);
-  const starts: [number, number, number][] = [[edge + 20, along, 0], [box - edge - 20, along, Math.PI], [along, edge + 20, Math.PI / 2], [along, box - edge - 20, -Math.PI / 2]];
+  const share = rng();
+  const along = edge + 200 + share * (box - 2 * edge - 400);
+  // (in a band, the east and west edges' starts are spread down the band, not the whole map)
+  const down = edge + 200 + share * (band - 2 * edge - 400);
+  const starts: [number, number, number][] = [[edge + 20, down, 0], [box - edge - 20, down, Math.PI], [along, edge + 20, Math.PI / 2], [along, band - edge - 20, -Math.PI / 2]];
   const [sx, sy, sh] = starts[side];
   add(sx, sy);
   heading = sh;
-  const pieces: (Piece & { heading: number })[] = [];
+  const pieces: (Piece & { heading: number; at: number; radius: number })[] = [];
   const total = () => (xs.length - 1) * step;
   const push = (straight: number | undefined, radius: number, turn: number) => {
     const before = heading;
     const from = xs.length;
     const at = total();
     if (!lay(straight, radius, turn)) return false;
-    pieces.push({ count: xs.length - from, heading: before, ...(straight !== undefined ? { straight: { at, length: straight } } : {}) });
+    pieces.push({ count: xs.length - from, heading: before, at, radius: straight !== undefined ? Infinity : radius, ...(straight !== undefined ? { straight: { at, length: straight } } : {}) });
     return true;
   };
   const pop = () => {
@@ -169,7 +213,15 @@ function tryRoad(seed: number, length: number) {
     // long enough: the flying finish, and the run-out past it to the road's end
     if (total() >= target + ROAD.runout) {
       const straights = pieces.filter((p) => p.straight).map((p) => p.straight!);
-      return { points: xs.map((x, i) => ({ x, y: ys[i] })), straights };
+      // (the gentle stretches: straights and fast bends on end, where a tunnel may go)
+      const gentle: { at: number; length: number }[] = [];
+      let open: { at: number; length: number } | undefined;
+      for (const p of pieces) {
+        if (p.radius < TUNNEL.radius) open = undefined;
+        else if (open) open.length += p.count * step;
+        else gentle.push((open = { at: p.at, length: p.count * step }));
+      }
+      return { points: xs.map((x, i) => ({ x, y: ys[i] })), straights, gentle };
     }
     if (total() > (target + ROAD.runout) * 1.25) {
       pop();
@@ -211,7 +263,7 @@ function hills(rng: () => number, length: number, high: number): [number, number
 
 /** The stage layout for `spec`: its road grown, its hills, jumps, start and finish. */
 export function buildStage(spec: StageSpec): CircuitLayout {
-  const { points, straights } = growRoad(spec);
+  const { points, straights, gentle } = growRoad(spec);
   const rng = seededRandom((spec.seed * 7919) >>> 0 || 1);
   const length = (points.length - 1) * ROAD.step;
   const finish = length - ROAD.runout;
@@ -225,19 +277,48 @@ export function buildStage(spec: StageSpec): CircuitLayout {
   }
   jumps.sort((a, b) => a.at - b.at);
   const surface = spec.surface;
+  // the Riviera: its shore from the road, its heights the mountainside's under it, and its tunnels on the gentle
+  // stretches (clear of the start and the finish, of each other, and of every other stretch of the road)
+  const riviera = spec.scenery === 'riviera' ? coastOf(points) : undefined;
+  const tunnels: { from: number; to: number }[] = [];
+  if (riviera) {
+    const T = TUNNEL;
+    const fits = gentle.filter((g) => g.length - 2 * T.lead >= T.shortest).map((g) => {
+      const span = Math.min(T.longest, g.length - 2 * T.lead);
+      const from = Math.round(g.at + (g.length - span) / 2);
+      return { from, to: from + Math.round(span) };
+    }).filter((t) => t.from > ROAD.start + T.ends && t.to < finish - T.ends);
+    const alone = (t: { from: number; to: number }) => {
+      for (let i = Math.floor(t.from / ROAD.step); i <= Math.ceil(t.to / ROAD.step); i++) {
+        for (let j = 0; j < points.length; j++) {
+          if (Math.abs(j - i) * ROAD.step > 2 * T.apart && Math.hypot(points[j].x - points[i].x, points[j].y - points[i].y) < T.apart) return false;
+        }
+      }
+      return true;
+    };
+    for (const t of fits.sort(() => rng() - 0.5)) {
+      if (tunnels.length >= (spec.tunnels ?? 0)) break;
+      if (tunnels.every((o) => t.from - o.to > T.between || o.from - t.to > T.between) && alone(t)) tunnels.push(t);
+    }
+    tunnels.sort((a, b) => a.from - b.from);
+  }
+  const every = 5;
+  const climb: [number, number][] = riviera
+    ? points.filter((_, i) => i % every === 0 || i === points.length - 1).map((p, k, all) => [k / (all.length - 1), Math.round(slopeAt(riviera, p.x, p.y) * 10) / 10])
+    : [];
   return {
     id: spec.id,
     name: spec.name,
     about: spec.about,
     points,
     scale: 1,
-    elevation: hills(rng, length, spec.hills ?? 60),
+    elevation: riviera ? climb : hills(rng, length, spec.hills ?? 60),
     stage: { start: ROAD.start, finish },
     ...(jumps.length ? { jumps } : {}),
     ...(surface !== 'tarmac' ? { dirt: true } : {}),
     ...(surface === 'snow' ? { snow: true, mountain: true } : {}),
     ...(surface === 'sand' ? { desert: true } : {}),
-    ...(surface === 'gravel' || surface === 'tarmac' ? (spec.scenery === 'mountain' ? { mountain: true } : { forest: true }) : {}),
+    ...(riviera ? { riviera, ...(tunnels.length ? { tunnels } : {}) } : surface === 'gravel' || surface === 'tarmac' ? (spec.scenery === 'mountain' ? { mountain: true } : { forest: true }) : {}),
   };
 }
 
@@ -265,6 +346,10 @@ export const STAGE_SPECS: StageSpec[] = [
   { id: 'ss-vineyards', name: 'Vineyards', about: 'tarmac · between the vineyards', seed: 127, surface: 'tarmac', length: 17000, hills: 70 },
   { id: 'ss-coast-road', name: 'Coast Road', about: 'tarmac · fast along the coast', seed: 131, surface: 'tarmac', length: 19000, hills: 90, scenery: 'mountain' },
   { id: 'ss-castle-hill', name: 'Castle Hill', about: 'tarmac · up and down the castle hill', seed: 139, surface: 'tarmac', length: 16000, hills: 120 },
+  // tarmac, on the Riviera: tight roads cut into the cliffs above the sea, and through the rock
+  { id: 'ss-les-lacets', name: 'Les Lacets', about: 'tarmac · hairpin after hairpin up the cliffs', seed: 48, surface: 'tarmac', length: 15000, scenery: 'riviera', pieces: 'hairpins', tunnels: 2 },
+  { id: 'ss-col-du-mistral', name: 'Col du Mistral', about: 'tarmac · through the rock and over the col', seed: 97, surface: 'tarmac', length: 18000, scenery: 'riviera', pieces: 'tight', tunnels: 4 },
+  { id: 'ss-corniche-bleue', name: 'Corniche Bleue', about: 'tarmac · the cliff road above the sea', seed: 72, surface: 'tarmac', length: 12000, scenery: 'riviera', pieces: 'tight', tunnels: 2, band: 2500 },
 ];
 
 const built = new Map<string, CircuitLayout>();
