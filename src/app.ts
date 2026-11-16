@@ -26,6 +26,7 @@ import { reportProblem, watchCrashes } from './f1/crashes';
 import { hintToast } from './f1/screens/celebrate';
 import { listenForBack, pressBack } from './engine/backButton';
 import { newSeed } from './engine/rng';
+import { SEASON, currentSeason, saveSeason } from './f1/season';
 import { NORMAL, difficultyById } from './f1/difficulty';
 import { DRY, weatherById } from './f1/weather';
 import { openReport, reportOpen } from './f1/report';
@@ -339,6 +340,16 @@ function carsBehind(signal: AbortSignal): () => void {
  * Home: the rally's screen (the rallies to pick from, or the one under way and its next stage), rally cars on the
  * shakedown behind it; and from it the settings.
  */
+/**
+ * The time the season's calendar goes by: now, or with ?debug, `?seasonday=<n>` days after the first round opens (to
+ * see a round opening without waiting for it).
+ */
+function seasonNow(): number {
+  const q = new URLSearchParams(location.search);
+  const day = Number(q.get('seasonday'));
+  return q.has('debug') && q.has('seasonday') && Number.isFinite(day) ? SEASON.start + day * 24 * 60 * 60 * 1000 : Date.now();
+}
+
 async function showHome(id: number): Promise<void> {
   menuScreen();
   fetchRaceSoon();
@@ -349,8 +360,9 @@ async function showHome(id: number): Promise<void> {
   const { showRally } = await import('./f1/screens/rally');
   if (id !== routeId) return;
   const rally = loadRally();
+  const season = currentSeason(newSeed());
   // (a language change built home again with the settings open: they open again, at LANGUAGE, home not under them)
-  const showing = settingsResumePending() ? Promise.resolve('settings' as const) : showRally(screen, services, rally, savedScheme(), closed.signal);
+  const showing = settingsResumePending() ? Promise.resolve('settings' as const) : showRally(screen, services, rally, savedScheme(), closed.signal, { season, now: seasonNow() });
   curtainUp();
   // rally cars on the shakedown behind it (loaded once it's up)
   const stopBackdrop = carsBehind(closed.signal);
@@ -362,6 +374,10 @@ async function showHome(id: number): Promise<void> {
   else if (action === 'abandon') {
     saveRally(undefined);
     void route();
+  } else if (action === 'new-season') {
+    saveRally(undefined);
+    saveSeason(undefined);
+    void route();
   } else if (action === 'settings') {
     menuName = 'settings';
     const difficulty = await showSettings(screen, services, savedDifficulty(), closed.signal);
@@ -371,7 +387,8 @@ async function showHome(id: number): Promise<void> {
   } else if (typeof action === 'object') {
     // a new rally, in the paint picked (kept for the next), at the difficulty in the settings
     save('choices', 'scheme', action.scheme.id);
-    saveRally(newRally({ event: action.start, seed: newSeed(), scheme: action.scheme, difficulty: savedDifficulty().id }));
+    // (a round of the season, against the season's crews)
+    saveRally(newRally({ event: action.start, seed: newSeed(), scheme: action.scheme, difficulty: savedDifficulty().id, season }));
     void route();
   }
 }

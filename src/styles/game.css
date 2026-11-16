@@ -632,6 +632,10 @@ html.no-pause-blur .pause-settings {
   flex: none;
   color: var(--gold);
 }
+/* (a season's round already driven, or not open yet: there, but quiet) */
+.circuit-menu .rally-tile.tile-off {
+  opacity: 0.62;
+}
 /* (a rally's icon in its surface's colour) */
 .circuit-menu .rally-tile .tile-icon {
   color: var(--surface, var(--gold));

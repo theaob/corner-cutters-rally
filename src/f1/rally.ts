@@ -110,24 +110,33 @@ export interface Rally {
   stages: { times: number[]; notes: (StageNote | undefined)[] }[];
   /** your car's health going into the next stage, as a share of it */
   health: number;
+  /** the season it's a round of (season.ts), if it is one */
+  season?: string;
 }
 
-/** A new rally: you in your car's `scheme` against nine of the rival crews, drawn by `seed`. */
-export function newRally(o: { event: RallyEvent; seed: number; scheme: Scheme; difficulty: string }): Rally {
+/**
+ * A new rally: you in your car's `scheme` against nine of the rival crews, drawn by `seed`; or, for a round of a
+ * season (`season`: its id), against the season's `rivals`, at the pace they have all season.
+ */
+export function newRally(o: { event: RallyEvent; seed: number; scheme: Scheme; difficulty: string; season?: { id: string; rivals: RallyCrew[] } }): Rally {
   const rng = seededRandom(o.seed);
-  const others: RallyCrew[] = CREWS.map((c) => ({ crew: c.id }));
-  // nine of them, at random
-  for (let i = others.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [others[i], others[j]] = [others[j], others[i]];
+  let rivals: RallyCrew[];
+  if (o.season) rivals = o.season.rivals.map((c) => ({ ...c }));
+  else {
+    const others: RallyCrew[] = CREWS.map((c) => ({ crew: c.id }));
+    // nine of them, at random
+    for (let i = others.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [others[i], others[j]] = [others[j], others[i]];
+    }
+    rivals = others.slice(0, RALLY.crews - 1);
+    const ranks = paceRanks(rivals.length, rng);
+    rivals.forEach((c, i) => (c.rank = ranks[i]));
   }
-  const rivals = others.slice(0, RALLY.crews - 1);
-  const ranks = paceRanks(rivals.length, rng);
-  rivals.forEach((c, i) => (c.rank = ranks[i]));
   // (you start in the middle of the running order)
   const you = Math.floor(RALLY.crews / 2);
   const crews = [...rivals.slice(0, you), { scheme: o.scheme.id }, ...rivals.slice(you)];
-  return { v: 2, event: o.event.id, seed: o.seed, difficulty: o.difficulty, crews, you, stages: [], health: 1 };
+  return { v: 2, event: o.event.id, seed: o.seed, difficulty: o.difficulty, crews, you, stages: [], health: 1, ...(o.season ? { season: o.season.id } : {}) };
 }
 
 export const rallyEvent = (r: Rally): RallyEvent => rallyById(r.event) ?? RALLIES[0];

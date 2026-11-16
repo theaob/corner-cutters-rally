@@ -7,10 +7,23 @@ An arcade rally in the HD-2D look, grown out of [Corner Cutters](https://github.
 **Home is the rally's screen** (`src/f1/screens/rally.ts`). Rally cars drive the Shakedown behind it. With no rally under way, it shows:
 
 - **CAR**, your paint scheme. Swipe or tap to change it.
-- The four rallies, each with your best finish there.
+- The season's four rounds: each one's number and how it stands (your place and points, OPEN NOW, or the day it opens).
+- The season's standings, once a round has been driven.
 - **SETTINGS**.
 
-With a rally under way, it shows the standings, the stage up next, your car's state, **START SS…** and **RETIRE FROM THE RALLY**. When the rally is over it shows the final standings, with a trophy and confetti if you won.
+With a rally under way, it shows the round, the standings, the stage up next (POWER STAGE on a round's last), your car's state, **START SS…** and **RETIRE FROM THE RALLY**. When the rally is over it shows the final standings, with a trophy and confetti if you won, and the season points it brought.
+
+### The season
+
+The rallies are run as a season, the way the World Rally Championship runs one (`src/f1/season.ts`):
+
+- **A calendar:** the rallies are its rounds, in the order below. The first opens on `SEASON.start` (Monday 16 November 2026), and a new one each week after it. A round once open stays open, so a player who comes late drives every round already out.
+- **The same crews:** the nine rival crews are drawn once for the season and race every round at the same pace.
+- **Points:** at the end of a round the top ten overall score 25, 18, 15, 12, 10, 8, 6, 4, 2 and 1, and the five quickest on its last stage, the **Power Stage**, a bonus of 5, 4, 3, 2 and 1.
+- **Once:** a round counts as it first finished; it isn't driven again that season. Retiring from a round leaves it to start again.
+- **The title:** the most points after the last round (then the most wins). **NEW SEASON** starts over with a fresh field.
+
+With `?debug`, `?seasonday=<n>` sets the calendar to `n` days after the first round opens.
 
 | Rally | Surface | Stages |
 |---|---|---|
@@ -207,4 +220,4 @@ public/           Pixel font (Silkscreen, SIL Open Font License), music, the sti
 tests/            Stages, pace notes, rallies, race control, driving, circuit, controls, layout, storage, save…
 ```
 
-Saves live in local storage under the `ccr:` prefix, apart from Corner Cutters' even on the same site, as one versioned document, `ccr:save` (`src/engine/save.ts`; the game's format in `src/f1/save.ts`): **settings**, **choices** (your paint scheme and the difficulty), **progress** (the controls lap done), and **rally** (the rally under way, your best finishes and your best stage times).
+Saves live in local storage under the `ccr:` prefix, apart from Corner Cutters' even on the same site, as one versioned document, `ccr:save` (`src/engine/save.ts`; the game's format in `src/f1/save.ts`): **settings**, **choices** (your paint scheme and the difficulty), **progress** (the controls lap done), and **rally** (the rally under way, your best finishes, your best stage times and the season).
