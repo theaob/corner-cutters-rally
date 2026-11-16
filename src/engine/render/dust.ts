@@ -35,8 +35,8 @@ export interface DustLook {
  */
 export const DUST: Record<DustKind, DustLook> = {
   gravel: { colors: [0xd9bb8e, 0xbf9b70], life: [1.4, 2.2], size: [10, 46], alpha: 0.5, rate: 26, slide: 30, carry: 0.22, spread: 26, rise: 7, drag: 1.6 },
-  sand: { colors: [0xe6cd9c, 0xd2b07a], life: [2.0, 3.0], size: [12, 58], alpha: 0.55, rate: 30, slide: 34, carry: 0.2, spread: 30, rise: 6, drag: 1.3 },
-  snow: { colors: [0xf6f9ff, 0xdbe6f2], life: [0.8, 1.3], size: [8, 34], alpha: 0.7, rate: 30, slide: 38, carry: 0.3, spread: 34, rise: 10, drag: 2.4 },
+  sand: { colors: [0xe6cd9c, 0xd2b07a], life: [2.0, 3.0], size: [12, 58], alpha: 0.6, rate: 30, slide: 34, carry: 0.2, spread: 30, rise: 6, drag: 1.3 },
+  snow: { colors: [0xffffff, 0xe4ecf6], life: [1.0, 1.6], size: [10, 40], alpha: 0.9, rate: 30, slide: 38, carry: 0.3, spread: 34, rise: 10, drag: 2.4 },
   grass: { colors: [0xb8a07a, 0x9c8462], life: [0.9, 1.4], size: [8, 28], alpha: 0.42, rate: 16, slide: 18, carry: 0.2, spread: 18, rise: 6, drag: 2.0 },
 };
 
