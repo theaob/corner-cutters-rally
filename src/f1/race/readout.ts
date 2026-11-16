@@ -1,7 +1,6 @@
 // The readout's lines (the panel top left on a wide screen, down the left on a
-// phone): the stage clock and your best time on the stage, your car's health
-// and tyres as five blocks each (SIM); TOP-DOWN's is shorter, the stage clock, the
-// gap at the last split and your car's health (no tyres: you never pick them); each line a row of an
+// phone): the stage clock, the gap at the last split and your car's health as five blocks (no tyres: you never pick
+// them); each line a row of an
 // icon, its label and its value (readoutRows), the values lined up in a column
 // of their own. Engine-free.
 
@@ -15,34 +14,16 @@ export const blocks = (share: number) => {
   return '■'.repeat(n) + '□'.repeat(5 - n);
 };
 
-/** The readout's main lines: the stage clock, your best on the stage, and your car. */
-export function readoutText(r: {
-  time?: number;
-  best?: number;
-  /** your car: its health's share, or wrecked */
-  health: number;
-  wrecked: boolean;
-}): string {
-  const car = r.wrecked ? t('WRECKED') : blocks(r.health);
-  return `TIME ${fmt(r.time)}\nBEST ${fmt(r.best)}\nCAR  ${car}\n`;
-}
-
 /** The gap at a split as the readout says it: −0.42 ahead of the stage's quickest crew, +1.10 behind; none yet: –. */
 export function gapValue(gap: number | undefined): string {
   if (gap === undefined) return '–';
   return `${gap < 0 ? '−' : '+'}${Math.abs(gap).toFixed(2)}`;
 }
 
-/** TOP-DOWN's readout: the stage clock, the gap at the last split (on a rally's stage), and your car's health as pips. */
+/** The readout: the stage clock, the gap at the last split (on a rally's stage), and your car's health as pips. */
 export function topDownReadout(r: { time?: number; gap?: number; splits: boolean; health: number; wrecked: boolean }): string {
   const car = r.wrecked ? t('WRECKED') : blocks(r.health);
   return `TIME ${fmt(r.time)}\n${r.splits ? `GAP  ${gapValue(r.gap)}\n` : ''}CAR  ${car}\n`;
-}
-
-/** The tyre line: the compound, five blocks (and the share left, on the wide screen); past their best, WORN on a line of its own. */
-export function tyreText(short: string, wear: number, showShare: boolean): string {
-  const left = 1 - wear;
-  return `TYRE ${short} ${blocks(left)}${showShare ? ` ${Math.round(left * 100)}%` : ''}\n${wear >= 0.7 ? 'WORN\n' : ''}`;
 }
 
 /** A line of the readout as its row: an icon, the label, the value; `span`: label and value as one, across both columns (a long label, on a narrow phone). */

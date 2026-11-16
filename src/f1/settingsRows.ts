@@ -1,13 +1,12 @@
 // The settings rows shared by the menu's SETTINGS screen and the pause screen:
 // the screen's shape (SCREEN: HANDHELD or WIDE, where the device can switch), the text's size (TEXT) and the
-// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the driving's STYLE (TOP-DOWN or SIM) the camera (VIEW), the driving (GAS, STEERING, ASSIST, and on a touch screen SIDES: src/engine/drive/settings.ts), vibration, screen shake, the grid walk
+// colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), the thumbstick's side (STICK, as in Corner Cutters), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
 // as it changes, and PRIVACY and TERMS, opened with a tap; as in Corner Cutters, LANGUAGE, NAME (your three letters on
 // the timing screens), GRAPHICS (the picture's quality, or a battery saver), MOTION (less movement), BACK UP and RESTORE
 // (the save as a code, to move to another device) and PLAYER ID. Difficulty is the menu's alone (not changed mid-race).
 // They're laid out as Corner Cutters lays out its settings: a list of pages, CONTROLS, GAME, SOUND and ACCESSIBILITY
-// (settingsPages), each page its rows and BACK; and VIEW and GAS only when STYLE is SIM: TOP-DOWN has its own view and
-// the gas always on, so there they'd do nothing.
+// (settingsPages), each page its rows and BACK. There's one way to drive and one view, so neither is a setting.
 
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
 import { VOLUMES, setSoundVolume, soundVolume } from '../engine/audio';
@@ -17,10 +16,7 @@ import { menuPick, menuTick } from './sounds';
 import { YOUTUBE } from '../engine/host';
 import { PRIVACY_URL, TERMS_URL } from './legal';
 import { setShake, shakeOn } from './shake';
-import { DRIVE_STYLES, GAS_MODES, STEER_SIDES, savedDriveSettings, setDriveSetting } from '../engine/drive/settings';
-import { STEER_FEELS } from '../engine/drive/steering';
-import { ASSIST_LEVELS } from '../engine/drive/assist';
-import { VIEWS, VIEW_ABOUT, setView, viewSetting } from './view';
+import { setStickSide, stickSide, type StickSide } from '../engine/deck';
 import { INITIALS, initials, playerId, setInitials, setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import { isTouchScreen, type LayoutMode } from '../engine/layout';
@@ -52,7 +48,7 @@ export type SettingsRow = Omit<ReturnType<typeof optionRow<unknown>>, 'el'> & {
   el: HTMLElement;
   /** its page (settingsPages) */
   section?: SettingsSection;
-  /** shown just now (VIEW, GAS, STEERING and SIDES only in SIM); shown if unsaid */
+  /** shown just now; shown if unsaid */
   shown?: () => boolean;
   /** A or START on the row (a link, a copy): what it does besides stepping */
   activate?: () => void;
@@ -65,7 +61,7 @@ export const SECTION_NAME: Record<SettingsSection, string> = { controls: 'CONTRO
 
 /** Each row's page, by its label. */
 export const ROW_SECTION: Record<string, SettingsSection> = {
-  STYLE: 'controls', VIEW: 'controls', GAS: 'controls', STEERING: 'controls', ASSIST: 'controls', SIDES: 'controls', VIBRATION: 'controls',
+  STICK: 'controls', VIBRATION: 'controls',
   DIFFICULTY: 'game', LANGUAGE: 'game', NAME: 'game', GRAPHICS: 'game', SCREEN: 'game', STATS: 'game', 'BACK UP': 'game', RESTORE: 'game',
   PRIVACY: 'game', TERMS: 'game', 'PLAYER ID': 'game',
   SOUND: 'sound', MUSIC: 'sound',
@@ -196,31 +192,12 @@ function openPage(url: string): void {
 
 /** The rows, read from the save as they are now. */
 export function settingsRows(): SettingsRow[] {
-  const viewRow = optionRow('VIEW', VIEWS, viewSetting(), (v) => ({ name: v.toUpperCase(), about: VIEW_ABOUT[v] }), setView);
-  // the driving (src/engine/drive/)
-  const ds = savedDriveSettings();
-  const gasRow = optionRow('GAS', GAS_MODES, ds.gas, (g) => ({ name: g.toUpperCase(), about: g === 'auto' ? 'always on: you steer and brake' : 'yours: hold the gas pedal (SIM)' }), (g) => setDriveSetting('gas', g));
-  // (VIEW, GAS, STEERING and SIDES only for SIM: TOP-DOWN has its own view, the gas always on, and one thumb that
-  // points anywhere across the screen; shown or hidden as STYLE changes)
-  let style = ds.style;
-  const simOnly = () => style === 'sim';
-  const styleRow = optionRow('STYLE', DRIVE_STYLES, ds.style, (st) => ({
-    name: st === 'topdown' ? 'TOP-DOWN' : 'SIM',
-    about: st === 'topdown' ? 'high view · gas always on · soft roadside' : 'your VIEW and GAS · full speed · hard trees',
-  }), (st) => {
-    setDriveSetting('style', st);
-    style = st;
+  // STICK: which side the thumbstick sits on (Corner Cutters' row: the deck's A and B go to the other; a touch screen's only)
+  const deck = document.getElementById('deck');
+  const sides: StickSide[] = ['left', 'right'];
+  const stickRow = optionRow('STICK', sides, stickSide(), (side) => ({ name: side.toUpperCase(), about: side === 'left' ? 'thumbstick left · A and B right' : 'thumbstick right · A and B left' }), (side) => {
+    if (deck) setStickSide(deck, side);
   });
-  const steeringRow = optionRow('STEERING', STEER_FEELS, ds.feel, (f) => ({
-    name: f.toUpperCase(),
-    about: f === 'gentle' ? 'slower and softer, for fine lines' : f === 'quick' ? 'sharper, for the hairpins' : 'the wheel as set up',
-  }), (f) => setDriveSetting('feel', f));
-  const assistRow = optionRow('ASSIST', ASSIST_LEVELS, ds.assist, (a) => ({
-    name: a.toUpperCase(),
-    about: a === 'off' ? 'all your own steering' : a === 'strong' ? 'a firm hand keeps you on the road' : 'a light hand toward the road',
-  }), (a) => setDriveSetting('assist', a));
-  const sidesRow = optionRow('SIDES', STEER_SIDES, ds.side, (side) => ({ name: side === 'left' ? 'STEER LEFT' : 'STEER RIGHT', about: side === 'left' ? 'left thumb steers · pedals right' : 'right thumb steers · pedals left' }), (side) => setDriveSetting('side', side));
-  const touchScreen = isTouchScreen();
   const vibrationRow = optionRow('VIBRATION', [true, false], vibrationOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, grass, kerbs' : 'no buzzing' }), (on) => {
     setVibration(on);
     vibrate(40);
@@ -276,15 +253,13 @@ export function settingsRows(): SettingsRow[] {
     : undefined;
   // (each with its label, for its page; STATS only where the build has a backend to send them to)
   const rows: [SettingsRow, string][] = ([
-    [styleRow, 'STYLE'], [viewRow, 'VIEW'], [gasRow, 'GAS'], [steeringRow, 'STEERING'], [assistRow, 'ASSIST'], [touchScreen && sidesRow, 'SIDES'],
+    [isTouchScreen() && stickRow, 'STICK'],
     [vibrationRow, 'VIBRATION'],
     [languageRow, 'LANGUAGE'], [nameRow(), 'NAME'], [graphicsRow, 'GRAPHICS'], [screenRow, 'SCREEN'], [online() && statsRow, 'STATS'],
     [backupRow, 'BACK UP'], [restoreRow(), 'RESTORE'], [!YOUTUBE && privacyRow, 'PRIVACY'], [!YOUTUBE && termsRow, 'TERMS'], [!YOUTUBE && idRow, 'PLAYER ID'],
     [soundRow, 'SOUND'], [musicRow, 'MUSIC'],
     [textRow, 'TEXT'], [coloursRow, 'COLOURS'], [motionRow, 'MOTION'], [shakeRow, 'SCREEN SHAKE'],
   ] as [SettingsRow | false | undefined, string][]).filter((r): r is [SettingsRow, string] => !!r[0]);
-  // (VIEW, GAS, STEERING and SIDES only in SIM)
-  for (const r of [viewRow, gasRow, steeringRow, sidesRow] as SettingsRow[]) r.shown = simOnly;
   return rows.map(([r, label]) => sectioned(r, label));
 }
 
@@ -341,7 +316,7 @@ export function settingsPages(rows: SettingsRow[], onDone: () => void) {
     end.classList.toggle('focused', focus === count);
     version.style.display = page ? 'none' : '';
   };
-  // a tap on a row focuses it, and a change shows or hides the rows it governs (STYLE: VIEW and GAS)
+  // a tap on a row focuses it, and a change shows or hides any rows it governs
   for (const r of rows) {
     r.el.addEventListener('pointerdown', () => {
       if (!page) return;

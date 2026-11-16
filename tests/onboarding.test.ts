@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STEPS, advance, apexesPassed, newOnboarding, prompt, stepsFor, type Facts } from '../src/f1/onboarding';
+import { STEPS, advance, apexesPassed, newOnboarding, pointsOn, prompt, type Facts } from '../src/f1/onboarding';
 
 const facts = (f: Partial<Facts> = {}): Facts => ({ speed: 0, top: 320, bends: 0, drifting: false, lapDone: false, ...f });
 
@@ -38,10 +38,13 @@ describe('the controls lap', () => {
   });
   it('says each prompt for the device you drive with', () => {
     for (const step of STEPS) for (const device of ['touch', 'keys', 'pad'] as const) expect(prompt(step, device).length).toBeGreaterThan(5);
-    expect(prompt('go', 'touch')).toContain('DRAG ACROSS TO STEER');
-    expect(prompt('go', 'touch', 'auto')).toContain('THE GAS IS ON');
-    expect(prompt('go', 'keys')).toContain('UP');
+    // (Corner Cutters' AUTO: the touch stick points the way, the keys and a gamepad steer the car)
+    expect(prompt('go', 'touch')).toBe('PUSH THE STICK THE WAY YOU WANT TO GO');
+    expect(prompt('bend', 'touch')).toContain('EASE THE STICK IN');
+    expect(prompt('go', 'keys')).toContain('UP TO GO');
+    expect(prompt('go', 'pad')).toContain('TRIGGER');
     expect(prompt('bend', 'pad')).toContain('TRIGGER');
+    expect(prompt('drift', 'keys')).toContain('HOLD X');
   });
   it('counts the bends passed, round the loop', () => {
     const apexes = [10, 50, 95];
@@ -55,29 +58,10 @@ describe('the controls lap', () => {
   });
 });
 
-describe("TOP-DOWN's controls lap", () => {
-  it('is four steps: go, a bend, the calls, the finish (no FASTER with the gas always on, no DRIFT)', () => {
-    const steps = stepsFor('topdown');
-    expect(steps.filter((s) => s !== 'done')).toEqual(['go', 'bend', 'notes', 'lap']);
-    expect(stepsFor('sim')).toEqual(STEPS);
-    const o = newOnboarding();
-    const f = (x: Partial<Facts>): Facts => ({ speed: 0, top: 256, bends: 0, drifting: false, lapDone: false, ...x });
-    advance(o, f({ speed: 120 }), steps);
-    expect(o.step).toBe('bend');
-    advance(o, f({ speed: 200, bends: 1 }), steps);
-    expect(o.step).toBe('notes');
-    advance(o, f({ bends: 2 }), steps);
-    expect(o.step).toBe('lap');
-    advance(o, f({ bends: 3, lapDone: true }), steps);
-    expect(o.step).toBe('done');
-  });
-
-  it('teaches the slide with the brake, never DRIFT', () => {
-    for (const device of ['touch', 'keys', 'pad'] as const) {
-      const p = prompt('bend', device, 'auto', 'topdown');
-      expect(p).toContain('SLIDE');
-      expect(p).not.toContain('DRIFT');
-    }
+describe('one way to drive (Corner Cutters\' AUTO)', () => {
+  it('the touch stick points the way to go; the keys and a gamepad steer the car', () => {
+    expect(pointsOn('touch')).toBe(true);
+    expect(pointsOn('keys')).toBe(false);
+    expect(pointsOn('pad')).toBe(false);
   });
 });
-

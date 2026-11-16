@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { REFERENCE, carClass } from '../src/engine/driving';
-import { driveSettings, savedDriveSettings, setDriveSetting } from '../src/engine/drive/settings';
 import { useSave, type SaveStore } from '../src/engine/save';
 import { useStore } from '../src/engine/storage';
 import { NORMAL, handlingFor } from '../src/f1/difficulty';
@@ -19,42 +18,26 @@ beforeEach(() => {
   useSave(CC_SAVE, memory());
 });
 
-describe('STYLE', () => {
-  it('is TOP-DOWN to begin with, and TOP-DOWN drives with the gas always on whatever GAS says', () => {
-    expect(driveSettings().style).toBe('topdown');
-    setDriveSetting('gas', 'manual');
-    expect(driveSettings().gas).toBe('auto');
-    expect(savedDriveSettings().gas).toBe('manual');
-  });
-
-  it('SIM drives as the settings say', () => {
-    setDriveSetting('style', 'sim');
-    setDriveSetting('gas', 'manual');
-    expect(driveSettings().gas).toBe('manual');
-  });
-
-  it("gives TOP-DOWN a car as quick as SIM's that keeps more of its speed off the road, SIM the car as it was", () => {
-    expect(rallyCar('sim')).toEqual(carClass('f1'));
-    expect(rallyCar('topdown').topSpeed).toBeCloseTo(carClass('f1').topSpeed * TOP_DOWN.speed);
+describe('the stage car', () => {
+  it("is as quick as the reference car, quicker off the line, and keeps more of its speed off the road", () => {
+    expect(rallyCar().topSpeed).toBeCloseTo(carClass('f1').topSpeed * TOP_DOWN.speed);
     expect(TOP_DOWN.speed).toBe(1);
-    expect(rallyCar('topdown').turnRate).toBe(carClass('f1').turnRate);
+    expect(rallyCar().turnRate).toBe(carClass('f1').turnRate);
     expect(TOP_DOWN.zeroToTop).toBeLessThan(1.4);
     expect(TOP_DOWN.zeroToTop).toBeGreaterThanOrEqual(REFERENCE.zeroToTop * 0.9);
-    expect(rallyCar('topdown').offRoad).toBeGreaterThan(carClass('f1').offRoad * 2);
+    expect(rallyCar().offRoad).toBeGreaterThan(carClass('f1').offRoad * 2);
   });
 
-  it("softens TOP-DOWN's crashes and never rolls the car; leaves SIM's alone", () => {
+  it('crashes softly and never rolls', () => {
     const h = handlingFor(NORMAL);
-    expect(styleHandling(h, 'sim')).toBe(h);
-    const soft = styleHandling(h, 'topdown');
+    const soft = styleHandling(h);
     expect(soft.crashDamage).toBeLessThan(h.crashDamage);
     expect(soft.crashThreshold).toBeGreaterThan(h.crashThreshold);
     expect(soft.noRolls).toBe(true);
   });
 
-  it("keeps TOP-DOWN's stage bests apart from SIM's", () => {
-    expect(bestKey('ss-pine-ridge', 'sim')).toBe('ss-pine-ridge');
-    expect(bestKey('ss-pine-ridge', 'topdown')).not.toBe('ss-pine-ridge');
+  it('keeps stage bests under the key they were saved with before', () => {
+    expect(bestKey('ss-pine-ridge')).toBe('ss-pine-ridge@topdown');
   });
 });
 
@@ -63,7 +46,7 @@ const PHONE: SightScreen = { width: 195, height: 423, desktop: false };
 const SHORT: SightScreen = { width: 195, height: 216, desktop: false };
 const DESKTOP: SightScreen = { width: 533, height: 300, desktop: true };
 const PITCH = (HD2D_VIEW.pitch * Math.PI) / 180;
-const TOP = rallyCar('topdown').topSpeed;
+const TOP = rallyCar().topSpeed;
 
 /**
  * px of road in sight ahead of a car going `way` (radians, 0 north) at top speed, through the camera as the stage sets it

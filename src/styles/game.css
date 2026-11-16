@@ -1290,68 +1290,6 @@ html.no-pause-blur .pause-settings {
 .desktop .circuit-menu {
   padding: 24px max(24px, calc(50% - 220px));
 }
-.tune-toggle {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 5; /* over the race readouts, minimap and results */
-  padding: 4px 8px;
-  border: 1px solid var(--key-edge);
-  border-radius: 8px;
-  background: rgba(21, 20, 31, 0.85);
-  color: var(--gold);
-  font-family: var(--pixel);
-  font-size: 12px;
-}
-.tune-panel {
-  position: absolute;
-  top: 36px;
-  left: 6px;
-  right: 6px;
-  z-index: 5; /* over the race readouts, minimap and results */
-  max-height: calc(100% - 44px);
-  overflow-y: auto;
-  box-sizing: border-box;
-  padding: 10px;
-  border-radius: 10px;
-  background: rgba(21, 20, 31, 0.92);
-  font-family: system-ui, sans-serif;
-  font-size: 14px;
-  color: var(--text);
-}
-.tune-panel.peeking {
-  opacity: 0;
-}
-.tune-row {
-  display: grid;
-  grid-template-columns: 1fr 44px;
-  gap: 2px 8px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.tune-row span {
-  grid-column: 1 / 3;
-  color: var(--muted);
-}
-.tune-row input {
-  width: 100%;
-}
-.tune-row output {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.tune-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-.tune-actions button {
-  padding: 6px 12px;
-  border: 1px solid var(--key-edge);
-  border-radius: 8px;
-  background: var(--key);
-  color: var(--text);
-}
 #screen canvas {
   display: block;
 }
@@ -1361,11 +1299,6 @@ html.no-pause-blur .pause-settings {
 }
 .menu #screen {
   flex: 1;
-}
-/* (the TUNE panel is for races) */
-.menu .tune-toggle,
-.menu .tune-panel {
-  display: none;
 }
 .menu .circuit-menu {
   justify-content: center;
@@ -1425,7 +1358,7 @@ html.no-pause-blur .pause-settings {
 }
 /* on a phone the race picture fills the column, top to bottom, and the deck floats over it with no panel
    behind it (src/engine/layout.ts), laid out as drawn in the HUD Lab: RESTART and PAUSE in the top corners
-   (the stage's km to go between them), the driving (src/engine/drive/touch.ts) and A along the bottom; the race's own
+   (the stage's km to go between them), the thumbstick and A along the bottom; the race's own
    readouts are placed in src/f1/race.ts (placeHud) */
 html:not(.desktop) #app {
   position: relative;
@@ -1515,10 +1448,6 @@ html:not(.desktop) #deck.results-up .sys .icon svg {
 html:not(.desktop) #deck.results-up .sys .idle {
   display: none;
 }
-/* (and TUNE: nothing to tune on the results) */
-html.results-up:not(.desktop) .tune-toggle {
-  visibility: hidden;
-}
 /* (and the lap panel goes: the results have the screen to themselves; so do the pause screen and its settings,
    which it would sit over) */
 html:not(.desktop) #deck.results-up .strip,
@@ -1533,23 +1462,12 @@ html:not(.desktop) #deck.results-up .sys [data-button='select'] {
 html:not(.desktop) #deck.results-up .sys [data-button='start'] {
   order: 2;
 }
-/* (TUNE, the dev sliders, between the controls at the bottom: the top corners are the deck's) */
-html:not(.desktop) .tune-toggle {
-  top: auto;
-  right: auto;
-  left: 50%;
-  bottom: calc(18px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-}
 html:not(.desktop) .face .label {
   text-shadow: 0 1px 0 #000, 0 0 4px #000;
 }
-/* A on a phone: at the bottom on the right (on to the results, the menu); while you drive (SKIP on the controls
-   lap) up top in the middle, out of the thumbs' way */
-html:not(.desktop) #deck .controls {
-  justify-content: flex-end;
-}
-html:not(.desktop):not(.results-up):not(.paused):not(.ceremony) #deck.driving .face {
+/* A on a phone: at the bottom opposite the thumbstick (on to the results, the menu); while you drive (SKIP on the
+   controls lap) up top in the middle, out of the thumbs' way */
+html:not(.desktop):not(.results-up):not(.paused):not(.ceremony) #deck.driving .face .col:not(.low) {
   position: absolute;
   top: 58px;
   left: 50%;
@@ -1557,260 +1475,101 @@ html:not(.desktop):not(.results-up):not(.paused):not(.ceremony) #deck.driving .f
   transform-origin: top center;
   z-index: 1;
 }
-/* THE DRIVING on a touch screen (src/engine/drive/touch.ts), while you drive: one thumb's half of the lower screen to
-   steer (drag across from wherever it lands), the pedals in the other corner. SIDES swaps them */
-.drive {
+/* THE DRIVING on a touch screen, as in Corner Cutters (src/engine/deck.ts): the floating thumbstick, pointed the way to
+   go and pushed further for more speed; at rest in its corner, dimmed */
+html:not(.desktop) .stick {
+  background: radial-gradient(circle, rgba(27, 26, 41, 0.45) 0 58%, rgba(37, 35, 58, 0.6) 60%);
+  /* (floating: the zone takes the touches, and the stick glides back to its corner when let go) */
+  pointer-events: none !important;
+  transition: transform 0.15s ease-out, opacity 0.15s;
+}
+html:not(.desktop) #deck .stick:not(.pressed) {
+  opacity: 0.6;
+}
+html:not(.desktop) #deck .stick.pressed {
+  transition: opacity 0.15s;
+}
+/* (nothing to steer on the results, the pause screen or the ceremony) */
+html.results-up:not(.desktop) #deck .stick,
+html.ceremony:not(.desktop) #deck .stick,
+html.paused:not(.desktop) #deck .stick {
+  visibility: hidden;
+}
+/* the floating stick's zone: the stick's side of the lower half of the screen, short of the middle; a thumb landing
+   anywhere on it brings the stick there (deck.ts) */
+.stick-zone {
   display: none;
 }
-html:not(.desktop):not(.menu):not(.results-up):not(.ceremony):not(.paused) #deck.driving .drive {
+html:not(.desktop) #deck .stick-zone {
   display: block;
   position: absolute;
+  bottom: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  height: 58%;
-  pointer-events: none;
-}
-.drive-steer,
-.drive-pedals {
-  position: absolute;
-  top: 0;
-  bottom: 0;
+  width: calc(50% - 36px);
+  height: 50%;
   pointer-events: auto;
   touch-action: none;
 }
-.drive-steer { left: 0; width: 52%; }
-.drive-pedals { right: 0; width: 48%; }
-.drive[data-side='right'] .drive-steer { left: auto; right: 0; }
-.drive[data-side='right'] .drive-pedals { right: auto; left: 0; }
-/* the wheel: at rest low in the middle of its half, dimmed; under the thumb while it steers */
-.drive-wheel {
-  position: absolute;
-  left: 50%;
-  top: calc(100% - 96px - env(safe-area-inset-bottom));
-  width: 168px;
-  height: 54px;
-  margin: -27px 0 0 -84px;
+html:not(.desktop) #deck.stick-right .stick-zone {
+  left: auto;
+  right: 0;
+}
+html.results-up:not(.desktop) #deck .stick-zone,
+html.ceremony:not(.desktop) #deck .stick-zone,
+html.paused:not(.desktop) #deck .stick-zone,
+html.menu #deck .stick-zone {
+  display: none;
+}
+/* the thumbstick on the right (STICK in the settings): the stick and the A/B buttons swap sides, and A and B mirror
+   so B stays on the inside, by the thumb */
+html:not(.desktop) #deck.stick-right .controls,
+html:not(.desktop) #deck.stick-right .face {
+  flex-direction: row-reverse;
+}
+/* the analogue thumbstick: a round well with a knob that follows the thumb */
+.stick {
+  position: relative;
+  width: 108px;
+  height: 108px;
   box-sizing: border-box;
-  border-radius: 27px;
+  border-radius: 50%;
   border: 1px solid var(--key-edge);
-  background: linear-gradient(90deg, transparent calc(50% - 1px), rgba(143, 139, 184, 0.55) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)), rgba(27, 26, 41, 0.6);
+  background: radial-gradient(circle, #1b1a29 0 58%, var(--key) 60%);
   box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5);
-  opacity: 0.55;
-  transition: opacity 0.15s;
-  pointer-events: none;
+  touch-action: none;
 }
-.drive-steer.pressed .drive-wheel {
-  opacity: 1;
-}
-.drive-wheel-arrow {
+.stick .tick {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
   font-size: 10px;
   line-height: 1;
-  color: #8f8bb8;
+  color: #6f6c8c;
+  pointer-events: none;
 }
-.drive-wheel-arrow.left { left: 11px; }
-.drive-wheel-arrow.right { right: 11px; }
-.drive-wheel-knob {
+.stick .up { top: 6px; left: 50%; transform: translateX(-50%); }
+.stick .down { bottom: 6px; left: 50%; transform: translateX(-50%); }
+.stick .left { left: 7px; top: 50%; transform: translateY(-50%); }
+.stick .right { right: 7px; top: 50%; transform: translateY(-50%); }
+.stick .knob {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 44px;
-  height: 44px;
-  margin: -22px 0 0 -22px;
-  box-sizing: border-box;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
   border-radius: 50%;
-  border: 2px solid #5a577c;
+  border: 1px solid #5a577c;
   background: radial-gradient(circle at 38% 32%, #56537a, #34324c 62%, #26253a);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  /* springs back to the centre when let go; follows the thumb without lag while held */
+  transition: transform 0.12s ease-out;
 }
-.drive-steer.pressed .drive-wheel-knob {
+.stick.pressed .knob {
+  transition: none;
   border-color: var(--accent-b);
 }
-.drive-hint {
-  position: absolute;
-  left: 50%;
-  bottom: calc(30px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  font-family: var(--pixel);
-  font-size: 9px;
-  letter-spacing: 2px;
-  white-space: nowrap;
-  color: rgba(244, 244, 248, 0.5);
-  text-shadow: 0 1px 0 #000;
-  pointer-events: none;
-  transition: opacity 0.15s;
-}
-.drive-steer.pressed .drive-hint {
-  opacity: 0;
-}
-/* the pedals, in the corner: GAS outermost, BRAKE beside it, DRIFT (the handbrake) over BRAKE */
-.drive-pedal {
-  position: absolute;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--pixel);
-  letter-spacing: 1px;
-  border: 1px solid var(--key-edge);
-  border-radius: 16px;
-  background: rgba(37, 35, 58, 0.8);
-  text-shadow: 0 1px 0 #000;
-  pointer-events: none;
-}
-.drive-pedal.gas {
-  right: 14px;
-  bottom: calc(18px + env(safe-area-inset-bottom));
-  width: 84px;
-  height: 128px;
-  font-size: 15px;
-  color: var(--accent-b);
-}
-.drive-pedal.brake {
-  right: 106px;
-  bottom: calc(18px + env(safe-area-inset-bottom));
-  width: 76px;
-  height: 96px;
-  font-size: 12px;
-  color: #ff8a8a;
-}
-.drive-pedal.drift {
-  right: 106px;
-  bottom: calc(124px + env(safe-area-inset-bottom));
-  width: 76px;
-  height: 52px;
-  border-radius: 26px;
-  font-size: 11px;
-  color: #f2c14e;
-}
-.drive-pedal.pressed {
-  background: var(--key-held);
-  border-color: currentColor;
-  transform: translateY(2px);
-}
-/* GAS on AUTO: no gas pedal; BRAKE in its place, DRIFT over it */
-.drive[data-gas='auto'] .drive-pedal.gas {
+.desktop .stick {
   display: none;
-}
-.drive[data-gas='auto'] .drive-pedal.brake {
-  right: 14px;
-  width: 84px;
-  height: 128px;
-  font-size: 14px;
-}
-.drive[data-gas='auto'] .drive-pedal.drift {
-  right: 14px;
-  bottom: calc(156px + env(safe-area-inset-bottom));
-  width: 84px;
-}
-/* SIDES, steering on the right: the pedals in the left corner, mirrored (GAS outermost) */
-.drive[data-side='right'] .drive-pedal.gas { right: auto; left: 14px; }
-.drive[data-side='right'] .drive-pedal.brake,
-.drive[data-side='right'] .drive-pedal.drift { right: auto; left: 106px; }
-.drive[data-side='right'][data-gas='auto'] .drive-pedal.brake,
-.drive[data-side='right'][data-gas='auto'] .drive-pedal.drift { left: 14px; }
-/* TOP-DOWN: no DRIFT, and BRAKE is a zone, not a pedal: the whole other half brakes (src/engine/drive/touch.ts),
-   drawn as a low panel across its foot */
-.drive[data-style='topdown'] .drive-pedal.drift {
-  display: none;
-}
-.drive[data-style='topdown'][data-gas] .drive-pedal.brake {
-  left: 10px;
-  right: 10px;
-  width: auto;
-  height: 150px;
-  bottom: calc(18px + env(safe-area-inset-bottom));
-  align-items: flex-end;
-  padding-bottom: 16px;
-  border-radius: 22px;
-  border-style: dashed;
-  border-color: rgba(255, 138, 138, 0.45);
-  background: rgba(37, 35, 58, 0.35);
-  font-size: 13px;
-  letter-spacing: 3px;
-}
-.drive[data-style='topdown'][data-gas] .drive-pedal.brake.pressed {
-  transform: none;
-  border-style: solid;
-  border-color: #ff8a8a;
-  background: rgba(216, 50, 60, 0.28);
-}
-/* CONTROL: POINT (TOP-DOWN): a ring, not a wheel; the knob goes the way the thumb points */
-.drive[data-control='point'] .drive-wheel {
-  width: 116px;
-  height: 116px;
-  margin: -58px 0 0 -58px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle, transparent 0 21px, rgba(143, 139, 184, 0.28) 21px 22px, transparent 22px),
-    rgba(27, 26, 41, 0.55);
-}
-/* pushed out to the ring's edge: the drift's push (src/engine/drive/point.ts) */
-.drive[data-control='point'] .drive-wheel.pushed {
-  border-color: #f2c14e;
-}
-/* TOP-DOWN: no brake, nothing but the one thumb; it can land anywhere across the lower screen */
-.drive[data-style='topdown'] .drive-pedals {
-  display: none;
-}
-.drive[data-style='topdown'] .drive-steer,
-.drive[data-style='topdown'][data-side='right'] .drive-steer {
-  left: 0;
-  right: 0;
-  width: auto;
-}
-/* TOP-DOWN keeps its own view: no camera button */
-html.topdown #deck .view-btn {
-  display: none !important;
-}
-.drive[data-control='point'] .drive-wheel-arrow {
-  display: none;
-}
-.drive[data-control='point'] .drive-wheel-knob {
-  width: 40px;
-  height: 40px;
-  margin: -20px 0 0 -20px;
-}
-/* once you've steered, the wheel fades back out of the picture till a thumb's on it again */
-.drive.steered .drive-steer:not(.pressed) .drive-wheel {
-  opacity: 0.18;
-  transition: opacity 0.6s;
-}
-.drive.steered .drive-hint {
-  opacity: 0;
-}
-/* the camera button: under PAUSE, top right, while you drive a stage (C on the keys; VIEW in the settings) */
-.view-btn {
-  display: none;
-}
-html:not(.desktop):not(.menu):not(.results-up):not(.ceremony):not(.paused) #deck .view-btn {
-  display: flex;
-  position: absolute;
-  top: 60px;
-  right: 12px;
-  z-index: 1;
-  width: 44px;
-  height: 44px;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border-radius: 50%;
-  border: 1px solid var(--key-edge);
-  background: rgba(37, 35, 58, 0.75);
-  color: var(--text);
-  pointer-events: auto;
-  touch-action: none;
-  cursor: pointer;
-}
-.view-btn svg {
-  width: 22px;
-  height: 22px;
-}
-.view-btn:active {
-  background: var(--key-held);
 }
 html:not(.desktop) .sys button {
   background: rgba(37, 35, 58, 0.75);
@@ -1847,9 +1606,15 @@ html:not(.desktop) .sys button {
   width: 30px;
   height: 30px;
 }
-/* no B on the touch deck: DRIFT is the driving layer's (src/engine/drive/touch.ts); B is a key or a pad's button */
+/* no drift button on the touch deck: B (DRIFT) is on the keys and a gamepad only (the wide layout shows its key) */
 html:not(.desktop) .face .col.low {
   display: none;
+}
+/* on dirt (race.ts sets html.dirt), a DRIFT button on the touch deck too, opposite the thumbstick: drifting's the way
+   round there (as in Corner Cutters) */
+html.dirt:not(.desktop) .face .col.low {
+  display: flex;
+  margin-top: 0;
 }
 /* a button that does nothing just now is out of sight (still in its place, so the others don't move) */
 #deck .idle {
@@ -1914,7 +1679,7 @@ html:not(.desktop) .face .col.low {
   padding: 0;
   pointer-events: none;
 }
-/* top centre: the race readouts sit top left and TUNE top right */
+/* top centre: the race readouts sit top left */
 .desktop .strip {
   position: absolute;
   left: 50%;
@@ -2016,10 +1781,6 @@ html.menu.desktop .strip {
 .desktop .sys button[data-button='select']::before {
   content: 'BKSP';
   color: var(--muted);
-}
-.desktop .tune-panel {
-  right: auto;
-  width: 340px;
 }
 /* the curtain between screens (src/f1/screens/curtain.ts), down as the page opens */
 #curtain {

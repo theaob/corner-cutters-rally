@@ -1,9 +1,8 @@
 import { type StandaloneView } from './engine/view';
 import { applyLanguage, markSettingsResume, onLanguageChange, settingsResumePending, t } from './engine/i18n';
-import { mountTuning } from './engine/tuning';
 import { Controls, bindGamepad, bindKeyboard, guardInput } from './engine/controls';
 import type { Services } from './engine/services';
-import { Hud, bindDeck, releaseDeck } from './engine/deck';
+import { Hud, bindDeck, releaseDeck, setStickSide, stickSide } from './engine/deck';
 import { showInputLog } from './engine/inputLog';
 import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
 import { save, saved } from './engine/save';
@@ -11,7 +10,6 @@ import { playMusic } from './engine/music';
 import { THEME_MUSIC } from './f1/music';
 import { unlockAudio } from './engine/audio';
 import { startClock, track } from './f1/metrics';
-import { F1_TUNING } from './f1/tuning';
 import { layoutById, type CircuitLayout } from './f1/layouts';
 import { SHAKEDOWN } from './f1/stages';
 import { curtainDown, curtainFirstUp, curtainIsDown, curtainUp } from './f1/screens/curtain';
@@ -86,6 +84,7 @@ void listenForBack(() => hintToast('PRESS BACK AGAIN TO EXIT'));
 // (with ?debug, a press of it by hand: __back())
 if (new URLSearchParams(location.search).has('debug')) Object.assign(window, { __log: () => ({ device: device(), notes: lines() }), __back: () => pressBack(performance.now() / 1000, () => hintToast('PRESS BACK AGAIN TO EXIT'), () => console.log('exit')) });
 bindDeck(deck, controls);
+setStickSide(deck, stickSide());
 guardInput(controls, () => releaseDeck(deck));
 const services: Services = { controls, hud: new Hud(deck) };
 // ?inputlog lists the input events the page receives, for debugging controls on a device
@@ -146,7 +145,6 @@ let current: { close(): void } | undefined;
 /** Counts screen changes: a screen that finishes opening after a newer change is closed at once. */
 let routeId = 0;
 /** The TUNE button (camera and the like), mounted with the first stage; values are kept on the device. */
-let tuning: ReturnType<typeof mountTuning<typeof F1_TUNING>> | undefined;
 
 /** A new player: never done (or skipped) the controls lap, and nothing played yet (no rally, no stage run). */
 const needsControlsLap = () => saved('progress', 'onboarded') !== true && !loadRally() && !Object.keys(loadStageBests()).length;
@@ -408,8 +406,6 @@ async function showStage(id: number, stage: CircuitLayout, mode: Mode): Promise<
     return route();
   }
   document.documentElement.classList.remove('menu');
-  // (TUNE, the developer's panel, only with ?debug: a player's stage drives on the defaults)
-  if (new URLSearchParams(location.search).has('debug')) tuning ??= mountTuning(screen, 'f1', F1_TUNING);
   let stageOn: typeof import('./f1/race').stageOn;
   try {
     ({ stageOn } = await import('./f1/race'));
@@ -439,7 +435,7 @@ async function showStage(id: number, stage: CircuitLayout, mode: Mode): Promise<
         scheme: schemeById(yours?.scheme ?? crewById(yours?.crew)?.scheme) ?? savedScheme(), difficulty: difficultyById(rally.difficulty) ?? NORMAL,
         weather: weatherById(next.weather) ?? DRY, mode: 'rally', rally: { rally, stage: nextStage(rally), onDone: home },
       }
-    : { scheme: savedScheme(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' })({ host: screen, services, tuning, fit });
+    : { scheme: savedScheme(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' })({ host: screen, services, fit });
   if (id !== routeId) {
     view.dispose();
     return;

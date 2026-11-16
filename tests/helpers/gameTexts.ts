@@ -9,10 +9,6 @@ import { RACE_WEATHERS } from '../../src/f1/weather';
 import { SCHEMES } from '../../src/f1/crews';
 import { LABEL_ICON } from '../../src/f1/race/readout';
 import { prompt, STEPS, type Device } from '../../src/f1/onboarding';
-import { ASSIST_LEVELS } from '../../src/engine/drive/assist';
-import { STEER_FEELS } from '../../src/engine/drive/steering';
-import { GAS_MODES, type Control, type DriveStyle, type GasMode } from '../../src/engine/drive/settings';
-import { VIEWS } from '../../src/f1/view';
 import { RALLIES } from '../../src/f1/rally';
 import { STAGE_SPECS } from '../../src/f1/stages';
 
@@ -98,16 +94,12 @@ export function gameTexts(): string[] {
     ...literals(stripComments(readFileSync('src/f1/race/deckLabels.ts', 'utf8'))).filter((s) => /^[A-Z]+$/.test(s)),
     ...RALLIES.flatMap((e) => [e.name, e.surface, e.about]),
     ...STAGE_SPECS.map((l) => l.about),
-    ...[...VIEWS, ...GAS_MODES, ...STEER_FEELS, ...ASSIST_LEVELS].map((v) => v.toUpperCase()),
     // (a setting's choices, named and told about in the row's own callback: optionRow translates them)
-    ...['src/f1/settingsRows.ts', 'src/f1/view.ts', 'src/f1/screens/rally.ts'].flatMap((f) => fields(stripComments(readFileSync(f, 'utf8')))),
+    ...['src/f1/settingsRows.ts', 'src/f1/screens/rally.ts'].flatMap((f) => fields(stripComments(readFileSync(f, 'utf8')))),
     // (said through a variable: the stage notes on the results, the road's state)
     'WENT OFF', 'WORN', 'WRECKED', 'SPIN', 'PUNCTURE', 'ROLLED', 'DNF', 'PENALTY', 'DRY', 'DAMP', 'WET',
   ];
-  const prompts = STEPS.flatMap((step) =>
-    (['touch', 'keys', 'pad'] as Device[]).flatMap((d) =>
-      (['manual', 'auto'] as GasMode[]).flatMap((g) =>
-        (['sim', 'topdown'] as DriveStyle[]).flatMap((st) => (['wheel', 'point'] as Control[]).map((c) => prompt(step, d, g, st, c))))));
+  const prompts = STEPS.flatMap((step) => (['touch', 'keys', 'pad'] as Device[]).map((d) => prompt(step, d)));
 
   return [...new Set([...calls.keys(), ...tables, ...prompts])].filter((s) => translatable(s) && !SAME.has(s));
 }
