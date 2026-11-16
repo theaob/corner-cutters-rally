@@ -20,7 +20,8 @@ The rallies are run as a season, the way the World Rally Championship runs one (
 - **A calendar:** the rallies are its rounds, in the order below. The first opens on `SEASON.start` (Monday 16 November 2026), and a new one each week after it. A round once open stays open, so a player who comes late drives every round already out.
 - **The same crews:** the nine rival crews are drawn once for the season and race every round at the same pace.
 - **Points:** at the end of a round the top ten overall score 25, 18, 15, 12, 10, 8, 6, 4, 2 and 1, and the five quickest on its last stage, the **Power Stage**, a bonus of 5, 4, 3, 2 and 1.
-- **Once:** a round counts as it first finished; it isn't driven again that season. Retiring from a round leaves it to start again.
+- **Once:** a round counts as it first finished; it isn't driven again that season.
+- **Retiring** from a round scores you 0 points for it and ends it for the season, as a retirement does in the WRC; the rivals score as they stood then (no Power Stage bonus). RETIRE FROM THE RALLY says so first, and a second press confirms.
 - **The title:** the most points after the last round (then the most wins). **NEW SEASON** starts over with a fresh field.
 
 With `?debug`, `?seasonday=<n>` sets the calendar to `n` days after the first round opens.

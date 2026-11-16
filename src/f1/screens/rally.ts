@@ -27,7 +27,7 @@ import { COLOR, SURFACE_COLOR } from '../theme';
 import { language, t, upper } from '../../engine/i18n';
 import { ROUNDS, YOU, opensAt, roundOf, roundOpen, seasonOver, seasonPlace, seasonStandings, type Season } from '../season';
 
-export type RallyAction = 'stage' | 'abandon' | 'settings' | 'new-season' | { start: RallyEvent; scheme: Scheme };
+export type RallyAction = 'stage' | 'abandon' | 'retire' | 'settings' | 'new-season' | { start: RallyEvent; scheme: Scheme };
 
 /** The season home shows (season.ts), and the time its calendar goes by. */
 export interface SeasonView {
@@ -180,7 +180,7 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
           const done = season.results[e.id];
           const open = roundOpen(k, now);
           const state = done
-            ? { n: k + 1, state: `${ordinal(done.place)} · ${done.points[YOU] ?? 0} ${t('PTS')}`, color: done.place === 1 ? 'var(--gold)' : undefined }
+            ? { n: k + 1, state: `${done.place ? ordinal(done.place) : t('RETIRED')} · ${done.points[YOU] ?? 0} ${t('PTS')}`, color: done.place === 1 ? 'var(--gold)' : undefined }
             : open ? { n: k + 1, state: t('OPEN NOW'), color: 'var(--accent-b)' } : { n: k + 1, state: t('OPENS {date}', { date: shortDate(opensAt(k)) }) };
           const b = button('', () => !done && open && finish({ start: e, scheme: car.value() }));
           grid.append(rallyTile(e, bests[e.id]?.place, b, state));
@@ -255,7 +255,18 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
         info.style.borderLeft = `6px solid ${SURFACE_COLOR[e.surface]}`;
         screen.append(info);
         screen.append(button(`${t('START SS{n}', { n: k + 1 })} ▶`, () => finish('stage'), true));
-        screen.append(button(t('RETIRE FROM THE RALLY'), () => finish('abandon')));
+        if (rally.season) {
+          // (a season's round: retiring scores it 0 points and ends it for the season, so the player is told first)
+          const retire = button(t('RETIRE FROM THE RALLY'), () => {
+            if (warning.isConnected) return finish('retire');
+            retire.before(warning);
+            retire.textContent = t('RETIRE');
+            retire.classList.add('danger');
+          });
+          const warning = panel(line(t('IF YOU RETIRE, THIS ROUND SCORES 0 POINTS AND IS OVER FOR THIS SEASON'), COLOR.red),
+            line(t('PRESS RETIRE AGAIN TO CONFIRM'), 'var(--muted)'));
+          screen.append(retire);
+        } else screen.append(button(t('RETIRE FROM THE RALLY'), () => finish('abandon')));
       }
     }
     // (SETTINGS in a row of its own, set apart under the rest: not a rally itself)

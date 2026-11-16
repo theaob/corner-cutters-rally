@@ -26,7 +26,7 @@ import { reportProblem, watchCrashes } from './f1/crashes';
 import { hintToast } from './f1/screens/celebrate';
 import { listenForBack, pressBack } from './engine/backButton';
 import { newSeed } from './engine/rng';
-import { SEASON, currentSeason, saveSeason } from './f1/season';
+import { SEASON, currentSeason, retireRound, saveSeason } from './f1/season';
 import { NORMAL, difficultyById } from './f1/difficulty';
 import { DRY, weatherById } from './f1/weather';
 import { openReport, reportOpen } from './f1/report';
@@ -372,6 +372,11 @@ async function showHome(id: number): Promise<void> {
   if (action !== 'settings') stopBackdrop();
   if (action === 'stage' && rally && !rallyOver(rally)) navigate(withStage(rallyEvent(rally).stages[nextStage(rally)].layout, 'rally'));
   else if (action === 'abandon') {
+    saveRally(undefined);
+    void route();
+  } else if (action === 'retire') {
+    // (a season's round retired from: 0 points, and over for the season)
+    if (rally && retireRound(season, rally)) saveSeason(season);
     saveRally(undefined);
     void route();
   } else if (action === 'new-season') {

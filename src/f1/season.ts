@@ -2,8 +2,9 @@
 // (a new round opens each week; one that's open stays open, so a player who comes late drives every round already
 // out), with the same nine rival crews all season. Each round scores points as the WRC does: the top ten overall at
 // the end of it (25, 18, 15 … 1), and the five quickest on its last stage, the Power Stage, a bonus (5 … 1). The
-// most points after the last round takes the title. A round is driven once: it counts as it finished. The season
-// in progress is kept on the device (the save's 'rally' section, as 'season'). Engine-free and unit-tested.
+// most points after the last round takes the title. A round is driven once: it counts as it finished, and one you
+// retire from scores you nothing (retireRound). The season in progress is kept on the device (the save's 'rally'
+// section, as 'season'). Engine-free and unit-tested.
 
 import { save, saved } from '../engine/save';
 import { seededRandom } from '../engine/rng';
@@ -41,7 +42,7 @@ export const roundOpen = (k: number, now: number) => k >= 0 && k < ROUNDS.length
 export const YOU = 'you';
 
 export interface RoundResult {
-  /** your place overall */
+  /** your place overall (0: you retired from it) */
   place: number;
   /** each crew's points from it (the top ten's, and the Power Stage's), by key */
   points: Record<string, number>;
@@ -94,6 +95,23 @@ export function roundResult(r: Rally): RoundResult {
 export function recordRound(season: Season, r: Rally): boolean {
   if (r.season !== season.id || roundOf(r.event) < 0 || !rallyOver(r) || season.results[r.event]) return false;
   season.results[r.event] = roundResult(r);
+  return true;
+}
+
+/**
+ * Rally `r`, a round of `season`, retired from before its end: it counts as driven, with no points for you (place 0).
+ * The rival crews score as they stood when you retired (your time left out), the top ten's points from the top; if no
+ * stage had been run, as they rank on pace. No Power Stage bonus: it's the last stage, and wasn't run. Whether it was kept.
+ */
+export function retireRound(season: Season, r: Rally): boolean {
+  if (r.season !== season.id || roundOf(r.event) < 0 || season.results[r.event]) return false;
+  const rivals = r.crews.map((_, i) => i).filter((i) => i !== r.you);
+  const order = r.stages.length
+    ? standings(r).map((o) => o.crew).filter((i) => i !== r.you)
+    : [...rivals].sort((a, b) => (r.crews[a].rank ?? 0) - (r.crews[b].rank ?? 0) || a - b);
+  const points: Record<string, number> = { [YOU]: 0 };
+  order.forEach((i, k) => (points[keyOf(r, i)] = SEASON.points[k] ?? 0));
+  season.results[r.event] = { place: 0, points, power: {} };
   return true;
 }
 
