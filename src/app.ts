@@ -5,6 +5,7 @@ import type { Services } from './engine/services';
 import { Hud, bindDeck, releaseDeck } from './engine/deck';
 import { showInputLog } from './engine/inputLog';
 import { isTouchScreen, measureFit, type ScreenFit } from './engine/layout';
+import { lockLandscape } from './engine/orientation';
 import { save, saved } from './engine/save';
 import { playMusic } from './engine/music';
 import { THEME_MUSIC } from './f1/music';
@@ -53,9 +54,10 @@ globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('
 applyTheme();
 
 // The layout: always landscape, the wide screen with the deck laid over it as a HUD and its two halves the controls
-// while you drive (html.desktop.split: game.css). The Android app is held in landscape (its manifest); on the web a
+// while you drive (html.desktop.split: game.css). The Android app is held in landscape (its manifest, and locked: orientation.ts); on the web a
 // phone held upright gets a note to turn it (html.upright).
 document.documentElement.classList.add('desktop', 'split');
+void lockLandscape();
 screen.append(deck);
 const turnNote = Object.assign(document.createElement('div'), { className: 'turn-note' });
 document.body.append(turnNote);
