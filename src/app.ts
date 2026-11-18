@@ -2,10 +2,10 @@ import { type StandaloneView } from './engine/view';
 import { applyLanguage, markSettingsResume, onLanguageChange, settingsResumePending, t } from './engine/i18n';
 import { Controls, bindGamepad, bindKeyboard, guardInput } from './engine/controls';
 import type { Services } from './engine/services';
-import { Hud, bindDeck, releaseDeck, setStickSide, splitOn, stickSide } from './engine/deck';
-import { lockOrientation } from './engine/orientation';
+import { Hud, bindDeck, releaseDeck } from './engine/deck';
 import { showInputLog } from './engine/inputLog';
-import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
+import { isTouchScreen, measureFit, type ScreenFit } from './engine/layout';
+import { lockLandscape } from './engine/orientation';
 import { save, saved } from './engine/save';
 import { playMusic } from './engine/music';
 import { THEME_MUSIC } from './f1/music';
@@ -18,7 +18,6 @@ import { YOUTUBE, firstFrameReady, gameHidden, gameReady, onHidden } from './eng
 import { askModel, device, expectBusy, lines, note, noteConsole, sightChanged, watchFrames, watchFreezes, watchLongTasks } from './engine/logbook';
 import { showStill } from './f1/screens/backdropStill';
 import { showSplash } from './f1/screens/splash';
-import { useLayoutSwitch } from './f1/settingsRows';
 import { applyMotion, applyText, motionReduced, onMotionChange } from './f1/access';
 import { applyTheme } from './f1/theme';
 import { reportProblem, watchCrashes } from './f1/crashes';
@@ -36,7 +35,6 @@ import { showSettings } from './f1/menu';
 const screen = document.getElementById('screen')!;
 const deck = document.getElementById('deck')!;
 
-const app = document.getElementById('app')!;
 
 // (the save and the chosen language's words are ready by now: f1/boot.ts)
 // (LANGUAGE in the settings: the screens are built once, so a change builds the open one again, the settings still
@@ -55,28 +53,20 @@ globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('
 // (the interface's colours, from the one theme file, as the stylesheet's variables)
 applyTheme();
 
-// The layout: every device starts in the handheld one. The player can switch
-// to the desktop layout (a wide screen with the deck laid over it as a HUD)
-// with SCREEN in the settings (on a device with a mouse or trackpad) or the V
-// key, and back; the choice is kept on the device.
-const savedLayout = () => {
-  const v = saved('settings', 'layout');
-  return typeof v === 'string' ? v : null;
+// The layout: always landscape, the wide screen with the deck laid over it as a HUD and its two halves the controls
+// while you drive (html.desktop.split: game.css). The Android app is held in landscape (its manifest, and locked: orientation.ts); on the web a
+// phone held upright gets a note to turn it (html.upright).
+document.documentElement.classList.add('desktop', 'split');
+void lockLandscape();
+screen.append(deck);
+const turnNote = Object.assign(document.createElement('div'), { className: 'turn-note' });
+document.body.append(turnNote);
+const upright = () => {
+  turnNote.textContent = t('TURN YOUR PHONE SIDEWAYS');
+  document.documentElement.classList.toggle('upright', isTouchScreen() && window.innerHeight > window.innerWidth);
 };
-// SPLIT (the experiment: deck.ts driveScheme) is always the landscape layout, the desktop one's shape on any device,
-// the screen's halves the controls; the Android app turns to landscape for it (and back to portrait for STICK).
-let layout: LayoutMode = startLayout(window.location.search, savedLayout(), splitOn());
-function applyLayout(): void {
-  // (the landscape layout is laid out as the desktop one, with html.split for its touch halves: game.css)
-  const desktop = layout !== 'handheld';
-  document.documentElement.classList.toggle('desktop', desktop);
-  document.documentElement.classList.toggle('split', layout === 'landscape');
-  void lockOrientation(layout === 'landscape' ? 'landscape' : 'portrait');
-  // the deck sits over the screen as a HUD on desktop, under it on a phone
-  if (desktop) screen.append(deck);
-  else app.append(deck);
-}
-applyLayout();
+upright();
+window.addEventListener('resize', upright);
 
 const controls = new Controls();
 bindKeyboard(controls);
@@ -90,51 +80,22 @@ void listenForBack(() => hintToast('PRESS BACK AGAIN TO EXIT'));
 // (with ?debug, a press of it by hand: __back())
 if (new URLSearchParams(location.search).has('debug')) Object.assign(window, { __log: () => ({ device: device(), notes: lines() }), __back: () => pressBack(performance.now() / 1000, () => hintToast('PRESS BACK AGAIN TO EXIT'), () => console.log('exit')) });
 bindDeck(deck, controls);
-setStickSide(deck, stickSide());
 guardInput(controls, () => releaseDeck(deck));
 const services: Services = { controls, hud: new Hud(deck) };
 // ?inputlog lists the input events the page receives, for debugging controls on a device
 if (new URLSearchParams(window.location.search).has('inputlog')) showInputLog(document.getElementById('app')!, controls);
 
-/** Size the screen element: full column width and a height to suit the phone, or the window on a desktop. */
+/** Size the screen element: the window's height, and its width up to the widest (engine/layout.ts). */
 function sizeScreen(): ScreenFit {
-  const fit = measureFit(layout);
+  const fit = measureFit();
   screen.style.width = `${fit.width * fit.scale}px`;
   screen.style.height = `${fit.height * fit.scale}px`;
-  // (on a phone the deck floats over the screen's lower part: what it covers, for the stage's panels to keep clear of)
-  const controls = deck.querySelector<HTMLElement>('.controls');
-  const cover = fit.desktop || !controls ? 0 : deck.offsetHeight - controls.offsetTop;
-  screen.style.setProperty('--deck-cover', `${cover}px`);
   return fit;
 }
 
-/** What a window resize (or a layout switch) does: re-fit the screen and tell the running view. */
+/** What a window resize does: re-fit the screen and tell the running view. */
 let onResize: () => void = () => sizeScreen();
 window.addEventListener('resize', () => onResize());
-
-/** The player switches layout: no reload, the game carries on in the new shape. */
-function switchLayout(to?: LayoutMode): void {
-  if (to === undefined) {
-    // (SPLIT stays landscape)
-    if (layout === 'landscape') return;
-    layout = layout === 'desktop' ? 'handheld' : 'desktop';
-    save('settings', 'layout', layout);
-  } else layout = to;
-  controls.clearAll();
-  releaseDeck(deck);
-  applyLayout();
-  onResize();
-}
-// (SCREEN in the settings)
-// (DRIVING in the settings: SPLIT is landscape, STICK the layout saved for it)
-window.addEventListener('drive-scheme', () => {
-  const to = startLayout(window.location.search, savedLayout(), splitOn());
-  if (to !== layout) switchLayout(to);
-});
-useLayoutSwitch({ now: () => layout, can: () => canSwitchLayout(), set: (mode) => mode !== layout && switchLayout() });
-window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyV' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) switchLayout();
-});
 
 type Mode = 'rally' | 'tutorial';
 /** This page's address with ?circuit set to `id` (or removed: null) and ?mode to `mode` (or removed); other flags (?tune, ?debug…) stay. */

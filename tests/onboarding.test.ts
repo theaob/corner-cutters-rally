@@ -1,51 +1,67 @@
 import { describe, expect, it } from 'vitest';
-import { STEPS, advance, apexesPassed, newOnboarding, pointsOn, prompt, type Facts } from '../src/f1/onboarding';
+import { HOLD_FOR, STEPS, advance, apexesPassed, newOnboarding, prompt, teaches, type Facts } from '../src/f1/onboarding';
 
-const facts = (f: Partial<Facts> = {}): Facts => ({ speed: 0, top: 320, bends: 0, drifting: false, lapDone: false, ...f });
+const facts = (f: Partial<Facts> = {}): Facts => ({ speed: 0, holding: 'none', reversing: false, bends: 0, lapDone: false, dt: 0.1, ...f });
+/** hold `f` for `s` seconds, a tenth at a time */
+const hold = (o: ReturnType<typeof newOnboarding>, f: Partial<Facts>, s: number) => {
+  for (let t = 0; t < s - 1e-9; t += 0.1) advance(o, facts(f));
+};
 
 describe('the controls lap', () => {
-  it('moves on a prompt at a time as each thing is done', () => {
+  it('steers left, then right, then brakes to a stop and reverses, before the calls and the finish', () => {
     const o = newOnboarding();
-    expect(advance(o, facts({ speed: 50 }))).toBe(false);
-    expect(advance(o, facts({ speed: 120 }))).toBe(true);
-    expect(o.step).toBe('faster');
-    expect(advance(o, facts({ speed: 200 }))).toBe(false);
-    advance(o, facts({ speed: 290 }));
-    expect(o.step).toBe('bend');
-    // slowing for a bend: done once through one (counted from when the prompt came up)
-    expect(advance(o, facts({ speed: 200, bends: 0 }))).toBe(false);
-    advance(o, facts({ speed: 200, bends: 1 }));
-    expect(o.step).toBe('drift');
-    advance(o, facts({ speed: 150, bends: 1, drifting: true }));
+    expect(o.step).toBe('left');
+    // (the right half held does nothing for the left step; the left one, held a moment while moving, does)
+    hold(o, { speed: 80, holding: 'right' }, 2);
+    expect(o.step).toBe('left');
+    hold(o, { speed: 80, holding: 'left' }, HOLD_FOR.steer + 0.1);
+    expect(o.step).toBe('right');
+    hold(o, { speed: 80, holding: 'right' }, HOLD_FOR.steer + 0.1);
+    expect(o.step).toBe('brake');
+    // braking: both held, until the car stops
+    expect(advance(o, facts({ speed: 120, holding: 'both' }))).toBe(false);
+    expect(advance(o, facts({ speed: 2, holding: 'left' }))).toBe(false);
+    expect(advance(o, facts({ speed: 2, holding: 'both' }))).toBe(true);
+    expect(o.step).toBe('reverse');
+    // reversing a moment (let go, and it starts again)
+    hold(o, { speed: 20, holding: 'both', reversing: true }, HOLD_FOR.reverse / 2);
+    advance(o, facts({ speed: 20 }));
+    hold(o, { speed: 20, holding: 'both', reversing: true }, HOLD_FOR.reverse / 2);
+    expect(o.step).toBe('reverse');
+    hold(o, { speed: 20, holding: 'both', reversing: true }, HOLD_FOR.reverse);
     expect(o.step).toBe('notes');
-    advance(o, facts({ bends: 2 }));
+    advance(o, facts({ bends: 0 }));
+    expect(o.step).toBe('notes');
+    advance(o, facts({ bends: 1 }));
     expect(o.step).toBe('lap');
     advance(o, facts({ bends: 5, lapDone: true }));
     expect(o.step).toBe('done');
     expect(advance(o, facts({ lapDone: true }))).toBe(false);
   });
-  it('skips the drift prompt where you can\'t drift (no drift button on the touch deck)', () => {
-    const o = { step: 'drift' as const, from: 3 };
-    expect(advance(o, facts({ bends: 3, canDrift: false }))).toBe(true);
-    expect(o.step).toBe('notes');
+
+  it('a steering step needs only the half held a moment (a car stuck against a tree still counts)', () => {
+    const o = newOnboarding();
+    hold(o, { speed: 0, holding: 'left' }, HOLD_FOR.steer + 0.1);
+    expect(o.step).toBe('right');
   });
-  it("doesn't hold you up if you never drift: two bends and it moves on", () => {
-    const o = { step: 'drift' as const, from: 3 };
-    advance(o, facts({ bends: 4 }));
-    expect(o.step).toBe('drift');
-    advance(o, facts({ bends: 5 }));
-    expect(o.step).toBe('notes');
+
+  it('lights up the halves to hold: each one for its step, both to brake and reverse, none after', () => {
+    expect(teaches('left')).toBe('left');
+    expect(teaches('right')).toBe('right');
+    expect(teaches('brake')).toBe('both');
+    expect(teaches('reverse')).toBe('both');
+    for (const step of ['notes', 'lap', 'done'] as const) expect(teaches(step)).toBe('none');
   });
+
   it('says each prompt for the device you drive with', () => {
     for (const step of STEPS) for (const device of ['touch', 'keys', 'pad'] as const) expect(prompt(step, device).length).toBeGreaterThan(5);
-    // (Corner Cutters' AUTO: the touch stick points the way, the keys and a gamepad steer the car)
-    expect(prompt('go', 'touch')).toBe('PUSH THE STICK THE WAY YOU WANT TO GO');
-    expect(prompt('bend', 'touch')).toContain('EASE THE STICK IN');
-    expect(prompt('go', 'keys')).toContain('UP TO GO');
-    expect(prompt('go', 'pad')).toContain('TRIGGER');
-    expect(prompt('bend', 'pad')).toContain('TRIGGER');
-    expect(prompt('drift', 'keys')).toContain('HOLD X');
+    expect(prompt('left', 'touch')).toContain('LEFT HALF');
+    expect(prompt('brake', 'touch')).toContain('BOTH HALVES');
+    expect(prompt('brake', 'keys')).toContain('DOWN');
+    expect(prompt('brake', 'pad')).toContain('TRIGGER');
+    expect(prompt('reverse', 'touch')).toContain('REVERSE');
   });
+
   it('counts the bends passed, round the loop', () => {
     const apexes = [10, 50, 95];
     expect(apexesPassed(apexes, 5, 12, 100)).toBe(1);
@@ -55,13 +71,5 @@ describe('the controls lap', () => {
     // standing still, or a jump backwards: none
     expect(apexesPassed(apexes, 20, 20, 100)).toBe(0);
     expect(apexesPassed(apexes, 60, 40, 100)).toBe(0);
-  });
-});
-
-describe('one way to drive (Corner Cutters\' AUTO)', () => {
-  it('the touch stick points the way to go; the keys and a gamepad steer the car', () => {
-    expect(pointsOn('touch')).toBe(true);
-    expect(pointsOn('keys')).toBe(false);
-    expect(pointsOn('pad')).toBe(false);
   });
 });

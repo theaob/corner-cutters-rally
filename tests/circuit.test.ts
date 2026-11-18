@@ -4,7 +4,7 @@ import { layoutById } from '../src/f1/layouts';
 import { ROAD, SHAKEDOWN, STAGE_SPECS, stageById } from '../src/f1/stages';
 import { angleDiff, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import { groundAt } from '../src/engine/sim';
-import { RACE_HANDLING, aiInput, buildTrack, keysWheel, lineCornerSpeed, lineDecel, newProgress, stepProgress, wheelInput, type Track } from '../src/f1/racing';
+import { RACE_HANDLING, aiInput, buildTrack, lineCornerSpeed, splitWheel, lineDecel, newProgress, stepProgress, wheelInput, type Track } from '../src/f1/racing';
 
 const f1 = carClass('f1');
 
@@ -133,19 +133,18 @@ describe.each(EXPECT)('the $id stage', ({ id, time }) => {
     expect(speedOf(car)).toBeGreaterThan(100);
   }, 30_000);
 
-  it('can be driven on the keyboard (the arrows steer the car: racing.ts keysWheel), unhurt', () => {
-    let held = new Set<string>();
+  it('can be driven by the halves alone (left steers left, right right, both brake; the gas always on), unhurt', () => {
     const start = circuit.slots[0];
     const car = newCar(f1, start.x, start.y, start.heading);
     let p = newProgress(startIdx(track));
     let t = 0;
     for (; t < 200 && !finished(track, p.idx); t += 1 / 60) {
-      // a simple player: steer toward a point on the line a little ahead, a key at a time; lift, then brake, when well off it
+      // a simple player: steer toward a point on the line a little ahead, a half at a time; both, to brake, when well off it
       const ahead = track.samples[Math.min(n - 1, p.idx + 10)];
       const off = angleDiff(Math.atan2(ahead.x - car.x, -(ahead.y - car.y)), car.heading);
-      held = new Set([off < -0.04 && 'ArrowLeft', off > 0.04 && 'ArrowRight', Math.abs(off) < 0.35 && 'ArrowUp', Math.abs(off) > 0.6 && speedOf(car) > 150 && 'ArrowDown'].filter((k): k is string => !!k));
-      const keys = { up: held.has('ArrowUp'), down: held.has('ArrowDown'), left: held.has('ArrowLeft'), right: held.has('ArrowRight') };
-      stepCar(car, wheelInput(keysWheel(keys, false), car), RACE_HANDLING, 1 / 60, grid);
+      const brake = Math.abs(off) > 0.6 && speedOf(car) > 150;
+      const halves = { left: brake || off < -0.04, right: brake || off > 0.04 };
+      stepCar(car, wheelInput(splitWheel(halves), car), RACE_HANDLING, 1 / 60, grid);
       p = stepProgress(p, track, car, t, 1, 1 / 60);
     }
     expect(finished(track, p.idx)).toBe(true);

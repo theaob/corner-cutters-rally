@@ -5,7 +5,6 @@
 
 import { REFERENCE, carClass, type CarClass, type HandlingParams } from '../engine/driving';
 import { HD2D_VIEW } from '../engine/look';
-import { save, saved } from '../engine/save';
 
 export const TOP_DOWN = {
   /** the car's top speed against the reference car's (the rivals' times come from a run in the same car, so they scale with it) */
@@ -36,39 +35,21 @@ export const SIGHT = {
   behind: 0.2,
   /** the furthest the camera pulls back (TOP_DOWN.zoom is the nearest) */
   furthest: 0.3,
-  /** game px at the top of a phone's screen under its top bar, and the share at the bottom under the thumbs */
-  top: 20,
-  thumbs: 0.25,
   /** s the camera takes to settle on a new way (a gentle ease: no pumping through a slide or a quick wiggle) */
   ease: 0.9,
 };
 
 /**
- * CAMERA in the settings: how close the camera sits. FAR is the framing above (SIGHT: the most road ahead); MEDIUM
- * and CLOSE come in by these shares, showing less of the road ahead and the car bigger. MEDIUM unless the player
- * picked another (kept on the device).
+ * How much closer the camera sits than SIGHT's framing would put it (×): the car bigger and less road ahead. The
+ * framing alone shows SIGHT.seconds of road at top speed; across a landscape screen that sat too far from the car, so
+ * the camera is fixed at what was its MEDIUM setting (about 1.2 s of road at top speed the short way, nearer 2 s across).
  */
-export const CAMERA_DISTANCES = { far: 1, medium: 1.35, close: 1.75 } as const;
-export type CameraDistance = keyof typeof CAMERA_DISTANCES;
-export const CAMERA_SETTINGS = Object.keys(CAMERA_DISTANCES) as CameraDistance[];
-let camera: CameraDistance | undefined;
-export function cameraSetting(): CameraDistance {
-  if (!camera) {
-    const v = saved('settings', 'camera');
-    camera = typeof v === 'string' && v in CAMERA_DISTANCES ? (v as CameraDistance) : 'medium';
-  }
-  return camera;
-}
-export function setCameraSetting(c: CameraDistance): void {
-  camera = c;
-  save('settings', 'camera', c);
-}
+export const CAMERA_NEAR = 1.35;
 
-/** The screen the stage is drawn on, in game px: a phone's has its deck over the bottom, a desktop's none. */
+/** The screen the stage is drawn on, in game px (the deck over it is a HUD round its edges). */
 export interface SightScreen {
   width: number;
   height: number;
-  desktop: boolean;
 }
 
 const { pitch: PITCH_DEG, fov: FOV_DEG } = HD2D_VIEW;
@@ -85,11 +66,9 @@ export function onScreen(x: number, y: number, screen: SightScreen, zoom: number
   return { x: (zoom * x) / w, y: (zoom * y * SIN) / w };
 }
 
-/** The part of the screen clear of the top bar and the thumbs (game px from its middle, y down), less `margin` all round. */
+/** The screen (game px from its middle, y down), less `margin` all round. */
 function clearOf(screen: SightScreen, margin = { x: 0, y: 0 }) {
-  const top = screen.desktop ? 0 : SIGHT.top;
-  const bottom = screen.desktop ? 0 : SIGHT.thumbs * screen.height;
-  return { left: -screen.width / 2 + margin.x, right: screen.width / 2 - margin.x, top: -screen.height / 2 + top + margin.y, bottom: screen.height / 2 - bottom - margin.y };
+  return { left: -screen.width / 2 + margin.x, right: screen.width / 2 - margin.x, top: -screen.height / 2 + margin.y, bottom: screen.height / 2 - margin.y };
 }
 type Clear = ReturnType<typeof clearOf>;
 const inside = (q: { x: number; y: number }, c: Clear) => q.x >= c.left && q.x <= c.right && q.y >= c.top && q.y <= c.bottom;

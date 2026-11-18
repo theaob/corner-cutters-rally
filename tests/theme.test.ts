@@ -63,12 +63,13 @@ describe('the settings in pages, as in Corner Cutters', () => {
   it('CONTROLS, GAME, SOUND and ACCESSIBILITY, every row on one', async () => {
     const { ROW_SECTION, SETTINGS_SECTIONS, SECTION_NAME } = await import('../src/f1/settingsRows');
     expect(SETTINGS_SECTIONS.map((s) => SECTION_NAME[s])).toEqual(['CONTROLS', 'GAME', 'SOUND', 'ACCESSIBILITY']);
-    for (const label of ['DIFFICULTY', 'STICK', 'VIBRATION', 'SCREEN', 'TEXT', 'COLOURS', 'SCREEN SHAKE', 'SOUND', 'MUSIC', 'STATS', 'PRIVACY', 'TERMS']) {
+    for (const label of ['DIFFICULTY', 'VIBRATION', 'TEXT', 'COLOURS', 'SCREEN SHAKE', 'SOUND', 'MUSIC', 'STATS', 'PRIVACY', 'TERMS']) {
       expect(ROW_SECTION[label], label).toBeDefined();
     }
-    expect(ROW_SECTION.STICK).toBe('controls');
-    // (one way to drive and one view: no driving style, camera or steering rows)
-    for (const gone of ['STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES']) expect(ROW_SECTION[gone], gone).toBeUndefined();
+    expect(ROW_SECTION.VIBRATION).toBe('controls');
+    expect(ROW_SECTION.DRIVING).toBe('controls');
+    // (one way to drive and one view, landscape: no driving style, thumbstick, screen, camera or steering rows)
+    for (const gone of ['STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES', 'STICK', 'SCREEN', 'CAMERA']) expect(ROW_SECTION[gone], gone).toBeUndefined();
     expect(ROW_SECTION.DIFFICULTY).toBe('game');
     expect(ROW_SECTION.COLOURS).toBe('access');
   });
