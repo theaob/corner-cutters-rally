@@ -68,11 +68,23 @@ function standingsTable(r: Rally): HTMLTableElement {
   return table;
 }
 
-/** The season's standings as a table: place, the crew's paint, crew, points; you in gold. */
-function seasonTable(s: Season, scheme: Scheme): HTMLTableElement {
-  const table = document.createElement('table');
-  Object.assign(table.style, { width: '100%', maxWidth: '360px', borderCollapse: 'collapse', font: '12px var(--pixel)', color: 'var(--text)' });
-  seasonStandings(s).forEach((c, k) => {
+/**
+ * The season's standings as a table: place, the crew's paint, crew, points; you in gold. In two halves side by side
+ * (1 to 5, 6 to 10), so home with them under the rounds is short enough for a phone held sideways.
+ */
+function seasonTable(s: Season, scheme: Scheme): HTMLElement {
+  const halves = document.createElement('div');
+  halves.className = 'table-halves';
+  const half = () => {
+    const table = document.createElement('table');
+    Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', font: '12px var(--pixel)', color: 'var(--text)' });
+    halves.append(table);
+    return table;
+  };
+  const tables = [half(), half()];
+  const all = seasonStandings(s);
+  all.forEach((c, k) => {
+    const table = tables[k < Math.ceil(all.length / 2) ? 0 : 1];
     const row = document.createElement('tr');
     if (c.key === YOU) row.style.color = 'var(--gold)';
     row.style.animation = `row-in 0.35s ease-out ${(0.1 + k * 0.05).toFixed(2)}s both`;
@@ -89,7 +101,26 @@ function seasonTable(s: Season, scheme: Scheme): HTMLTableElement {
     row.append(cell(`${k + 1}`, true), chip, cell(crewName(crew)), cell(`${c.points} ${t('PTS')}`, true));
     table.append(row);
   });
-  return table;
+  return halves;
+}
+
+/**
+ * A card in two columns, as the phone is held sideways: `side` (what you're told, and the buttons) beside `table` (the
+ * standings), so the buttons are on the screen and not pushed under a table ten crews long.
+ */
+function columns(side: HTMLElement, table: HTMLElement): HTMLElement {
+  const card = document.createElement('div');
+  card.className = 'card-columns';
+  card.append(side, table);
+  return card;
+}
+
+/** A column of a card: `children`, one under the other. */
+function cardSide(...children: Element[]): HTMLElement {
+  const d = document.createElement('div');
+  d.className = 'card-side';
+  d.append(...children);
+  return d;
 }
 
 /** A date as the language writes it, short and upper case: 23 NOV, 23. NOV., 11月23日. */
@@ -201,11 +232,12 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
             screen.append(cup);
             requestAnimationFrame(() => confetti(host));
           }
+          // (NEW SEASON over the standings, not under them: on the screen without scrolling)
+          if (over) screen.append(button(`${t('NEW SEASON')} ▶`, () => finish('new-season'), true));
           screen.append(panel(
             line(over ? (place === 1 ? t('YOU ARE THE CHAMPION!') : t('YOU FINISHED THE SEASON {place}', { place: ordinal(place) })) : t('SEASON STANDINGS'), over && place === 1 ? 'var(--gold)' : 'var(--text)'),
             seasonTable(season, car.value()),
           ));
-          if (over) screen.append(button(`${t('NEW SEASON')} ▶`, () => finish('new-season'), true));
         }
       } else {
         RALLIES.forEach((e, k) => {
@@ -219,25 +251,27 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
       title.textContent = t(e.name);
       const k = nextStage(rally);
       if (rallyOver(rally)) {
+        // (how you did, your season points and the way on, beside the final standings)
         const place = yourPlace(rally);
+        const side: Element[] = [];
         if (place === 1) {
-          const cup = trophy(64);
+          const cup = trophy(48);
           Object.assign(cup.style, { display: 'block', margin: '0 auto' });
-          screen.append(cup);
+          side.push(cup);
           requestAnimationFrame(() => confetti(host));
         }
-        screen.append(panel(
+        side.push(panel(
           line(place === 1 ? t('RALLY WINNER!') : t('YOU FINISHED {place}', { place: ordinal(place) }), place === 1 ? 'var(--gold)' : 'var(--text)'),
-          line(`${t(e.surface)} · ${t('{n} STAGES', { n: e.stages.length })} · ${t('FINAL STANDINGS')}`),
-          standingsTable(rally),
+          line(`${t(e.surface)} · ${t('{n} STAGES', { n: e.stages.length })}`),
         ));
         const result = rally.season && view ? view.season.results[rally.event] : undefined;
         if (result) {
           const bonus = result.power[YOU];
-          screen.append(panel(line(t('+{n} SEASON POINTS', { n: result.points[YOU] ?? 0 }), 'var(--gold)'),
+          side.push(panel(line(t('+{n} SEASON POINTS', { n: result.points[YOU] ?? 0 }), 'var(--gold)'),
             ...(bonus ? [line(`${t('POWER STAGE')} +${bonus}`, 'var(--accent-b)')] : [])));
         }
-        screen.append(button(`${rally.season ? t('BACK TO THE SEASON') : t('NEW RALLY')} ▶`, () => finish('abandon'), true));
+        side.push(button(`${rally.season ? t('BACK TO THE SEASON') : t('NEW RALLY')} ▶`, () => finish('abandon'), true));
+        screen.append(columns(cardSide(...side), panel(line(t('FINAL STANDINGS')), standingsTable(rally))));
       } else {
         const next = e.stages[k];
         const layout = layoutById(next.layout);
@@ -250,11 +284,14 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
           line(`${t('YOUR CAR: {n}%', { n: health })}${health < 100 ? ` · ${t('DAMAGED')}` : ''}${k > 0 && serviceAfter(rally, k - 1) ? ` · ${t('FRESH FROM SERVICE')}` : ''}`, health < 60 ? COLOR.red : 'var(--text)'),
         );
         if (round >= 0 && k === e.stages.length - 1) info.append(line(t('POWER STAGE · BONUS POINTS FOR THE TOP 5'), 'var(--gold)'));
-        if (k > 0) info.append(line(t("STANDINGS AFTER SS{n}: YOU'RE {place}", { n: k, place: ordinal(yourPlace(rally)) })), standingsTable(rally));
-        else info.append(line(t('THE CO-DRIVER CALLS EVERY BEND: ◀ 1 THE SLOWEST … 6 ▶ BARELY A LIFT')));
+        if (k === 0) info.append(line(t('THE CO-DRIVER CALLS EVERY BEND: ◀ 1 THE SLOWEST … 6 ▶ BARELY A LIFT')));
         info.style.borderLeft = `6px solid ${SURFACE_COLOR[e.surface]}`;
-        screen.append(info);
-        screen.append(button(`${t('START SS{n}', { n: k + 1 })} ▶`, () => finish('stage'), true));
+        // (after SS1: the stage up next and its buttons beside the standings, so START is on the screen)
+        const side = cardSide(info);
+        if (k > 0) screen.append(columns(side, panel(line(t("STANDINGS AFTER SS{n}: YOU'RE {place}", { n: k, place: ordinal(yourPlace(rally)) })), standingsTable(rally))));
+        else screen.append(side);
+        const holder = k > 0 ? side : screen;
+        holder.append(button(`${t('START SS{n}', { n: k + 1 })} ▶`, () => finish('stage'), true));
         if (rally.season) {
           // (a season's round: retiring scores it 0 points and ends it for the season, so the player is told first)
           const retire = button(t('RETIRE FROM THE RALLY'), () => {
@@ -265,8 +302,8 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
           });
           const warning = panel(line(t('IF YOU RETIRE, THIS ROUND SCORES 0 POINTS AND IS OVER FOR THIS SEASON'), COLOR.red),
             line(t('PRESS RETIRE AGAIN TO CONFIRM'), 'var(--muted)'));
-          screen.append(retire);
-        } else screen.append(button(t('RETIRE FROM THE RALLY'), () => finish('abandon')));
+          holder.append(retire);
+        } else holder.append(button(t('RETIRE FROM THE RALLY'), () => finish('abandon')));
       }
     }
     // (SETTINGS in a row of its own, set apart under the rest: not a rally itself)
