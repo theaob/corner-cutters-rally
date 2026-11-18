@@ -2,7 +2,8 @@ import { type StandaloneView } from './engine/view';
 import { applyLanguage, markSettingsResume, onLanguageChange, settingsResumePending, t } from './engine/i18n';
 import { Controls, bindGamepad, bindKeyboard, guardInput } from './engine/controls';
 import type { Services } from './engine/services';
-import { Hud, bindDeck, releaseDeck, setStickSide, stickSide } from './engine/deck';
+import { Hud, bindDeck, releaseDeck, setStickSide, splitOn, stickSide } from './engine/deck';
+import { lockOrientation } from './engine/orientation';
 import { showInputLog } from './engine/inputLog';
 import { canSwitchLayout, measureFit, startLayout, type LayoutMode, type ScreenFit } from './engine/layout';
 import { save, saved } from './engine/save';
@@ -62,10 +63,15 @@ const savedLayout = () => {
   const v = saved('settings', 'layout');
   return typeof v === 'string' ? v : null;
 };
-let layout: LayoutMode = startLayout(window.location.search, savedLayout());
+// SPLIT (the experiment: deck.ts driveScheme) is always the landscape layout, the desktop one's shape on any device,
+// the screen's halves the controls; the Android app turns to landscape for it (and back to portrait for STICK).
+let layout: LayoutMode = startLayout(window.location.search, savedLayout(), splitOn());
 function applyLayout(): void {
-  const desktop = layout === 'desktop';
+  // (the landscape layout is laid out as the desktop one, with html.split for its touch halves: game.css)
+  const desktop = layout !== 'handheld';
   document.documentElement.classList.toggle('desktop', desktop);
+  document.documentElement.classList.toggle('split', layout === 'landscape');
+  void lockOrientation(layout === 'landscape' ? 'landscape' : 'portrait');
   // the deck sits over the screen as a HUD on desktop, under it on a phone
   if (desktop) screen.append(deck);
   else app.append(deck);
@@ -107,15 +113,24 @@ let onResize: () => void = () => sizeScreen();
 window.addEventListener('resize', () => onResize());
 
 /** The player switches layout: no reload, the game carries on in the new shape. */
-function switchLayout(): void {
-  layout = layout === 'desktop' ? 'handheld' : 'desktop';
-  save('settings', 'layout', layout);
+function switchLayout(to?: LayoutMode): void {
+  if (to === undefined) {
+    // (SPLIT stays landscape)
+    if (layout === 'landscape') return;
+    layout = layout === 'desktop' ? 'handheld' : 'desktop';
+    save('settings', 'layout', layout);
+  } else layout = to;
   controls.clearAll();
   releaseDeck(deck);
   applyLayout();
   onResize();
 }
 // (SCREEN in the settings)
+// (DRIVING in the settings: SPLIT is landscape, STICK the layout saved for it)
+window.addEventListener('drive-scheme', () => {
+  const to = startLayout(window.location.search, savedLayout(), splitOn());
+  if (to !== layout) switchLayout(to);
+});
 useLayoutSwitch({ now: () => layout, can: () => canSwitchLayout(), set: (mode) => mode !== layout && switchLayout() });
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyV' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) switchLayout();

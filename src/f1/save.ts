@@ -1,6 +1,7 @@
 // Corner Cutters Rally's save format (engine/save.ts keeps it): its version, and
 // how an older save is brought up to date. Sections:
 //   settings  sound (0…1), vibration (on/off), stickSide ('left'/'right': right unless set), layout ('handheld'/'desktop'),
+//             drive ('split'/'stick': split unless set; deck.ts),
 //             largeText and colourSafe (on/off: off unless set; access.ts)
 //   choices   the difficulty (by id), and your car's paint scheme (crews.ts)
 //   progress  onboarded: the controls lap done or skipped

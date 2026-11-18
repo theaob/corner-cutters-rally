@@ -15,9 +15,15 @@ export const STEPS: Step[] = ['go', 'faster', 'bend', 'drift', 'notes', 'lap', '
 /** Whether `device` drives by pointing the way to go (the touch stick), rather than steering the car (keys, a gamepad). */
 export const pointsOn = (device: Device): boolean => device === 'touch';
 
-/** What the prompt says for `step` on `device`. */
-export function prompt(step: Step, device: Device): string {
+/** What the prompt says for `step` on `device` (`split`: driving by the screen's halves, SPLIT; a gamepad keeps its own). */
+export function prompt(step: Step, device: Device, split = false): string {
   const points = pointsOn(device);
+  if (split && device !== 'pad') {
+    const touch = device === 'touch';
+    if (step === 'go') return touch ? 'HOLD THE LEFT OR RIGHT HALF TO STEER · THE GAS IS ALWAYS ON' : 'LEFT AND RIGHT TO STEER · THE GAS IS ALWAYS ON';
+    if (step === 'faster') return 'LET GO ON THE STRAIGHTS FOR FULL SPEED';
+    if (step === 'bend') return touch ? 'HOLD BOTH HALVES TO BRAKE · KEEP HOLDING TO REVERSE' : 'HOLD LEFT AND RIGHT TO BRAKE · KEEP HOLDING TO REVERSE';
+  }
   switch (step) {
     case 'go':
       if (points) return 'PUSH THE STICK THE WAY YOU WANT TO GO';

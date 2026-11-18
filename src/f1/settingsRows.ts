@@ -16,7 +16,7 @@ import { menuPick, menuTick } from './sounds';
 import { YOUTUBE } from '../engine/host';
 import { PRIVACY_URL, TERMS_URL } from './legal';
 import { setShake, shakeOn } from './shake';
-import { setStickSide, stickSide, type StickSide } from '../engine/deck';
+import { DRIVE_SCHEMES, driveScheme, setDriveScheme, setStickSide, stickSide, type StickSide } from '../engine/deck';
 import { INITIALS, initials, playerId, setInitials, setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import { isTouchScreen, type LayoutMode } from '../engine/layout';
@@ -61,7 +61,7 @@ export const SECTION_NAME: Record<SettingsSection, string> = { controls: 'CONTRO
 
 /** Each row's page, by its label. */
 export const ROW_SECTION: Record<string, SettingsSection> = {
-  STICK: 'controls', VIBRATION: 'controls',
+  DRIVING: 'controls', STICK: 'controls', VIBRATION: 'controls',
   DIFFICULTY: 'game', LANGUAGE: 'game', NAME: 'game', GRAPHICS: 'game', SCREEN: 'game', STATS: 'game', 'BACK UP': 'game', RESTORE: 'game',
   PRIVACY: 'game', TERMS: 'game', 'PLAYER ID': 'game',
   SOUND: 'sound', MUSIC: 'sound',
@@ -198,6 +198,11 @@ export function settingsRows(): SettingsRow[] {
   const stickRow = optionRow('STICK', sides, stickSide(), (side) => ({ name: side.toUpperCase(), about: side === 'left' ? 'thumbstick left · A and B right' : 'thumbstick right · A and B left' }), (side) => {
     if (deck) setStickSide(deck, side);
   });
+  // (the thumbstick's side matters to STICK only)
+  Object.assign(stickRow, { shown: () => driveScheme() === 'stick' });
+  // DRIVING: SPLIT (the experiment: landscape, the screen's halves steer, both brake and then reverse) or STICK (the
+  // thumbstick, in portrait); the page turns and lays itself out for it as it changes (src/app.ts)
+  const drivingRow = optionRow('DRIVING', DRIVE_SCHEMES, driveScheme(), (d) => ({ name: d === 'split' ? 'SPLIT' : 'STICK', about: d === 'split' ? 'landscape · hold a half to steer, both to brake' : 'portrait · the floating thumbstick' }), setDriveScheme);
   const vibrationRow = optionRow('VIBRATION', [true, false], vibrationOn(), (on) => ({ name: on ? 'ON' : 'OFF', about: on ? 'crashes, grass, kerbs' : 'no buzzing' }), (on) => {
     setVibration(on);
     vibrate(40);
@@ -209,7 +214,7 @@ export function settingsRows(): SettingsRow[] {
   // SCREEN: the handheld (a phone's shape, the deck under it) or the wide screen (the whole window, the deck over it as
   // a HUD); only on a device with a mouse or trackpad (or already wide), where it was the deck's WIDE button
   const layouts: LayoutMode[] = ['handheld', 'desktop'];
-  const screenRow = layoutSwitch && (layoutSwitch.can() || layoutSwitch.now() === 'desktop')
+  const screenRow = layoutSwitch && layoutSwitch.now() !== 'landscape' && (layoutSwitch.can() || layoutSwitch.now() === 'desktop')
     ? optionRow('SCREEN', layouts, layoutSwitch.now(), (m) => ({ name: m === 'desktop' ? 'WIDE' : 'HANDHELD', about: m === 'desktop' ? 'the whole window · V switches' : "a phone's shape · V switches" }), (m) => layoutSwitch?.set(m))
     : undefined;
   const textRow = optionRow('TEXT', [false, true], largeText(), (on) => ({ name: on ? 'LARGE' : 'NORMAL', about: on ? 'menus and messages a size up' : 'the standard size' }), setLargeText);
@@ -253,6 +258,7 @@ export function settingsRows(): SettingsRow[] {
     : undefined;
   // (each with its label, for its page; STATS only where the build has a backend to send them to)
   const rows: [SettingsRow, string][] = ([
+    [drivingRow, 'DRIVING'],
     [isTouchScreen() && stickRow, 'STICK'],
     [vibrationRow, 'VIBRATION'],
     [languageRow, 'LANGUAGE'], [nameRow(), 'NAME'], [graphicsRow, 'GRAPHICS'], [screenRow, 'SCREEN'], [online() && statsRow, 'STATS'],

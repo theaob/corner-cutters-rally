@@ -1301,7 +1301,8 @@ html.no-pause-blur .pause-settings {
   flex: 1;
 }
 .menu .circuit-menu {
-  justify-content: center;
+  /* (safe: a menu taller than a short screen, a phone held sideways, scrolls from its top instead of losing it) */
+  justify-content: safe center;
 }
 #deck {
   flex: 1;
@@ -2091,4 +2092,125 @@ html.reduce-motion .splash.go .splash-start {
 /* (nothing else on the screen while it's up: no REPORT) */
 html.splash-up .menu-report {
   display: none;
+}
+/* SPLIT, the landscape experiment (deck.ts bindSplit; html.split: src/app.ts): the screen's two halves are the controls
+   while you drive, the left one steering left and the right one right, both at once braking (and then reversing); an
+   arrow in each lower corner shows each half, lit while it's held, and a faint line down the middle shows the split */
+.split-pad {
+  display: none;
+}
+html.split:not(.results-up):not(.paused):not(.ceremony) #deck.driving .split-pad {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.split-pad::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  bottom: 12%;
+  border-left: 1px dashed rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+}
+.split-pad .half {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 22px 22px;
+}
+.split-pad .half.right {
+  justify-content: flex-end;
+}
+.split-pad .half span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(21, 20, 31, 0.4);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 22px;
+  transition: background 0.08s, transform 0.08s;
+}
+.split-pad.held-left .half.left span,
+.split-pad.held-right .half.right span {
+  background: var(--accent-b);
+  border-color: var(--accent-b);
+  color: var(--deck);
+  transform: scale(0.94);
+}
+/* both held: braking (then reversing), both arrows in the brake's red */
+.split-pad.held-left.held-right .half span {
+  background: #ff5a5a;
+  border-color: #ff5a5a;
+}
+/* the system keys go top right, out of the halves' way (the readouts are top left, the stage strip top centre) */
+html.split .sys {
+  top: 12px;
+  right: 12px;
+  bottom: auto;
+  left: auto;
+}
+html.split .sys::before {
+  content: '← → STEER · BOTH BRAKE / REVERSE';
+}
+/* (and A and B under them, clear of the right half's arrow) */
+html.split .controls {
+  top: 64px;
+  right: 12px;
+  bottom: auto;
+}
+/* on a touch screen: the keys' names off, the buttons' icons on, sized for a thumb */
+@media (any-pointer: coarse) {
+  html.split .sys::before {
+    content: none;
+  }
+  html.split.desktop .sys button[data-button]::before,
+  html.split.desktop .face button::after {
+    content: none;
+  }
+  /* (icons alone, round, a thumb's size: their names would crowd the stage's strip) */
+  html.split.desktop .sys {
+    padding: 4px;
+    gap: 6px;
+  }
+  html.split.desktop .sys button {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+    justify-content: center;
+  }
+  html.split.desktop .face .label {
+    display: none;
+  }
+  html.split.desktop .face .col {
+    padding: 4px;
+    border-radius: 50%;
+  }
+  html.split #deck .icon {
+    display: block;
+  }
+  html.split .face button {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+  }
+  html.split .face .icon svg {
+    width: 22px;
+    height: 22px;
+  }
+  html.split .sys .icon svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+  }
 }
