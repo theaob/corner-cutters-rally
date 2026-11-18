@@ -18,7 +18,7 @@ import { PRIVACY_URL, TERMS_URL } from './legal';
 import { setShake, shakeOn } from './shake';
 import { CAMERA_SETTINGS, cameraSetting, setCameraSetting } from './style';
 import { DRIVE_SCHEMES, driveScheme, setDriveScheme, setStickSide, stickSide, type StickSide } from '../engine/deck';
-import { INITIALS, initials, playerId, setInitials, setStats, statsOn } from './profile';
+import { NAME, NAME_MAX, cleanName, playerId, playerName, setPlayerName, setStats, statsOn } from './profile';
 import { online } from '../engine/backend';
 import { isTouchScreen, type LayoutMode } from '../engine/layout';
 import { colourSafe, largeText, MOTION_SETTINGS, motionSetting, setColourSafe, setLargeText, setMotionSetting, type MotionSetting } from './access';
@@ -163,7 +163,7 @@ function restoreRow(): SettingsRow {
   return { el, step: () => {}, value: () => undefined, refresh: check, activate: run };
 }
 
-/** NAME: your three letters on the timing screens (YOU until set), typed (the phone's keyboard comes up), as on an arcade board. */
+/** NAME: your name on the timing screens, up to a full surname (YOU until set), typed (the phone's keyboard comes up). */
 function nameRow(): SettingsRow {
   const el = document.createElement('div');
   el.className = 'option-row';
@@ -171,20 +171,21 @@ function nameRow(): SettingsRow {
   const right = document.createElement('div');
   right.className = 'value';
   const field = document.createElement('input');
-  Object.assign(field, { type: 'text', maxLength: 3, autocomplete: 'off', spellcheck: false, value: initials() ?? '', placeholder: 'YOU' });
+  Object.assign(field, { type: 'text', maxLength: NAME_MAX, autocomplete: 'off', spellcheck: false, value: playerName() ?? '', placeholder: 'YOU' });
   field.setAttribute('autocapitalize', 'characters');
   field.setAttribute('enterkeyhint', 'done');
-  field.setAttribute('aria-label', t('Your three letters'));
-  Object.assign(field.style, { width: '4.5em', textAlign: 'center', font: 'inherit', textTransform: 'uppercase' });
-  const about = Object.assign(document.createElement('span'), { textContent: t('three letters or digits, for the timing screens') });
+  field.setAttribute('aria-label', t('Your name'));
+  Object.assign(field.style, { width: '9em', textAlign: 'center', font: 'inherit', textTransform: 'uppercase' });
+  const about = Object.assign(document.createElement('span'), { textContent: t('your name for the timing screens, up to 12 letters') });
   field.addEventListener('input', () => {
-    const clean = field.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+    const clean = cleanName(field.value);
     if (clean !== field.value) field.value = clean;
-    if (INITIALS.test(clean)) setInitials(clean);
+    const name = clean.replace(/[ '-]+$/, '');
+    if (NAME.test(name)) setPlayerName(name);
   });
   right.append(field, about);
   el.append(label, right);
-  return { el, step: () => {}, value: () => initials(), refresh: () => { field.value = initials() ?? ''; } };
+  return { el, step: () => {}, value: () => playerName(), refresh: () => { field.value = playerName() ?? ''; } };
 }
 
 /** Open a page outside the game (a new tab on the web; the phone's own browser in the app). */
