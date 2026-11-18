@@ -26,8 +26,9 @@ jobs:
           cache: npm
       # dependency install scripts stay off: nothing here needs them
       - run: npm ci --ignore-scripts
-      # a new advisory in a dependency fails the run; npm audit fix (or a Dependabot pull request) clears it
-      - run: npm audit --audit-level=high
+      # a new advisory in a dependency fails the run; npm audit fix (or a Dependabot pull request) clears it. One with no
+      # fixed version yet can be let through for now in tools/audit.mjs (ALLOWED), and taken out once a fix ships
+      - run: node tools/audit.mjs
       - run: npm run lint
       # the web build (tsc and vite), and the Play variant the store ships
       - run: npm run build

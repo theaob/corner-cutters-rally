@@ -59,7 +59,7 @@ import { paintRows } from './race/readoutView';
 import { bannerMessage, evenLines, lessonMessage } from './race/banner';
 import { gapColor, motionReduced, splitColor } from './access';
 import { deckLabels as labelsFor } from './race/deckLabels';
-import { createFlagOverlay, createRain, createStreaks } from './race/screenFx';
+import { createFlagOverlay, createRain } from './race/screenFx';
 import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
@@ -195,9 +195,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     pauseTitle, pauseButton, place: layHud,
   } = createHud(scheme, difficulty);
   weatherTag.textContent = tl(weather.name);
-  // the rush of speed, the rain, and your chequered flag, drawn over the picture (race/screenFx.ts)
-  const streaks = createStreaks();
-  /** less motion asked for (MOTION in the settings, or the device): no speed lines; read as it's changed */
+  // the rain and your chequered flag, drawn over the picture (race/screenFx.ts); no speed lines (Onur, 2026-11-18)
+  /** less motion asked for (MOTION in the settings, or the device): no flashing readout; read as it's changed */
   const calm = () => motionReduced();
   /** the rush now (eased toward what the speed says) */
   let rushNow = 0;
@@ -228,7 +227,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     bannerShown = { text, drawn: banner.textContent };
   };
   cardSlot.append(paceCard.el);
-  host.append(cardSlot, streaks.el, rain.el, readout, progress, banner, lesson, results, crewCard, pauseScreen, flagOverlay.el);
+  host.append(cardSlot, rain.el, readout, progress, banner, lesson, results, crewCard, pauseScreen, flagOverlay.el);
   placeHud = (desktop) => {
     phoneHud = !desktop;
     layHud(desktop, host, mode === 'tutorial');
@@ -1063,14 +1062,6 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     dust.update(dt);
     debris.update(race.clock, (x, z) => groundAt(grid, x, z).h);
     rain.draw(dt, race.rain);
-    {
-      // (the way the car's going, on the screen: the ground's y is foreshortened by the camera's pitch)
-      const c = me.car;
-      const sy = c.vy * Math.sin(deg(LOOK.pitch));
-      const len = Math.hypot(c.vx, sy) || 1;
-      // (none for a device asking for less motion)
-      streaks.draw(dt, calm() ? 0 : rushNow, c.vx / len, sy / len);
-    }
     skids.update(dt);
 
     // camera: follow your car, looking ahead along its motion
@@ -1214,7 +1205,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     step(() => sounds.dispose());
     step(() => paceCard.hush());
     step(offBack);
-    for (const el of [cardSlot, streaks.el, rain.el, readout, progress, banner, lesson, results, crewCard, pauseScreen, pauseSettings, flagOverlay.el]) step(() => el.remove());
+    for (const el of [cardSlot, rain.el, readout, progress, banner, lesson, results, crewCard, pauseScreen, pauseSettings, flagOverlay.el]) step(() => el.remove());
     step(() => {
       deckEl?.classList.remove('results-up');
       deckEl?.classList.remove('driving');
