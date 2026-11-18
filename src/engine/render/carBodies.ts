@@ -193,8 +193,10 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     k.front(4.8, 2.2, 0.3, 4.3, front - 0.12, k.all(black));
     for (const y of [3.7, 4.3, 4.9]) k.front(4.8, 0.16, 0.3, y, front - 0.2, k.all(k.chrome));
     for (const x of [-3.9, 3.9]) {
-      k.add(drum(1.1, 0.8, 'z', x, 5, front + 0.6 - k.noseZ, 12), [k.chrome, k.chrome, k.chrome], k.nose);
-      k.add(drum(0.9, 0.2, 'z', x, 5, front + 0.15 - k.noseZ, 12), [k.lamp, k.lamp, k.lamp], k.nose);
+      // (each in a pod of the wing, standing out in front of the body: the wing's curve never cuts into the lamp)
+      k.add(drum(1.2, 2, 'z', x, 4.9, front + 0.5 - k.noseZ, 14), [k.body, k.body, k.body], k.nose);
+      k.add(drum(1.05, 0.4, 'z', x, 4.9, front - 0.65 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+      k.add(drum(0.85, 0.2, 'z', x, 4.9, front - 0.8 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
     }
     for (const x of [-1.5, 1.5]) {
       k.add(drum(0.9, 0.9, 'z', x, 3.3, front - 0.9 - k.noseZ, 12), [black, black, black], k.nose);
