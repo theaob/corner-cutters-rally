@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 
-export type CarModel = 'pip' | 'brisk' | 'stiletto' | 'quadra' | 'typhoon' | 'apex';
+export type CarModel = 'mini' | 'brisk' | 'stiletto' | 'quadra' | 'typhoon' | 'apex';
 
 type Faces = THREE.Material[];
 
@@ -39,6 +39,13 @@ export interface BodyKit {
   deck(w: number, l: number): THREE.Material;
   /** one material on every face */
   all(m: THREE.Material): Faces;
+  /** any geometry (in the car's frame), a material for each of its groups */
+  add(g: THREE.BufferGeometry, faces: Faces, on?: THREE.Object3D): void;
+  /** a paint of the car's own (it chars with the rest when the car burns) */
+  paint(color: THREE.ColorRepresentation): THREE.Material;
+  /** the nose part (a crash tears it off) and where it sits along the car */
+  nose: THREE.Object3D;
+  noseZ: number;
 }
 
 export interface Slant {
@@ -72,6 +79,30 @@ export function slanted(g: THREE.BoxGeometry, { front = 0, back = 0, inset = 0 }
   return g;
 }
 
+/**
+ * A side profile drawn in (z, y) by `draw` (z along the car, the front negative; y up), extruded `depth` across the car
+ * and centred on it, its edges rounded over `bevel`. Groups: 0 the two flat sides, 1 round the edge.
+ */
+export function profile(draw: (s: THREE.Shape) => void, depth: number, bevel = 0, segments = 6): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  draw(shape);
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: Math.max(0.01, depth - 2 * bevel), bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelOffset: -bevel, bevelSegments: 2, curveSegments: segments,
+  });
+  // (shape x along the car, its extrusion across: x' = −z, z' = x)
+  g.rotateY(-Math.PI / 2);
+  g.translate((depth - 2 * bevel) / 2, 0, 0);
+  return g;
+}
+
+/** A disc or drum `r` in radius and `len` long round `axis`, its middle at (x, y, z). Groups: 0 round, 1 and 2 its ends. */
+export function drum(r: number, len: number, axis: 'x' | 'y' | 'z', x: number, y: number, z: number, segments = 12): THREE.BufferGeometry {
+  const g = new THREE.CylinderGeometry(r, r, len, segments);
+  if (axis === 'x') g.rotateZ(Math.PI / 2);
+  if (axis === 'z') g.rotateX(Math.PI / 2);
+  return g.translate(x, y, z);
+}
+
 /** A top's faces: `top` on it, `side` round it, dark under. */
 const capped = (side: THREE.Material, top: THREE.Material, dark: THREE.Material): Faces => [side, side, top, dark, side, side];
 
@@ -88,33 +119,100 @@ function spotlights(k: BodyKit, n: number, gap: number, y: number, z: number, po
 
 export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
   /**
-   * PIP 1300, 1960s: the pocket two-box saloon of the early winter rallies. Narrow and short, a tall glasshouse
-   * under a roof in the second colour, a stubby bonnet, wheels right out at the corners, chrome bumpers.
+   * BANTAM S, after the Mini Cooper S that won the Monte Carlo Rally in the sixties: tiny, the wheels right out at the
+   * corners under black arch extensions, a rounded two-box body with its seams on the outside, an upright glasshouse
+   * under a white roof, round headlamps either side of a chrome grille with two spotlights before it, chrome bumpers,
+   * a white roundel on each door and a swivelling spotlight on the roof. Its own paint: red, the roof white.
    */
-  pip(k) {
-    const w = 10.6;
-    const half = 12;
-    k.box(w, 4.6, half * 2 - 1, 4.4, 0, capped(k.pods, k.body, k.dark)); // the shell
-    k.box(w - 0.4, 0.5, 6.4, 6.9, -half + 3.6, capped(k.body, k.deck(w - 0.4, 6.4), k.dark)); // the bonnet
-    k.slant(w - 1, 3.4, 14.2, 8.4, 2.2, k.all(k.glass), { front: 0.3, inset: 0.4 }); // the glasshouse, upright
-    pillars(k, w - 1.2, 3.4, 8.4, -4.6, 9, 0.4);
-    k.box(w - 1.6, 0.8, 14.4, 10.5, 2.2, capped(k.trim, k.trim, k.dark)); // the roof, the second colour
-    k.box(2.8, 0.9, 2.8, 11.3, 2, k.all(k.scoop)); // a roof vent
-    k.box(w - 4, 0.6, 0.8, 11.1, -4.4, k.all(k.tcam));
-    // black arch extensions over the wheels at the corners
-    for (const z of [-8.8, 8.8]) for (const x of [-w / 2, w / 2]) k.box(1, 1.4, 6.6, 5.6, z, capped(k.carbon, k.carbon, k.dark), undefined, x);
-    // the nose: a chrome bumper, the grille, two round headlamps, two spotlights between
-    k.front(w + 0.2, 0.8, 0.8, 2.8, -half - 0.2, k.all(k.chrome));
-    k.front(w - 4.4, 1.8, 0.4, 5, -half - 0.05, capped(k.dark, k.chrome, k.dark));
-    for (const x of [-3.6, 3.6]) k.front(1.8, 1.8, 0.4, 5.2, -half - 0.1, k.all(k.lamp), x);
-    spotlights(k, 2, 2.6, 3.9, -half - 0.6, 5.4, 1.4);
-    k.box(w + 0.2, 0.8, 0.8, 2.8, half + 0.2, k.all(k.chrome)); // the rear bumper
-    // a mud flap behind each rear wheel
-    for (const x of [-(w / 2 - 1.2), w / 2 - 1.2]) k.box(2.4, 2, 0.3, 1.5, half - 1, k.all(k.carbon), undefined, x);
+  mini(k) {
+    const w = 11.6;
+    const front = -12.5;
+    const back = 12.5;
+    const black = k.paint(0x16171b);
+    const white = k.paint(0xf3f1ea);
+    // the body: a rounded box from the sills to the waist, the bonnet curving down to the grille and the boot to the tail
+    k.add(profile((s) => {
+      s.moveTo(front + 0.6, 1.6);
+      s.lineTo(back - 0.6, 1.6);
+      s.quadraticCurveTo(back, 1.7, back, 2.6);
+      s.lineTo(back, 5.4);
+      s.quadraticCurveTo(back - 0.1, 6.2, back - 1, 6.3);
+      s.lineTo(-6.2, 6.5);
+      s.quadraticCurveTo(front + 3, 6.3, front + 1.2, 5.6);
+      s.quadraticCurveTo(front + 0.1, 5.3, front, 4.6);
+      s.lineTo(front, 2.6);
+      s.quadraticCurveTo(front, 1.7, front + 0.6, 1.6);
+    }, w, 0.7), [k.pods, k.body]);
+    // the seams on the outside, down the body at the screen's foot
+    for (const x of [-(w / 2 + 0.05), w / 2 + 0.05]) k.box(0.3, 4, 0.3, 4.4, -6.3, k.all(k.body), undefined, x);
+    // the glasshouse, upright, the screen a little raked; the pillars in the body colour
+    k.add(profile((s) => {
+      s.moveTo(-6.3, 6.3);
+      s.lineTo(-5, 9.7);
+      s.lineTo(8.4, 9.7);
+      s.lineTo(9.1, 6.3);
+    }, w - 1.6), [k.glass, k.glass]);
+    for (const [z0, z1] of [[-6.35, -5.05], [9.15, 8.45]] as const) {
+      for (const x of [-(w - 1.6) / 2, (w - 1.6) / 2]) {
+        k.add(profile((s) => {
+          s.moveTo(z0 - 0.4, 6.3);
+          s.lineTo(z1 - 0.4, 9.7);
+          s.lineTo(z1 + 0.5, 9.7);
+          s.lineTo(z0 + 0.5, 6.3);
+        }, 0.4).translate(x, 0, 0), [k.body, k.body]);
+      }
+    }
+    for (const x of [-(w - 1.6) / 2, (w - 1.6) / 2]) k.box(0.4, 3.4, 0.7, 8, 2, k.all(k.body), undefined, x); // the door pillars
+    // the roof: white, domed, its gutter overhanging the glass
+    k.add(profile((s) => {
+      s.moveTo(-5.4, 9.6);
+      s.lineTo(8.8, 9.6);
+      s.quadraticCurveTo(8.8, 10.3, 7.8, 10.4);
+      s.lineTo(-4.3, 10.4);
+      s.quadraticCurveTo(-5.4, 10.3, -5.4, 9.6);
+    }, w - 1.1, 0.35), [k.trim, k.trim]);
+    // the swivelling spotlight on the roof, its housing the driver's colour (yours gold)
+    k.add(drum(0.75, 1.3, 'z', 0, 11.15, -3.8, 10), [k.scoop, k.scoop, k.scoop]);
+    k.add(drum(0.55, 0.12, 'z', 0, 11.15, -4.5, 10), [k.lamp, k.lamp, k.lamp]);
+    k.box(0.5, 0.5, 0.5, 10.6, -3.8, k.all(black));
+    // black arch extensions over the wheels
+    for (const z of [-8.7, 8.7]) for (const x of [-(w / 2 + 0.25), w / 2 + 0.25]) {
+      k.add(profile((s) => {
+        s.moveTo(z - 3.5, 2.2);
+        s.quadraticCurveTo(z - 3.4, 6.1, z, 6.2);
+        s.quadraticCurveTo(z + 3.4, 6.1, z + 3.5, 2.2);
+        s.lineTo(z + 2.8, 2.2);
+        s.quadraticCurveTo(z + 2.7, 5.5, z, 5.6);
+        s.quadraticCurveTo(z - 2.7, 5.5, z - 2.8, 2.2);
+      }, 0.8).translate(x, 0, 0), [black, black]);
+    }
+    // a white roundel on each door, for the rally number
+    for (const x of [-(w / 2 + 0.04), w / 2 + 0.04]) k.add(drum(1.5, 0.1, 'x', x, 4.2, 0.4, 14), [white, white, white]);
+    // the nose: a chrome grille, round headlamps in chrome rings, two spotlights before the grille, a chrome bumper
+    k.front(5.6, 2.8, 0.3, 4.3, front - 0.05, k.all(k.chrome));
+    k.front(4.8, 2.2, 0.3, 4.3, front - 0.12, k.all(black));
+    for (const y of [3.7, 4.3, 4.9]) k.front(4.8, 0.16, 0.3, y, front - 0.2, k.all(k.chrome));
+    for (const x of [-3.9, 3.9]) {
+      k.add(drum(1.1, 0.8, 'z', x, 5, front + 0.6 - k.noseZ, 12), [k.chrome, k.chrome, k.chrome], k.nose);
+      k.add(drum(0.9, 0.2, 'z', x, 5, front + 0.15 - k.noseZ, 12), [k.lamp, k.lamp, k.lamp], k.nose);
+    }
+    for (const x of [-1.5, 1.5]) {
+      k.add(drum(0.9, 0.9, 'z', x, 3.3, front - 0.9 - k.noseZ, 12), [black, black, black], k.nose);
+      k.add(drum(0.75, 0.15, 'z', x, 3.3, front - 1.4 - k.noseZ, 12), [k.lamp, k.lamp, k.lamp], k.nose);
+    }
+    k.front(w + 0.2, 0.7, 0.7, 2.3, front - 0.3, k.all(k.chrome));
+    for (const x of [-2.9, 2.9]) k.front(0.5, 1.6, 0.6, 2.9, front - 0.55, k.all(k.chrome), x);
+    // the tail: a chrome bumper with its overriders, the number plate, the boot handle
+    k.box(w + 0.2, 0.7, 0.7, 2.3, back + 0.3, k.all(k.chrome));
+    for (const x of [-2.9, 2.9]) k.box(0.5, 1.6, 0.6, 2.9, back + 0.55, k.all(k.chrome), undefined, x);
+    k.box(3.6, 1.1, 0.15, 3.6, back + 0.05, k.all(white));
+    k.box(1.6, 0.3, 0.3, 5, back + 0.1, k.all(k.chrome));
+    // mud flaps behind the wheels
+    for (const z of [-5.4, 11.6]) for (const x of [-(w / 2 - 0.9), w / 2 - 0.9]) k.box(1.8, 1.6, 0.2, 1.3, z, k.all(black), undefined, x);
     return {
-      axles: [-8.8, 8.8],
-      wheel: { radius: 3, width: 2.6, half: w / 2 - 0.9, rim: '#d8dce2' },
-      tail: { z: half - 0.2, y: 5.4, x: w / 2 - 1.4, w: 1.6, h: 1.8 },
+      axles: [-8.7, 8.7],
+      wheel: { radius: 2.75, width: 2.5, half: w / 2 - 0.55, rim: '#a7adb5' },
+      tail: { z: back + 0.05, y: 4.6, x: w / 2 - 0.9, w: 0.9, h: 1.7 },
     };
   },
 

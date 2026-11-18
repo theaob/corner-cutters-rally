@@ -231,6 +231,16 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
     front: (w, h, l, y, z, faces, x = 0) => box(w, h, l, y, z - noseZ, faces, nose, x),
     deck: (w, l) => (patterned ? painted(deckTexture(look, second, w, l)) : body),
     all: (m) => [m, m, m, m, m, m],
+    add: (g, faces, on = car) => {
+      // (mergedByMaterial reads faces by index: an unindexed geometry, an extrusion's, gets one)
+      if (!g.index) g.setIndex(Array.from({ length: g.getAttribute('position').count }, (_, i) => i));
+      const list = boxes.get(on) ?? [];
+      list.push({ geometry: g, faces });
+      boxes.set(on, list);
+    },
+    paint: (color) => mat(color),
+    nose,
+    noseZ,
   };
   const spec = BODIES[look.model ?? 'apex'](kit);
 

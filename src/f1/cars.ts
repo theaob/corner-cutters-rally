@@ -23,10 +23,12 @@ export interface CarSpec {
   tough: number;
   /** s from a standstill to top speed */
   pickup: number;
+  /** its own paint (each car has its own): the body, the second colour (the roof, flares, wing), the sides */
+  paint?: { body: string; stripe: string; accent?: string };
 }
 
 export const CARS: CarSpec[] = [
-  { id: 'pip', name: 'PIP 1300', era: '1960s', drive: 'front', unlock: 0, speed: 0.94, pickup: 1.25, turn: 1.08, grip: 0.95, tough: 0.9 },
+  { id: 'mini', name: 'BANTAM S', era: '1960s', drive: 'front', unlock: 0, speed: 0.94, pickup: 1.25, turn: 1.08, grip: 0.95, tough: 0.9, paint: { body: '#b8182a', stripe: '#f3f1ea' } },
   { id: 'brisk', name: 'BRISK 1800', era: '1970s', drive: 'rear', unlock: 40, speed: 0.96, pickup: 1.2, turn: 1, grip: 0.82, tough: 1 },
   { id: 'stiletto', name: 'STILETTO', era: '1970s', drive: 'rear', unlock: 110, speed: 0.98, pickup: 1.1, turn: 1.12, grip: 0.92, tough: 0.85 },
   { id: 'quadra', name: 'QUADRA', era: '1980s', drive: 'all', unlock: 220, speed: 1, pickup: 1.1, turn: 0.94, grip: 1.12, tough: 1.1 },

@@ -68,6 +68,7 @@ import { newCaller, paceNotes, screenFacing, stepCaller, type Caller } from './p
 import { createPaceCard, renderStageResults } from './race/rallyView';
 import { formatTime as fmt } from './time';
 import { SCHEMES, liveryOf, type Scheme } from './crews';
+import { carById } from './cars';
 import { COLOR } from './theme';
 
 /** s of count (3, 2, 1) after RESUME before the stage goes on */
@@ -309,8 +310,11 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   // (your car's fire light, in the scene from the start: a light coming or going makes every shader compile again, a
   // hitch mid-stage; effects.ts)
   const [fireLight] = makeFireLights(world.scene, 1);
+  // (?debug&car=<id>: the stage in one of the garage's cars, in its own paint, to see how it looks on the road)
+  const tryCar = new URLSearchParams(window.location.search).has('debug') ? carById(new URLSearchParams(window.location.search).get('car')) : undefined;
   const addLook = (): CarLook => {
-    const mesh: CarMesh = createCarMesh('f1', { ...liveryOf(scheme), helmet: 'gold' }, !!layout.dirt);
+    const paint = tryCar ? { ...tryCar.paint, model: tryCar.id } : liveryOf(scheme);
+    const mesh: CarMesh = createCarMesh('f1', { ...paint, helmet: 'gold' }, !!layout.dirt);
     world.scene.add(mesh);
     return { mesh, fx: new CarFx(mesh, fireLight) };
   };
