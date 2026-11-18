@@ -19,7 +19,7 @@ import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, teaches, type Device, type Onboarding } from './onboarding';
 import { RESCUE, newRescue, stepRescue } from './rescue';
-import { CAMERA_NEAR, SIGHT, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
+import { SIGHT, bestKey, leadShare, rallyCar, stageFraming, styleHandling } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { DustLayer, dustKindOf } from '../engine/render/dust';
@@ -1047,17 +1047,17 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const way = moving ? Math.atan2(c.vx, -c.vy) : c.heading;
     // (snapped to it after a restart)
     sightWay = sightWay === undefined || !before ? way : lerpAngle(sightWay, way, 1 - Math.exp(-dt / SIGHT.ease));
-    const framed = topDownFraming(Math.sin(sightWay), -Math.cos(sightWay), { width: viewW, height: viewH }, c.cls.topSpeed);
-    // (in closer than the framing alone: style.ts CAMERA_NEAR; the look ahead shortened to match, the car kept as placed)
-    const framing = { zoom: framed.zoom * CAMERA_NEAR, lead: framed.lead / CAMERA_NEAR };
+    // (in closer than TOP-DOWN's framing alone, and aimed far ahead, the car kept back toward the edge it's coming
+    // from: style.ts stageFraming)
+    const framing = stageFraming(Math.sin(sightWay), -Math.cos(sightWay), { width: viewW, height: viewH }, c.cls.topSpeed);
     if (lookAt) {
       // (the debug hook's: the camera on a point of the map)
       target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
       focus.copy(target);
     } else {
-      // (looking ahead: further still, and pulled back, with the road running across or down the screen)
-      const lead = framing.lead;
-      target.set(drawn.x + (c.vx / c.cls.topSpeed) * lead, drawn.z * 0.5, drawn.y + (c.vy / c.cls.topSpeed) * lead);
+      // (looking ahead the way it's going, eased, more of the way the faster it goes)
+      const lead = framing.lead * leadShare(speedOf(c), c.cls.topSpeed);
+      target.set(drawn.x + Math.sin(sightWay) * lead, drawn.z * 0.5, drawn.y - Math.cos(sightWay) * lead);
     }
     focus.lerp(target, 1 - Math.exp(-dt * 6));
     const pitch = deg(LOOK.pitch);
