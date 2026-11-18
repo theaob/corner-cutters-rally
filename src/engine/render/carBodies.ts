@@ -209,33 +209,40 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
   },
 
   /**
-   * TYPHOON, 1990s: the turbo four-door that ruled the gravel. A saloon with a raked screen, a bonnet scoop, a tall
-   * wing over the boot on two stays, gold wheels.
+   * TYPHOON, 1990s: the compact turbo saloon that ruled the gravel in the late nineties (the Impreza's kind of car).
+   * Rounded shoulders, a short sloping nose with big corner headlamps, a wide flat scoop on the bonnet with vents
+   * either side, a roof vent, a tall wing over a short boot on two stays, broad flares, gold wheels.
    */
   typhoon(k) {
     const w = 13.4;
-    const half = 14.8;
-    k.box(w - 0.4, 4.6, half * 2 - 0.4, 4.5, 0, capped(k.pods, k.body, k.dark)); // the shell
-    k.box(w - 1, 0.5, 10.6, 7.05, -half + 5.5, capped(k.body, k.deck(w - 1, 10.6), k.dark)); // the bonnet
-    k.box(4.2, 1, 3.2, 7.7, -7.4, [k.body, k.body, k.body, k.dark, k.body, k.dark]); // its scoop, open at the front
-    k.slant(w - 2, 3.8, 12.4, 8.85, 1.2, k.all(k.glass), { front: 1.6, back: 1.4, inset: 0.8 }); // the raked cabin
-    k.box(w - 3.4, 0.6, 8.4, 10.95, 1.2, capped(k.body, k.deck(w - 3.4, 8.4), k.dark)); // the roof
-    k.box(3, 1.1, 3.2, 11.8, 0.4, k.all(k.scoop));
-    k.box(w - 5, 0.7, 0.9, 11.6, -2.6, k.all(k.tcam));
-    k.box(w - 1, 0.5, 7, 7.05, half - 3.9, capped(k.body, k.body, k.dark)); // the boot
+    const half = 14;
+    // the shell, its shoulders rounded and its nose sloping
+    k.slant(w - 0.2, 4.8, half * 2 - 0.4, 4.6, 0, capped(k.pods, k.body, k.dark), { front: 0.8, back: 0.3, inset: 0.7 });
+    k.slant(w - 1.6, 0.6, 10, 6.65, -half + 5.2, capped(k.body, k.deck(w - 1.6, 10), k.dark), { front: 0.7, inset: 0.4 }); // the bonnet
+    // the scoop: wide and flat, just before the screen, open at the front; a vent either side
+    k.slant(5.4, 1.5, 3.8, 7.6, -6.4, [k.body, k.body, k.body, k.dark, k.body, k.dark], { front: 0.7, inset: 0.3 });
+    for (const x of [-4.3, 4.3]) k.box(1.2, 0.14, 2, 7, -9.4, k.all(k.carbon), undefined, x);
+    // the cabin, rounded: a raked screen, a short roof, a sloping back window
+    k.slant(w - 2.2, 3.8, 12, 8.75, 1.4, k.all(k.glass), { front: 1.8, back: 1.6, inset: 1.1 });
+    k.box(w - 4.6, 0.6, 7.6, 10.75, 1.5, capped(k.body, k.deck(w - 4.6, 7.6), k.dark)); // the roof
+    k.box(2.6, 0.9, 2.4, 11.4, -0.6, [k.scoop, k.scoop, k.scoop, k.dark, k.scoop, k.dark]); // the roof vent
+    k.box(w - 6, 0.6, 0.8, 11.3, -2, k.all(k.tcam));
+    k.slant(w - 1.4, 0.5, 6, 6.95, half - 3.4, capped(k.body, k.body, k.dark), { back: 0.3, inset: 0.4 }); // the short boot
     // the tall wing, on two stays
-    k.box(w - 0.6, 0.6, 2.6, 11.4, half - 2.6, k.all(k.trim));
-    for (const x of [-(w - 5) / 2, (w - 5) / 2]) k.box(0.6, 3.8, 1.6, 9.2, half - 2.6, k.all(k.carbon), undefined, x);
-    // flares, in the trim
-    for (const z of [-9.8, 9.8]) for (const x of [-(w / 2 - 0.3), w / 2 - 0.3]) k.box(1.5, 1.4, 8.4, 6.2, z, capped(k.trim, k.trim, k.dark), undefined, x);
-    // the nose: the bumper and four spotlights
-    k.front(w - 0.8, 2.6, 2.2, 3, -half - 0.2, capped(k.carbon, k.carbon, k.dark));
-    spotlights(k, 4, 2.7, 6.1, -half - 0.4, w - 3);
-    for (const x of [-(w / 2 - 1.5), w / 2 - 1.5]) k.box(3, 2.6, 0.3, 1.6, half - 2.6, k.all(k.carbon), undefined, x);
+    k.box(w - 0.8, 0.6, 2.6, 11.6, half - 2.4, k.all(k.trim));
+    for (const x of [-(w - 5) / 2, (w - 5) / 2]) k.box(0.6, 4.6, 1.4, 9.2, half - 2.4, k.all(k.carbon), undefined, x);
+    // broad flares, in the trim
+    for (const z of [-9.4, 9.4]) for (const x of [-(w / 2 - 0.2), w / 2 - 0.2]) k.slant(1.8, 1.6, 9, 6, z, capped(k.trim, k.trim, k.dark), { inset: 0.3 }, undefined, x);
+    // the nose: a bumper with a wide intake, big headlamps at the corners, four spotlights on the bumper
+    k.front(w - 0.6, 2.8, 2, 3, -half - 0.2, capped(k.body, k.body, k.dark));
+    k.front(w - 5, 1.2, 0.3, 3, -half - 1.25, k.all(k.dark));
+    for (const x of [-(w / 2 - 2.2), w / 2 - 2.2]) k.slant(3.4, 1.3, 1, 5.6, -half + 0.6, k.all(k.lamp), { front: 0.3 }, undefined, x);
+    spotlights(k, 4, 2.3, 4, -half - 1.3, w - 5, 1.3);
+    for (const x of [-(w / 2 - 1.5), w / 2 - 1.5]) k.box(3, 2.6, 0.3, 1.6, half - 2.2, k.all(k.carbon), undefined, x);
     return {
-      axles: [-9.8, 9.8],
-      wheel: { radius: 3.6, width: 3.2, half: w / 2 - 1.6, rim: '#d4a72c' },
-      tail: { z: half - 0.1, y: 6, x: w / 2 - 2.4, w: 3.2, h: 1.6 },
+      axles: [-9.4, 9.4],
+      wheel: { radius: 3.6, width: 3.3, half: w / 2 - 1.5, rim: '#d4a72c' },
+      tail: { z: half - 0.1, y: 6, x: w / 2 - 2.2, w: 3, h: 1.4 },
     };
   },
 
