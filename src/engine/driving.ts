@@ -280,6 +280,8 @@ export interface DriveInput {
   handbrake: boolean;
   /** full brakes, keeping grip (AI drivers use this; players brake by pulling back) */
   brake?: boolean;
+  /** how hard `brake` brakes, a share of the car's full brakes (1 unless set: the AI's) */
+  brakeShare?: number;
   /** px/s: a speed limiter the car won't pull beyond (e.g. under a safety car) */
   limit?: number;
   /**
@@ -537,7 +539,7 @@ export function stepCar(car: Car, input: DriveInput, p: HandlingParams, dt: numb
   if (grounded) {
     if (handbrake) fwd = toward(fwd, 0, brake * 0.5);
     if (drift) fwd = toward(fwd, 0, DRIFT.scrub * drift);
-    if (braking) fwd = toward(fwd, 0, brake);
+    if (braking) fwd = toward(fwd, 0, brake * Math.max(0, Math.min(1, input.brakeShare ?? 1)));
     if (tumbling) fwd = toward(fwd, 0, IMPACT.rollDrag);
     // slopes: gravity along the slope works against (or with) the engine, so how steep a
     // climb a vehicle manages comes from its torque and mass; across the slope (a banked

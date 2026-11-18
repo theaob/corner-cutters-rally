@@ -1,6 +1,6 @@
 # Corner Cutters Rally
 
-An arcade rally in the HD-2D look, grown out of [Corner Cutters](https://github.com/theaob/corner-cutters). You drive long one-way special stages on gravel, snow, sand and tarmac, one car at a time against the clock, with a co-driver calling every bend and nine rival crews to beat over a whole rally. It's built mobile-first, in a portrait layout with a touch control deck.
+An arcade rally in the HD-2D look, grown out of [Corner Cutters](https://github.com/theaob/corner-cutters). You drive long one-way special stages on gravel, snow, sand and tarmac, one car at a time against the clock, with a co-driver calling every bend and nine rival crews to beat over a whole rally. It's built mobile-first, played in landscape, the screen's two halves the controls.
 
 ## The game
 
@@ -96,21 +96,22 @@ A big crash tears off the bumper and its lamps, and a wreck loses a wheel or two
 
 ### Controls
 
-The controls are Corner Cutters' own (its AUTO): one scheme, and whichever device you used last drives (`src/engine/controls.ts`, `src/engine/deck.ts`, `playerInput` and `wheelInput` in `src/f1/racing.ts`).
+One way to drive, in landscape, whatever you drive with: the gas is always on, the left steers left, the right steers right, and both at once brake and then, once the car has stopped, reverse (`src/engine/controls.ts`, `src/engine/deck.ts`, `splitWheel`, `padHalves` and `wheelInput` in `src/f1/racing.ts`). Your brakes are half as strong as the car's full brakes (`PLAYER_BRAKE`), so a stop takes a moment.
 
-- **Touch:** a floating thumbstick. Put a thumb down anywhere on the stick's side of the lower screen and the stick comes to it. Push the way you want to go on the screen (up the screen is north, whichever way the car faces): the car turns to go that way, and how far you push is how much gas. Ease the stick in to slow; let go and the car coasts. The stick sits on the right unless STICK in the settings moves it left. On dirt the deck has a DRIFT button opposite the stick (the handbrake).
-- **Keyboard:** ↑ (W) is the gas, ↓ (S) the brake (held once stopped, it backs up), ← → (A, D) steer the car, and X or Shift drifts. Z or Space is A, Enter is START, Backspace is SELECT, Esc or P pauses, and V switches between the handheld and wide layouts.
-- **Gamepad:** the left stick steers the car, the right trigger is the gas, the left the brake, and A drifts. Start pauses, Y restarts, and Back is SELECT.
+- **Touch:** hold the left half of the screen to steer left, the right half to steer right, both to brake (and keep holding to reverse). The halves are unmarked while you drive; the controls lap lights them up.
+- **Keyboard:** ← → (A, D) are the halves and ↓ (S) is both. Z or Space is A, Enter is START, Backspace is SELECT, and Esc or P pauses.
+- **Gamepad:** the left stick pushed left or right holds that half, and the left trigger is both. Start pauses, Y restarts, and Back is SELECT.
 
-**The stage** (`src/f1/style.ts`) is made for a phone. The camera is the one view, CLASSIC (high, north up), pulled back and looking ahead of the car the way it's going. The car is quick off the line and keeps three quarters of its speed and grip off the road. The roadside forgives: hits do about a third of the damage, small knocks none, and the car never rolls. Stopped off the road a while, you're put back on it at a cost (`src/f1/rescue.ts`). The rivals' times come from a run in the same car.
+**The controls lap** (on first launch, `src/f1/onboarding.ts`) asks you to steer left, steer right, brake to a stop and reverse, each with its half lit up, before the co-driver's calls and the finish.
+
+**The stage** (`src/f1/style.ts`) is made for a phone held sideways. The camera is the one view, CLASSIC (high, north up), looking ahead of the car the way it's going, at one fixed distance (`CAMERA_NEAR`). A phone held upright is asked to turn sideways. The car is quick off the line and keeps three quarters of its speed and grip off the road. The roadside forgives: hits do about a third of the damage, small knocks none, and the car never rolls. Stopped off the road a while, you're put back on it at a cost (`src/f1/rescue.ts`). The rivals' times come from a run in the same car.
 
 **SETTINGS** (from home, and from the pause screen; `src/f1/menu.ts`, `src/f1/settingsRows.ts`):
 
 - DIFFICULTY (from home only): how much a crash costs and how quick the rival crews are;
-- SCREEN, on a device with a mouse or trackpad;
 - TEXT: NORMAL or LARGE;
 - COLOURS: STANDARD or COLOUR-SAFE, for the splits;
-- STICK (on a touch screen): the thumbstick on the LEFT or the RIGHT;
+- DRIVING: how to drive, said (not a choice);
 - VIBRATION, SCREEN SHAKE, SOUND and MUSIC;
 - STATS, only when the build has a backend.
 
@@ -159,7 +160,7 @@ npm run dev        # http://localhost:5173
 `.github/workflows/ci.yml` checks every push and every pull request (`npm audit`, ESLint, the tests, the web build) without reading any secret. `.github/workflows/itch.yml` builds a push to the default branch (or **Run workflow** in the Actions tab on it) and uploads `dist/` to itch.io with [butler](https://itch.io/docs/butler/) as the `html5` channel, versioned `<package version>+<commit>`.
 
 Setup (once):
-1. On itch.io, create the project with kind **HTML**. Under the embed options, tick **Mobile friendly** (portrait) and **Fullscreen button**, and set a viewport of about 390×844.
+1. On itch.io, create the project with kind **HTML**. Under the embed options, tick **Mobile friendly** (landscape) and **Fullscreen button**, and set a viewport of about 844×390.
 2. In the GitHub repo, under Settings → Secrets and variables → Actions, add the secret `BUTLER_API_KEY` (itch.io → Settings → API keys) and the variable `ITCH_TARGET` = `<itch-user>/<game-slug>` (e.g. `theaob/corner-cutters-rally`).
 3. Push to the default branch. After the first upload, tick **This file will be played in the browser** on the upload in the project's edit page.
 
@@ -167,7 +168,7 @@ Until both settings exist, the workflow skips the upload and warns which one is 
 
 ## Android
 
-The same web build, wrapped by [Capacitor](https://capacitorjs.com) into an Android app (`android/`, `capacitor.config.ts`): full screen, portrait, with the screen kept on, played offline. Its app id is `io.github.theaob.cornercuttersrally`, so it installs beside Corner Cutters rather than over it.
+The same web build, wrapped by [Capacitor](https://capacitorjs.com) into an Android app (`android/`, `capacitor.config.ts`): full screen, held in landscape, with the screen kept on, played offline. Its app id is `io.github.theaob.cornercuttersrally`, so it installs beside Corner Cutters rather than over it.
 
 `.github/workflows/android.yml` builds an APK (a download under the run's **Artifacts**) and uploads it to the itch.io page as the `android` channel. It also builds a Google Play AAB. It runs on every push and pull request; only a push to the default branch uploads to itch.io.
 
@@ -180,7 +181,7 @@ base64 -w0 release.keystore      # the value for ANDROID_KEYSTORE_BASE64
 
 Then add the repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`.
 
-**Tested on Android:** `.github/workflows/android-e2e.yml` builds a debug APK on every push, installs it on an emulated Pixel 6 (Android 14) and runs `tools/android-e2e.mjs` on it. That script drives the shakedown with the phone's own touch input (the floating thumbstick on either side, and DRIFT on dirt), reads the car's speed and heading back from the game, and opens the settings. The phone's screenshots and `results.json` are the run's **android-e2e** download. With a phone on adb and a debug build installed, the same script runs locally (`npm install --no-save playwright-core && node tools/android-e2e.mjs out`).
+**Tested on Android:** `.github/workflows/android-e2e.yml` builds a debug APK on every push, installs it on an emulated Pixel 6 (Android 14) and runs `tools/android-e2e.mjs` on it. That script drives the shakedown with the phone's own touch input (a half held at a time steers each way), reads the car's speed and heading back from the game, and opens the settings. The phone's screenshots and `results.json` are the run's **android-e2e** download. With a phone on adb and a debug build installed, the same script runs locally (`npm install --no-save playwright-core && node tools/android-e2e.mjs out`).
 
 Locally (with the Android SDK and JDK 21): `npm run android:apk` builds `android/app/build/outputs/apk/release/app-release.apk`, and `npm run android:play` the Play AAB. `npm run android:art` redraws the game's icon, the gravel hairpin, into the launcher icons, the splash screens and the web icons in `public/` (`tools/android-art.py`, needs Pillow).
 
@@ -198,7 +199,7 @@ stats.html        The play-stats dashboard (src/stats/)
 src/
   main.ts         The entry: the host made ready, then app.ts
   app.ts          Routes in the page: home, the settings, a stage (?circuit=<id>&mode=rally), the controls lap
-  engine/         the controls (keys, gamepad, the deck's thumbstick and buttons), layout, storage, save, driving physics (driving.ts), ground and
+  engine/         the controls (keys, gamepad, the screen's halves and the deck's buttons), layout, storage, save, driving physics (driving.ts), ground and
                   collision (sim.ts), render/ (HD-2D pipeline, quality, effects, car models, daylight, textures)
   f1/             The rally game (the folder keeps its old name): uses only engine/
     stages.ts     The stages, grown from their seeds

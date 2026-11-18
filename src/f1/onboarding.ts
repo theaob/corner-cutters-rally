@@ -1,40 +1,43 @@
 // The controls lap: on first launch, a run down the shakedown on your own
 // before the menu, with a prompt at a time for the controls on the device
-// you're using (the touch stick, keys, or a gamepad): go, full speed, slowing
-// for a bend, drifting (on the keys or a gamepad, and on a touch screen on dirt, where the deck has a DRIFT button),
-// the co-driver's calls, and on to the finish. Each prompt moves on once you've done it (or, for the ones that wait
-// for a bend, once you've been through one). The controls are Corner Cutters': the touch stick points the way to go,
-// the keys and a gamepad steer the car. Engine-free.
+// you're using (the screen's halves, keys, or a gamepad): steer left, steer
+// right, brake to a stop, reverse, the co-driver's calls, and on to the finish.
+// Each prompt moves on once you've done it (the calls once you've been through a
+// bend), so nobody leaves it without having braked and reversed. The gas is
+// always on: there's one way to drive, the screen's halves in landscape (left
+// steers left, right steers right, both brake and then reverse); the keys and a
+// gamepad drive the same way. Engine-free.
 
 /** The device you're driving with. */
 export type Device = 'touch' | 'keys' | 'pad';
 
-export type Step = 'go' | 'faster' | 'bend' | 'drift' | 'notes' | 'lap' | 'done';
-export const STEPS: Step[] = ['go', 'faster', 'bend', 'drift', 'notes', 'lap', 'done'];
+export type Step = 'left' | 'right' | 'brake' | 'reverse' | 'notes' | 'lap' | 'done';
+export const STEPS: Step[] = ['left', 'right', 'brake', 'reverse', 'notes', 'lap', 'done'];
 
-/** Whether `device` drives by pointing the way to go (the touch stick), rather than steering the car (keys, a gamepad). */
-export const pointsOn = (device: Device): boolean => device === 'touch';
+/** What you're holding: nothing, a half, or both. */
+export type Holding = 'none' | 'left' | 'right' | 'both';
 
-/** What the prompt says for `step` on `device` (`split`: driving by the screen's halves, SPLIT; a gamepad keeps its own). */
-export function prompt(step: Step, device: Device, split = false): string {
-  const points = pointsOn(device);
-  if (split && device !== 'pad') {
-    const touch = device === 'touch';
-    if (step === 'go') return touch ? 'HOLD THE LEFT OR RIGHT HALF TO STEER · THE GAS IS ALWAYS ON' : 'LEFT AND RIGHT TO STEER · THE GAS IS ALWAYS ON';
-    if (step === 'faster') return 'LET GO ON THE STRAIGHTS FOR FULL SPEED';
-    if (step === 'bend') return touch ? 'HOLD BOTH HALVES TO BRAKE · KEEP HOLDING TO REVERSE' : 'HOLD LEFT AND RIGHT TO BRAKE · KEEP HOLDING TO REVERSE';
-  }
+/** The screen's halves a step lights up on a touch screen (the halves to hold), if any. */
+export function teaches(step: Step): Holding {
+  if (step === 'left' || step === 'right') return step;
+  return step === 'brake' || step === 'reverse' ? 'both' : 'none';
+}
+
+/** What the prompt says for `step` on `device`. */
+export function prompt(step: Step, device: Device): string {
+  const touch = device === 'touch';
   switch (step) {
-    case 'go':
-      if (points) return 'PUSH THE STICK THE WAY YOU WANT TO GO';
-      return device === 'keys' ? 'UP TO GO · LEFT AND RIGHT TO STEER' : 'RIGHT TRIGGER TO GO · STICK TO STEER';
-    case 'faster':
-      return points ? 'PUSH IT ALL THE WAY OUT FOR FULL SPEED' : 'KEEP IT HELD FOR FULL SPEED';
-    case 'bend':
-      if (points) return 'EASE THE STICK IN BEFORE A BEND TO SLOW';
-      return device === 'keys' ? 'DOWN TO BRAKE BEFORE A BEND' : 'LEFT TRIGGER TO BRAKE BEFORE A BEND';
-    case 'drift':
-      return device === 'keys' ? 'HOLD X IN A BEND TO DRIFT ROUND IT' : device === 'touch' ? 'HOLD DRIFT IN A BEND TO SLIDE ROUND IT' : 'HOLD A IN A BEND TO DRIFT ROUND IT';
+    case 'left':
+      if (touch) return 'HOLD THE LEFT HALF TO STEER LEFT · THE GAS IS ALWAYS ON';
+      return device === 'keys' ? 'HOLD LEFT TO STEER LEFT · THE GAS IS ALWAYS ON' : 'PUSH THE STICK LEFT TO STEER · THE GAS IS ALWAYS ON';
+    case 'right':
+      if (touch) return 'NOW HOLD THE RIGHT HALF TO STEER RIGHT';
+      return device === 'keys' ? 'NOW HOLD RIGHT TO STEER RIGHT' : 'NOW PUSH THE STICK RIGHT';
+    case 'brake':
+      if (touch) return 'HOLD BOTH HALVES TO BRAKE · STOP THE CAR';
+      return device === 'keys' ? 'HOLD DOWN TO BRAKE · STOP THE CAR' : 'HOLD THE LEFT TRIGGER TO BRAKE · STOP THE CAR';
+    case 'reverse':
+      return 'KEEP HOLDING TO REVERSE · LET GO TO DRIVE ON';
     case 'notes':
       return 'THE CO-DRIVER CALLS EACH BEND: 6 IS FAST, 1 IS SLOW · MIND THE TREES';
     case 'lap':
@@ -48,36 +51,48 @@ export interface Onboarding {
   step: Step;
   /** bends passed when the step began (the steps that wait for a bend count from there) */
   from: number;
+  /** seconds the step's thing has been done for, so far */
+  held: number;
 }
 
-export const newOnboarding = (): Onboarding => ({ step: 'go', from: 0 });
+export const newOnboarding = (): Onboarding => ({ step: 'left', from: 0, held: 0 });
 
-/** What's happened so far: your speed (and top speed), the bends you've been through, whether you're drifting, whether you're past the finish. */
+/** How long a step's hold takes (s): steering each way, and reversing. */
+export const HOLD_FOR = { steer: 0.6, reverse: 1 };
+/** Slower than this (the speed's units: km/h on the readout) the car has stopped. */
+export const STOPPED = 4;
+
+/** What's happened so far, this step of `dt` seconds: your speed, what you hold, whether the car is reversing, the bends you've been through, whether you're past the finish. */
 export interface Facts {
   speed: number;
-  top: number;
+  holding: Holding;
+  reversing: boolean;
   bends: number;
-  drifting: boolean;
-  /** whether you can drift (on a touch screen only on dirt: the deck's DRIFT button); the drift prompt is skipped if not */
-  canDrift?: boolean;
   lapDone: boolean;
+  dt: number;
 }
 
 /** Move the prompt on if its step is done; true if it moved. */
 export function advance(o: Onboarding, f: Facts): boolean {
   const through = f.bends - o.from;
+  // (the steps done by holding a while: the time adds up while it's held, and starts again when it's let go)
+  const keep = (doing: boolean, need: number) => {
+    o.held = doing ? o.held + f.dt : 0;
+    return o.held >= need;
+  };
   const done =
-    o.step === 'go' ? f.speed > 100
-    : o.step === 'faster' ? f.speed > f.top * 0.8
-    : o.step === 'bend' ? through >= 1
-    // (a drift, or two bends without one: it's there when you want it)
-    : o.step === 'drift' ? f.canDrift === false || (f.drifting && f.speed > 80) || through >= 2
+    o.step === 'left' ? keep(f.holding === 'left', HOLD_FOR.steer)
+    : o.step === 'right' ? keep(f.holding === 'right', HOLD_FOR.steer)
+    // (stopped with both held: the next moment it reverses)
+    : o.step === 'brake' ? f.holding === 'both' && (f.speed < STOPPED || f.reversing)
+    : o.step === 'reverse' ? keep(f.reversing && f.speed > 2, HOLD_FOR.reverse)
     : o.step === 'notes' ? through >= 1
     : o.step === 'lap' ? f.lapDone
     : false;
   if (!done) return false;
   o.step = STEPS[STEPS.indexOf(o.step) + 1] ?? 'done';
   o.from = f.bends;
+  o.held = 0;
   return true;
 }
 

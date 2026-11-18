@@ -1,7 +1,6 @@
 // Corner Cutters Rally's save format (engine/save.ts keeps it): its version, and
 // how an older save is brought up to date. Sections:
-//   settings  sound (0…1), vibration (on/off), stickSide ('left'/'right': right unless set), layout ('handheld'/'desktop'),
-//             drive ('split'/'stick': split unless set; deck.ts), camera ('far'/'medium'/'close': medium unless set; style.ts),
+//   settings  sound (0…1), vibration (on/off),
 //             largeText and colourSafe (on/off: off unless set; access.ts)
 //   choices   the difficulty (by id), and your car's paint scheme (crews.ts)
 //   progress  onboarded: the controls lap done or skipped
@@ -19,12 +18,14 @@ const LEGACY = ['layout', 'circuit', 'team', 'difficulty', 'weather', 'records',
 
 /** The settings no longer kept (save version 3). */
 export const DROPPED_SETTINGS = ['driveStyle', 'driveGas', 'driveSteering', 'driveAssist', 'driveSide', 'driveControl', 'view'];
+/** The settings no longer kept from save version 4: the thumbstick's side, the screen's layout, DRIVING and CAMERA. */
+export const DROPPED_LAYOUT = ['stickSide', 'layout', 'drive', 'camera'];
 
 /** Only the values that are there (JSON keeps no undefined). */
 const some = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null));
 
 export const CC_SAVE: SaveFormat = {
-  version: 3,
+  version: 4,
   legacyKeys: LEGACY,
   migrations: [
     // 0 → 1: the separate keys into one save
@@ -53,6 +54,13 @@ export const CC_SAVE: SaveFormat = {
     (data) => {
       const settings = { ...((data.settings as Record<string, unknown> | undefined) ?? {}) };
       for (const k of DROPPED_SETTINGS) delete settings[k];
+      return { ...data, settings };
+    },
+    // 3 → 4: one way to drive and one look, landscape (the screen's halves steer, both brake then reverse; one camera
+    // distance): the thumbstick's side, the screen's layout, DRIVING and CAMERA are dropped
+    (data) => {
+      const settings = { ...((data.settings as Record<string, unknown> | undefined) ?? {}) };
+      for (const k of DROPPED_LAYOUT) delete settings[k];
       return { ...data, settings };
     },
   ],

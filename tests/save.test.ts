@@ -47,13 +47,14 @@ describe('the first save, from the keys of before', () => {
     useSave(CC_SAVE, s);
     expect(saved('settings', 'sound')).toBe(0.35);
     expect(saved('settings', 'vibration')).toBe(false);
-    expect(saved('settings', 'stickSide')).toBe('right');
-    expect(saved('settings', 'layout')).toBe('desktop');
+    // (the thumbstick's side and the screen's layout are gone: one way to drive, landscape)
+    expect(saved('settings', 'stickSide')).toBeUndefined();
+    expect(saved('settings', 'layout')).toBeUndefined();
     expect(savedSection('choices')).toEqual({ circuit: 'silver-heath', team: 'maas', difficulty: 'hard', weather: 'wet' });
-    expect(saveVersion()).toBe(3);
+    expect(saveVersion()).toBe(4);
     // one save now, the old keys gone; dev tools' own keys and other games' keys untouched
     expect([...s.items.keys()].sort()).toEqual(['cc:save', 'cc:tune:f1', 'other:records']);
-    expect(stored(s).version).toBe(3);
+    expect(stored(s).version).toBe(4);
   });
 
   it("starts empty on a new device, with the defaults where they're read", () => {
@@ -61,7 +62,7 @@ describe('the first save, from the keys of before', () => {
     useSave(CC_SAVE, s);
     expect(saved('settings', 'sound')).toBeUndefined();
     expect(loadStageBests()).toEqual({});
-    expect(stored(s)).toEqual({ version: 3, data: { settings: {}, choices: {} } });
+    expect(stored(s)).toEqual({ version: 4, data: { settings: {}, choices: {} } });
   });
 
   it('starts clean from a damaged old record and an odd old value', () => {
@@ -76,10 +77,19 @@ describe('the driving and camera settings of before', () => {
     const old = { version: 2, data: { settings: { sound: 0.5, stickSide: 'right', driveStyle: 'sim', driveGas: 'manual', driveSteering: 'quick', driveAssist: 'off', driveSide: 'right', driveControl: 'wheel', view: 'chase' }, rally: { stages: { 'ss-old-mill@topdown': 300 } } } };
     const s = fakeStore({ 'cc:save': JSON.stringify(old) });
     useSave(CC_SAVE, s);
-    expect(savedSection('settings')).toEqual({ sound: 0.5, stickSide: 'right' });
+    expect(savedSection('settings')).toEqual({ sound: 0.5 });
     expect(loadStageBests()['ss-old-mill@topdown']).toBe(300);
     flushSave();
-    expect(stored(s).version).toBe(3);
+    expect(stored(s).version).toBe(4);
+  });
+
+  it('drops the thumbstick, layout, DRIVING and CAMERA settings (one way to drive, landscape), keeping the rest', () => {
+    const old = { version: 3, data: { settings: { sound: 0.5, vibration: false, largeText: true, stickSide: 'left', layout: 'desktop', drive: 'stick', camera: 'close' } } };
+    const s = fakeStore({ 'cc:save': JSON.stringify(old) });
+    useSave(CC_SAVE, s);
+    expect(savedSection('settings')).toEqual({ sound: 0.5, vibration: false, largeText: true });
+    flushSave();
+    expect(stored(s).version).toBe(4);
   });
 });
 
@@ -131,7 +141,7 @@ describe("a save it can't read", () => {
     useSave(CC_SAVE, s);
     expect(saved('choices', 'team')).toBe('maas');
     expect(s.items.get('cc:save.bad')).toBe('{"version":1,"data":');
-    expect(stored(s).version).toBe(3);
+    expect(stored(s).version).toBe(4);
   });
 
   it('from a newer version of the game is read but never written over', () => {

@@ -10,7 +10,7 @@ import { driverName } from '../profile';
 import type { Difficulty } from '../difficulty';
 import type { Scheme } from '../crews';
 import { style } from './dom';
-import { READOUT_GRID, fitReadout, readoutRun } from './readoutView';
+import { READOUT_GRID, readoutRun } from './readoutView';
 import { COLOR, font } from '../theme';
 
 /** The HUD for your car in `scheme`, at `difficulty`. */
@@ -123,40 +123,18 @@ export function createHud(scheme: Scheme, difficulty: Difficulty) {
     });
     return b;
   };
-  // the wide screen: the readout top left, the card's slot top middle with the banner under it, the controls lap's
-  // prompt low in the middle. The phone: RESTART and PAUSE in the top corners (game.css) with the stage's number
-  // between them, the readout down the left and the camera on the right under them, the card's slot between those two
-  // (lower on the controls lap, under its SKIP), the banner under the card, the prompt over the driving, and the
-  // controls along the bottom
-  /** Lay the HUD out for the wide screen or the phone, in `host`; `lap`: the controls lap (SKIP up top on a phone). */
-  const place = (desktop: boolean, host: HTMLElement, lap = false) => {
-    if (desktop) {
-      delete readout.dataset.base;
-      style(readout, { left: '12px', top: '14px', fontSize: '12px', lineHeight: 'normal', width: 'auto' });
-      // (under the deck's strip, the stage's number, top middle)
-      style(cardSlot, { top: '52px', left: '50%', right: 'auto', width: 'auto', maxWidth: '60%', transform: 'translateX(-50%)' });
-      banner.style.top = '180px';
-      style(lesson, { top: 'auto', bottom: '18%' });
-      results.style.maxHeight = 'calc(82% - 8px)';
-      results.style.fontSize = '12px';
-    } else {
-      style(readout, { left: '12px', top: '52px', fontSize: '10px', lineHeight: '15px', width: '116px', boxSizing: 'border-box' });
-      // (its type a step smaller where a language's words would overrun the panel: readoutView.ts)
-      readout.dataset.base = '10';
-      fitReadout(readout);
-      // (between the readout, 116 px wide, and the camera, 44 px: on a 393 px phone about 200 px; on the controls lap
-      // under its SKIP, across the middle)
-      if (lap) style(cardSlot, { top: '150px', left: '50%', right: 'auto', width: '240px', transform: 'translateX(-50%)' });
-      else style(cardSlot, { top: '52px', left: '134px', right: '62px', width: 'auto', transform: 'none' });
-      // (lower with LARGE text: the card's taller)
-      banner.style.top = lap ? 'calc(206px + 56px * var(--ts, 1))' : 'calc(108px + 56px * var(--ts, 1))';
-      // (just over the steering pad and the brake: game.css's .drive)
-      style(lesson, { top: 'auto', bottom: '22%' });
-      // (the table, centred top to bottom with the buttons under it, clear of the stick above and below)
-      results.style.maxHeight = 'calc(100% - 2 * var(--deck-cover, 0px) - 80px)';
-      // (as big as its widest row fits: 12 px on most phones, 11 on a narrow one)
-      results.style.fontSize = (host.clientWidth || 390) >= 380 ? '12px' : '11px';
-    }
+  // the readout top left, the card's slot top middle with the banner under it, the controls lap's prompt low in the
+  // middle
+  /** Lay the HUD out over the landscape screen. */
+  const place = () => {
+    delete readout.dataset.base;
+    style(readout, { left: '12px', top: '14px', fontSize: '12px', lineHeight: 'normal', width: 'auto' });
+    // (under the deck's strip, the stage's number, top middle)
+    style(cardSlot, { top: '52px', left: '50%', right: 'auto', width: 'auto', maxWidth: '60%', transform: 'translateX(-50%)' });
+    banner.style.top = '180px';
+    style(lesson, { top: 'auto', bottom: '18%' });
+    results.style.maxHeight = 'calc(82% - 8px)';
+    results.style.fontSize = '12px';
   };
   return {
     readout, mainLines, tyreLine, cardSlot, banner, lesson, progress, setProgressMarks, setProgress, results, crewCard, weatherTag, pauseScreen,

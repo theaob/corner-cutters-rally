@@ -301,20 +301,7 @@ export function lateralOffset(track: Track, i: number, x: number, y: number): nu
   return (x - p.x) * Math.cos(p.dir) + (y - p.y) * Math.sin(p.dir);
 }
 
-/** The pad as the player holds it: the stick (screen space, length 0…1) and the A and B buttons. */
-export interface Pad {
-  stick: { x: number; y: number };
-  a: boolean;
-  b: boolean;
-}
-
-/** The driving input for the player from the touch thumbstick: it points where to go, and how far it's pushed is the throttle; B drifts. */
-export function playerInput(pad: Pad): DriveInput {
-  const { stick, b } = pad;
-  return { steer: stick.x || stick.y ? stick : undefined, handbrake: b };
-}
-
-/** Keys and gamepads drive the car itself: steering (−1 left … 1 right), gas and brake (0…1), and drift. */
+/** The wheel: steering (−1 left … 1 right), gas and brake (0…1), and drift. */
 export interface WheelPad {
   turn: number;
   gas: number;
@@ -324,22 +311,28 @@ export interface WheelPad {
 
 /** How hard the wheel turns at full lock (a share of the car's turn rate): a steering key is always at full lock. */
 export const WHEEL_LOCK = 0.8;
+/** How hard your brakes are, a share of the car's full brakes (the AI's): softer, so a stop takes a moment and both halves
+ * held into a bend scrub speed rather than kill it. */
+export const PLAYER_BRAKE = 0.5;
 /** px/s: slower than this (forwards), the brake reverses instead */
 const REVERSE_BELOW = 10;
 
-/** The wheel from the arrow keys (or WASD): up gas, down brake, left and right steer. */
-export const keysWheel = (keys: { up: boolean; down: boolean; left: boolean; right: boolean }, drift: boolean): WheelPad => ({
-  turn: (keys.right ? 1 : 0) - (keys.left ? 1 : 0), gas: keys.up ? 1 : 0, brake: keys.down ? 1 : 0, drift,
-});
-
-/** Which halves of the screen are held (SPLIT: a touch screen's left and right halves, or the left and right keys). */
+/** Which halves of the screen are held (a touch screen's left and right halves, or the left and right keys). */
 export interface Halves {
   left: boolean;
   right: boolean;
 }
 
+/** A gamepad as the halves: pushed left or right (past `PAD_DEAD`) holds that half, its brake (or `held`, the d-pad
+ * and keys) holds both. */
+export const PAD_DEAD = 0.3;
+export const padHalves = (d: { turn: number; brake: number }, held: Halves): Halves => {
+  const both = d.brake > 0.2 || (held.left && held.right);
+  return { left: both || held.left || d.turn < -PAD_DEAD, right: both || held.right || d.turn > PAD_DEAD };
+};
+
 /**
- * SPLIT's wheel: the gas is always on; holding one half steers that way at full lock, holding both brakes (and,
+ * The one way to drive: the gas is always on; holding one half steers that way at full lock, holding both brakes (and,
  * kept held once stopped, reverses: wheelInput does that, as for the brake key); neither drives straight on.
  */
 export const splitWheel = (h: Halves): WheelPad =>
@@ -356,7 +349,7 @@ export function wheelInput(w: WheelPad, car: Car): DriveInput {
   const forward = car.vx * Math.sin(car.heading) - car.vy * Math.cos(car.heading);
   const braking = w.brake > 0.2;
   if (braking && w.gas < 0.1 && forward < REVERSE_BELOW) return { wheel: { turn, gas: 0, reverse: true }, handbrake: w.drift };
-  return { wheel: { turn, gas: w.gas, reverse: false }, handbrake: w.drift, brake: braking };
+  return { wheel: { turn, gas: w.gas, reverse: false }, handbrake: w.drift, brake: braking, brakeShare: braking ? PLAYER_BRAKE : undefined };
 }
 
 /** Race control's orders for a driver: a speed limit, and whether it may overtake. */

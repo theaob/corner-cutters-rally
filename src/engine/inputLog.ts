@@ -23,8 +23,8 @@ export function showInputLog(host: HTMLElement, controls: Controls): void {
   };
   const where = (e: Event) => {
     const el = e.target instanceof Element ? e.target : null;
-    const b = el?.closest<HTMLElement>('[data-button],[data-dpad],button');
-    return b?.dataset.button ?? (b?.dataset.dpad !== undefined ? 'dpad' : b ? 'button' : el?.id || el?.tagName.toLowerCase() || '?');
+    const b = el?.closest<HTMLElement>('[data-button],.split-pad,button');
+    return b?.dataset.button ?? (b?.classList.contains('split-pad') ? 'split' : b ? 'button' : el?.id || el?.tagName.toLowerCase() || '?');
   };
   for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture'] as const) {
     window.addEventListener(type, (e) => log(`${type} ${e.pointerType}#${e.pointerId} ${where(e)} ${Math.round(e.clientX)},${Math.round(e.clientY)}`), true);

@@ -1287,8 +1287,30 @@ html.no-pause-blur .pause-settings {
 .circuit-menu .menu-button.mode-button.focused strong {
   color: var(--accent-b);
 }
+/* the menus on the landscape screen: a wider column, a little less room above and below, so home fits a phone held
+   sideways without scrolling (its rallies in one row: below) */
 .desktop .circuit-menu {
-  padding: 24px max(24px, calc(50% - 220px));
+  padding: 14px max(24px, calc(50% - 340px));
+  gap: 8px;
+}
+/* (a page longer than the screen, as the settings' GAME page: it scrolls, nothing squeezed) */
+.desktop .circuit-menu > * {
+  flex-shrink: 0;
+}
+/* (home's rallies, all in one row across; a row more on a narrow window) */
+.desktop .circuit-menu .menu-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+}
+.desktop .circuit-menu .menu-tiles .menu-button.menu-tile {
+  aspect-ratio: 1.25;
+  gap: 5px;
+}
+.desktop .circuit-menu .menu-tiles .menu-tile .tile-icon {
+  max-width: 44px;
+}
+.desktop .circuit-menu .menu-utility {
+  margin-top: 4px;
+  padding-top: 8px;
 }
 #screen canvas {
   display: block;
@@ -1357,224 +1379,6 @@ html.no-pause-blur .pause-settings {
   align-items: center;
   padding: 8px 22px;
 }
-/* on a phone the race picture fills the column, top to bottom, and the deck floats over it with no panel
-   behind it (src/engine/layout.ts), laid out as drawn in the HUD Lab: RESTART and PAUSE in the top corners
-   (the stage's km to go between them), the thumbstick and A along the bottom; the race's own
-   readouts are placed in src/f1/race.ts (placeHud) */
-html:not(.desktop) #app {
-  position: relative;
-}
-html:not(.desktop) #deck {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  justify-content: flex-end;
-  pointer-events: none;
-}
-html:not(.desktop) #deck .controls {
-  flex: none;
-  padding: 0 12px 16px;
-}
-html:not(.desktop) #deck button {
-  pointer-events: auto;
-}
-/* the stage's km to go in a small panel, at the top between RESTART and PAUSE */
-html:not(.desktop) .strip {
-  position: absolute;
-  top: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  height: auto;
-  padding: 3px 8px;
-  border: none;
-  border-radius: 6px;
-  background: rgba(21, 20, 31, 0.75);
-  color: var(--text);
-  white-space: nowrap;
-}
-html:not(.desktop) .strip [data-hud='position'] {
-  display: none;
-}
-html:not(.desktop) .strip .lap {
-  margin-left: 0;
-  font-size: 12px;
-  color: var(--text);
-}
-/* RESTART top left, PAUSE (EXIT) top right: the same width, so they mirror each other about the middle */
-html:not(.desktop) #deck:not(.results-up) .sys button {
-  width: 116px;
-}
-/* (and A, when it's up, at the bottom on the right) */
-html:not(.desktop) .face {
-  width: 108px;
-  justify-content: center;
-}
-html:not(.desktop) .sys {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
-  height: auto;
-  justify-content: space-between;
-}
-html:not(.desktop) .sys [data-button='start'] {
-  order: 0;
-}
-html:not(.desktop) .sys [data-button='select'] {
-  order: 2;
-}
-/* the results up (or qualifying's times): EXIT and RESTART under the table, big, side by side (race.ts sets
-   --results-bottom on the screen; the screen and the deck share their top on a phone) */
-html:not(.desktop) #deck.results-up .sys {
-  top: calc(var(--results-bottom, 60%) + 12px);
-  left: 10px;
-  right: 10px;
-  justify-content: center;
-  gap: 12px;
-}
-html:not(.desktop) #deck.results-up .sys button {
-  flex: 1;
-  max-width: 180px;
-  height: 52px;
-  gap: 10px;
-  border-radius: 14px;
-  font-size: 16px;
-  background: #25233a;
-  color: var(--text);
-}
-html:not(.desktop) #deck.results-up .sys .icon svg {
-  width: 18px;
-  height: 18px;
-}
-html:not(.desktop) #deck.results-up .sys .idle {
-  display: none;
-}
-/* (and the lap panel goes: the results have the screen to themselves; so do the pause screen and its settings,
-   which it would sit over) */
-html:not(.desktop) #deck.results-up .strip,
-html.ceremony:not(.desktop) #deck .strip,
-html.paused:not(.desktop) #deck .strip {
-  display: none;
-}
-/* (EXIT on the left, RESTART on the right, under the table) */
-html:not(.desktop) #deck.results-up .sys [data-button='select'] {
-  order: 0;
-}
-html:not(.desktop) #deck.results-up .sys [data-button='start'] {
-  order: 2;
-}
-html:not(.desktop) .face .label {
-  text-shadow: 0 1px 0 #000, 0 0 4px #000;
-}
-/* A on a phone: at the bottom opposite the thumbstick (on to the results, the menu); while you drive (SKIP on the
-   controls lap) up top in the middle, out of the thumbs' way */
-html:not(.desktop):not(.results-up):not(.paused):not(.ceremony) #deck.driving .face .col:not(.low) {
-  position: absolute;
-  top: 58px;
-  left: 50%;
-  transform: translateX(-50%) scale(0.8);
-  transform-origin: top center;
-  z-index: 1;
-}
-/* THE DRIVING on a touch screen, as in Corner Cutters (src/engine/deck.ts): the floating thumbstick, pointed the way to
-   go and pushed further for more speed; at rest in its corner, dimmed */
-html:not(.desktop) .stick {
-  background: radial-gradient(circle, rgba(27, 26, 41, 0.45) 0 58%, rgba(37, 35, 58, 0.6) 60%);
-  /* (floating: the zone takes the touches, and the stick glides back to its corner when let go) */
-  pointer-events: none !important;
-  transition: transform 0.15s ease-out, opacity 0.15s;
-}
-html:not(.desktop) #deck .stick:not(.pressed) {
-  opacity: 0.6;
-}
-html:not(.desktop) #deck .stick.pressed {
-  transition: opacity 0.15s;
-}
-/* (nothing to steer on the results, the pause screen or the ceremony) */
-html.results-up:not(.desktop) #deck .stick,
-html.ceremony:not(.desktop) #deck .stick,
-html.paused:not(.desktop) #deck .stick {
-  visibility: hidden;
-}
-/* the floating stick's zone: the stick's side of the lower half of the screen, short of the middle; a thumb landing
-   anywhere on it brings the stick there (deck.ts) */
-.stick-zone {
-  display: none;
-}
-html:not(.desktop) #deck .stick-zone {
-  display: block;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: calc(50% - 36px);
-  height: 50%;
-  pointer-events: auto;
-  touch-action: none;
-}
-html:not(.desktop) #deck.stick-right .stick-zone {
-  left: auto;
-  right: 0;
-}
-html.results-up:not(.desktop) #deck .stick-zone,
-html.ceremony:not(.desktop) #deck .stick-zone,
-html.paused:not(.desktop) #deck .stick-zone,
-html.menu #deck .stick-zone {
-  display: none;
-}
-/* the thumbstick on the right (STICK in the settings): the stick and the A/B buttons swap sides, and A and B mirror
-   so B stays on the inside, by the thumb */
-html:not(.desktop) #deck.stick-right .controls,
-html:not(.desktop) #deck.stick-right .face {
-  flex-direction: row-reverse;
-}
-/* the analogue thumbstick: a round well with a knob that follows the thumb */
-.stick {
-  position: relative;
-  width: 108px;
-  height: 108px;
-  box-sizing: border-box;
-  border-radius: 50%;
-  border: 1px solid var(--key-edge);
-  background: radial-gradient(circle, #1b1a29 0 58%, var(--key) 60%);
-  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5);
-  touch-action: none;
-}
-.stick .tick {
-  position: absolute;
-  font-size: 10px;
-  line-height: 1;
-  color: #6f6c8c;
-  pointer-events: none;
-}
-.stick .up { top: 6px; left: 50%; transform: translateX(-50%); }
-.stick .down { bottom: 6px; left: 50%; transform: translateX(-50%); }
-.stick .left { left: 7px; top: 50%; transform: translateY(-50%); }
-.stick .right { right: 7px; top: 50%; transform: translateY(-50%); }
-.stick .knob {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 46px;
-  height: 46px;
-  margin: -23px 0 0 -23px;
-  border-radius: 50%;
-  border: 1px solid #5a577c;
-  background: radial-gradient(circle at 38% 32%, #56537a, #34324c 62%, #26253a);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.55);
-  pointer-events: none;
-  /* springs back to the centre when let go; follows the thumb without lag while held */
-  transition: transform 0.12s ease-out;
-}
-.stick.pressed .knob {
-  transition: none;
-  border-color: var(--accent-b);
-}
-.desktop .stick {
-  display: none;
-}
-html:not(.desktop) .sys button {
-  background: rgba(37, 35, 58, 0.75);
-}
 .face {
   display: flex;
   gap: 16px;
@@ -1606,16 +1410,6 @@ html:not(.desktop) .sys button {
   display: block;
   width: 30px;
   height: 30px;
-}
-/* no drift button on the touch deck: B (DRIFT) is on the keys and a gamepad only (the wide layout shows its key) */
-html:not(.desktop) .face .col.low {
-  display: none;
-}
-/* on dirt (race.ts sets html.dirt), a DRIFT button on the touch deck too, opposite the thumbstick: drifting's the way
-   round there (as in Corner Cutters) */
-html.dirt:not(.desktop) .face .col.low {
-  display: flex;
-  margin-top: 0;
 }
 /* a button that does nothing just now is out of sight (still in its place, so the others don't move) */
 #deck .idle {
@@ -1679,6 +1473,12 @@ html.dirt:not(.desktop) .face .col.low {
   display: block;
   padding: 0;
   pointer-events: none;
+}
+/* (the menus are all touch on a touch screen: no deck over them there) */
+@media (any-pointer: coarse) {
+  html.menu.desktop #deck {
+    display: none;
+  }
 }
 /* top centre: the race readouts sit top left */
 .desktop .strip {
@@ -1967,9 +1767,9 @@ html.menu .menu-report {
 #app {
   position: relative;
 }
-/* (on the wide screen the menus are a column in the middle: the button in its corner) */
+/* (on the landscape screen: in the screen's own corner, clear of the title over the column in the middle) */
 html.desktop .menu-report {
-  right: max(12px, calc(50% - 215px + 12px));
+  right: 12px;
 }
 /* the title splash as the game opens (src/f1/screens/splash.ts): the logo over the backdrop race, TAP TO START */
 .splash {
@@ -2117,6 +1917,46 @@ html.split:not(.results-up):not(.paused):not(.ceremony) #deck.driving .split-pad
   border-left: 1px dashed rgba(255, 255, 255, 0.14);
   pointer-events: none;
 }
+/* the halves themselves: unseen while you drive; on the controls lap (race.ts sets #deck[data-teach]) the one to hold
+   (or both) glows gold and pulses, and lights up fully while it's held */
+.split-pad .half {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s, background-color 0.15s;
+}
+.split-pad .half .arrow {
+  font-size: 44px;
+  line-height: 1;
+  color: var(--gold);
+  text-shadow: 0 2px 0 #15141f;
+}
+#deck[data-teach='left'] .split-pad .half.left,
+#deck[data-teach='right'] .split-pad .half.right,
+#deck[data-teach='both'] .split-pad .half {
+  opacity: 1;
+  background: rgba(242, 193, 78, 0.1);
+  box-shadow: inset 0 0 0 3px rgba(242, 193, 78, 0.55);
+  border-radius: 14px;
+  animation: teach-pulse 1.4s ease-in-out infinite;
+}
+#deck[data-teach] .split-pad.held-left .half.left,
+#deck[data-teach] .split-pad.held-right .half.right {
+  background: rgba(242, 193, 78, 0.24);
+  animation: none;
+}
+@keyframes teach-pulse {
+  50% {
+    background: rgba(242, 193, 78, 0.2);
+  }
+}
+html.reduce-motion #deck[data-teach] .split-pad .half {
+  animation: none;
+}
 /* the system keys go top right, out of the halves' way (the readouts are top left, the stage strip top centre) */
 html.split .sys {
   top: 12px;
@@ -2179,4 +2019,33 @@ html.split .controls {
     width: 16px;
     height: 16px;
   }
+}
+/* a phone held upright (src/app.ts sets html.upright): the game is landscape only, so a note over everything asks to
+   turn it (the Android app is held in landscape; this is the web's) */
+.turn-note {
+  display: none;
+}
+html.upright .turn-note {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--deck, #15141f);
+  color: var(--gold);
+  font: calc(18px * var(--ts, 1)) Silkscreen, monospace;
+  text-align: center;
+  text-wrap: balance;
+}
+html.upright .turn-note::before {
+  content: '⟳';
+  display: block;
+  margin-bottom: 12px;
+  font-size: 48px;
+}
+html.upright .turn-note {
+  flex-direction: column;
 }

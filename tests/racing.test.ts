@@ -2,15 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_HANDLING, carClass, newCar, speedOf, stepCar } from '../src/engine/driving';
 import type { Grid } from '../src/engine/sim';
 import {
+  PLAYER_BRAKE,
   WHEEL_LOCK,
   aiInput,
   buildTrack,
-  keysWheel,
   nearestSample,
+  padHalves,
   newProgress,
   smoothLoop,
+  splitWheel,
   standings,
-  playerInput,
   stepProgress,
   wheelInput,
   type Pt,
@@ -180,30 +181,39 @@ describe('AI driver', () => {
   });
 });
 
-describe('the player\'s controls', () => {
-  it('point the car where the stick points, how far it\'s pushed is the throttle, and B drifts', () => {
-    expect(playerInput({ stick: { x: 0.3, y: -0.4 }, a: true, b: false })).toEqual({ steer: { x: 0.3, y: -0.4 }, handbrake: false });
-    expect(playerInput({ stick: { x: 0, y: 0 }, a: false, b: true })).toEqual({ steer: undefined, handbrake: true });
+describe('driving with keys or a gamepad (the halves, as on the screen)', () => {
+  const car = newCar(carClass('f1'), 0, 0); // facing north, stopped
+  it('a half steers at full lock with the gas on; a gamepad\'s stick past the dead zone holds a half', () => {
+    expect(wheelInput(splitWheel({ left: false, right: true }), car).wheel).toEqual({ turn: WHEEL_LOCK, gas: 1, reverse: false });
+    expect(padHalves({ turn: 0.2, brake: 0 }, { left: false, right: false })).toEqual({ left: false, right: false });
+    expect(padHalves({ turn: -0.8, brake: 0 }, { left: false, right: false })).toEqual({ left: true, right: false });
+    // (its brake, or both its stick and a key, hold both)
+    expect(padHalves({ turn: 0, brake: 1 }, { left: false, right: false })).toEqual({ left: true, right: true });
+  });
+
+  it('both brake while rolling forwards, and reverse once stopped', () => {
+    const moving = newCar(carClass('f1'), 0, 0);
+    moving.vy = -150;
+    const both = splitWheel({ left: true, right: true });
+    const braking = wheelInput(both, moving);
+    expect(braking.brake).toBe(true);
+    expect(braking.wheel?.reverse).toBe(false);
+    // (softer than the car's full brakes, the AI's: a stop takes a moment)
+    expect(braking.brakeShare).toBe(PLAYER_BRAKE);
+    expect(PLAYER_BRAKE).toBeLessThanOrEqual(0.6);
+    expect(wheelInput(both, car).wheel?.reverse).toBe(true);
   });
 });
 
-
-describe('driving with keys or a gamepad', () => {
-  const car = newCar(carClass('f1'), 0, 0); // facing north, stopped
-  it('steers the car itself: a key at full lock, a stick gentler near the centre', () => {
-    expect(wheelInput(keysWheel({ up: true, down: false, left: false, right: true }, false), car).wheel).toEqual({ turn: WHEEL_LOCK, gas: 1, reverse: false });
-    const half = wheelInput({ turn: 0.5, gas: 0, brake: 0, drift: false }, car).wheel!.turn;
-    expect(half).toBeLessThan(WHEEL_LOCK * 0.5);
-    expect(half).toBeGreaterThan(0);
-  });
-
-  it('brakes while rolling forwards, reverses once stopped, and drifts', () => {
-    const moving = newCar(carClass('f1'), 0, 0);
-    moving.vy = -150;
-    const down = keysWheel({ up: false, down: true, left: false, right: false }, true);
-    const braking = wheelInput(down, moving);
-    expect(braking.brake).toBe(true);
-    expect(braking.handbrake).toBe(true);
-    expect(wheelInput(down, car).wheel?.reverse).toBe(true);
+describe('your brakes', () => {
+  it('take about twice as long as full brakes to stop the car from top speed', () => {
+    const stopTime = (share: number | undefined) => {
+      const car = newCar(carClass('f1'), 640, 900);
+      car.vy = -car.cls.topSpeed;
+      let t = 0;
+      for (; t < 10 && speedOf(car) > 5; t += 1 / 60) stepCar(car, { handbrake: false, brake: true, brakeShare: share, wheel: { turn: 0, gas: 0, reverse: false } }, DEFAULT_HANDLING, 1 / 60, open);
+      return t;
+    };
+    expect(stopTime(PLAYER_BRAKE) / stopTime(undefined)).toBeGreaterThan(1.6);
   });
 });
