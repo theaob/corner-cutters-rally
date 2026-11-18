@@ -244,10 +244,18 @@ export function renderStageResults(el: HTMLElement, r: Rally, k: number, stageNa
     ] as [string, Partial<CSSStyleDeclaration>?][],
   }));
   const last = k === event.stages.length - 1;
-  el.replaceChildren(
-    heading(`${t('SS{n}', { n: k + 1 })} · ${stageName.toUpperCase()}`),
-    table(stage),
-    heading(`${t(event.name)} · ${last ? t('FINAL') : t('AFTER SS{n} OF {total}', { n: k + 1, total: event.stages.length })}`, COLOR.teal),
-    table(after),
+  // (the stage and the rally side by side, as the phone is held sideways: both on the screen at once)
+  const half = (...children: HTMLElement[]) => {
+    const d = document.createElement('div');
+    style(d, { flex: '1 1 0', minWidth: '0' });
+    d.append(...children);
+    return d;
+  };
+  const halves = document.createElement('div');
+  style(halves, { display: 'flex', alignItems: 'flex-start', gap: '14px' });
+  halves.append(
+    half(heading(`${t('SS{n}', { n: k + 1 })} · ${stageName.toUpperCase()}`), table(stage)),
+    half(heading(`${t(event.name)} · ${last ? t('FINAL') : t('AFTER SS{n} OF {total}', { n: k + 1, total: event.stages.length })}`, COLOR.teal), table(after)),
   );
+  el.replaceChildren(halves);
 }

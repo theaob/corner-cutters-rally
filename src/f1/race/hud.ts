@@ -133,7 +133,8 @@ export function createHud(scheme: Scheme, difficulty: Difficulty) {
     style(cardSlot, { top: '52px', left: '50%', right: 'auto', width: 'auto', maxWidth: '60%', transform: 'translateX(-50%)' });
     banner.style.top = '180px';
     style(lesson, { top: 'auto', bottom: '18%' });
-    results.style.maxHeight = 'calc(82% - 8px)';
+    // (clear of the buttons down the right edge: on to the rally is one of them)
+    style(results, { right: '64px', maxHeight: 'calc(82% - 8px)' });
     results.style.fontSize = '12px';
   };
   return {
