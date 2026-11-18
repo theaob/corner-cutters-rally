@@ -93,6 +93,34 @@ function ahead(ux: number, uy: number, screen: SightScreen, zoom: number, lead: 
   return most(0, 4000, (t) => inside(onScreen(ux * (t - lead), uy * (t - lead), screen, zoom), c));
 }
 
+/** px the camera can aim ahead of a car going (ux, uy) (a unit) at `zoom`, the car kept `behind` of the screen's span in from its edges. */
+function furthestLead(ux: number, uy: number, screen: SightScreen, zoom: number, behind: number, top = behind): number {
+  const c0 = clearOf(screen);
+  const keep = { ...clearOf(screen, { x: behind * (c0.right - c0.left), y: behind * (c0.bottom - c0.top) }), top: c0.top + top * (c0.bottom - c0.top) };
+  return most(0, 2000, (lead) => inside(onScreen(-ux * lead, -uy * lead, screen, zoom), keep));
+}
+
+/**
+ * How the stage's camera leads the car (race.ts): it sits CAMERA_NEAR closer than TOP_DOWN's framing and aims as far
+ * ahead as keeps the car `behind` of the screen's span in from the edge it's coming from (driving up and to the right,
+ * the car low and to the left), so the road coming shows as much as the nearer camera allows; at the top, `top` of it
+ * (clear of the stage's strip and the co-driver's card there). The lead grows with the
+ * speed, all of it from `full` of top speed (so a car crawling or stopped sits nearer the middle).
+ */
+export const LEAD = { behind: 0.12, top: 0.2, full: 0.45 };
+
+/** The stage camera's zoom and lead (px ahead at speed) for a car going (dx, dy) on `screen` (LEAD). */
+export function stageFraming(dx: number, dy: number, screen: SightScreen, topSpeed: number): { zoom: number; lead: number } {
+  const len = Math.hypot(dx, dy);
+  const ux = len > 0 ? dx / len : 0;
+  const uy = len > 0 ? dy / len : -1;
+  const zoom = topDownFraming(ux, uy, screen, topSpeed).zoom * CAMERA_NEAR;
+  return { zoom, lead: furthestLead(ux, uy, screen, zoom, LEAD.behind, LEAD.top) };
+}
+
+/** How much of the camera's lead to use at `speed` (0…1: all of it from LEAD.full of `topSpeed`). */
+export const leadShare = (speed: number, topSpeed: number): number => Math.max(0, Math.min(1, speed / (LEAD.full * topSpeed)));
+
 /**
  * TOP-DOWN's camera for a car going (dx, dy) on the map (y south) on `screen`: its zoom, and px it looks ahead at top
  * speed (`topSpeed` px/s). The road ahead shows SIGHT.seconds of it at top speed where the screen allows (as near as
@@ -102,10 +130,8 @@ export function topDownFraming(dx: number, dy: number, screen: SightScreen, topS
   const len = Math.hypot(dx, dy);
   const ux = len > 0 ? dx / len : 0;
   const uy = len > 0 ? dy / len : -1;
-  const c0 = clearOf(screen);
-  const keep = clearOf(screen, { x: SIGHT.behind * (c0.right - c0.left), y: SIGHT.behind * (c0.bottom - c0.top) });
   /** the furthest ahead the camera can aim at `zoom` with the car still kept in from the edges */
-  const furthest = (zoom: number) => most(0, 2000, (lead) => inside(onScreen(-ux * lead, -uy * lead, screen, zoom), keep));
+  const furthest = (zoom: number) => furthestLead(ux, uy, screen, zoom, SIGHT.behind);
   const need = SIGHT.seconds * topSpeed;
   const zoom = most(SIGHT.furthest, TOP_DOWN.zoom, (z) => ahead(ux, uy, screen, z, furthest(z)) >= need);
   const room = furthest(zoom);
