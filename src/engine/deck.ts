@@ -212,7 +212,6 @@ function bindSplit(deck: HTMLElement, controls: Controls): void {
   const pad = document.createElement('div');
   pad.className = 'split-pad';
   pad.setAttribute('aria-hidden', 'true');
-  pad.innerHTML = '<div class="half left"><span>&#9664;</span></div><div class="half right"><span>&#9654;</span></div><div class="both"></div>';
   deck.prepend(pad);
   const fingers = new Map<number, number>();
   const update = () => {

@@ -2094,8 +2094,8 @@ html.splash-up .menu-report {
   display: none;
 }
 /* SPLIT, the landscape experiment (deck.ts bindSplit; html.split: src/app.ts): the screen's two halves are the controls
-   while you drive, the left one steering left and the right one right, both at once braking (and then reversing); an
-   arrow in each lower corner shows each half, lit while it's held, and a faint line down the middle shows the split */
+   while you drive, the left one steering left and the right one right, both at once braking (and then reversing);
+   nothing on them but a faint line down the middle, where the split is */
 .split-pad {
   display: none;
 }
@@ -2117,40 +2117,6 @@ html.split:not(.results-up):not(.paused):not(.ceremony) #deck.driving .split-pad
   border-left: 1px dashed rgba(255, 255, 255, 0.14);
   pointer-events: none;
 }
-.split-pad .half {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  padding: 0 22px 22px;
-}
-.split-pad .half.right {
-  justify-content: flex-end;
-}
-.split-pad .half span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(21, 20, 31, 0.4);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 22px;
-  transition: background 0.08s, transform 0.08s;
-}
-.split-pad.held-left .half.left span,
-.split-pad.held-right .half.right span {
-  background: var(--accent-b);
-  border-color: var(--accent-b);
-  color: var(--deck);
-  transform: scale(0.94);
-}
-/* both held: braking (then reversing), both arrows in the brake's red */
-.split-pad.held-left.held-right .half span {
-  background: #ff5a5a;
-  border-color: #ff5a5a;
-}
 /* the system keys go top right, out of the halves' way (the readouts are top left, the stage strip top centre) */
 html.split .sys {
   top: 12px;
@@ -2161,7 +2127,7 @@ html.split .sys {
 html.split .sys::before {
   content: '← → STEER · BOTH BRAKE / REVERSE';
 }
-/* (and A and B under them, clear of the right half's arrow) */
+/* (and A and B under them) */
 html.split .controls {
   top: 64px;
   right: 12px;

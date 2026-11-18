@@ -20,7 +20,7 @@ import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
 import { advance as nextPrompt, apexesPassed, newOnboarding, pointsOn, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { RESCUE, newRescue, stepRescue } from './rescue';
-import { SIGHT, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
+import { CAMERA_DISTANCES, SIGHT, bestKey, cameraSetting, rallyCar, styleHandling, topDownFraming } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { DustLayer, dustKindOf } from '../engine/render/dust';
@@ -1081,7 +1081,10 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const way = moving ? Math.atan2(c.vx, -c.vy) : c.heading;
     // (snapped to it after a restart)
     sightWay = sightWay === undefined || !before ? way : lerpAngle(sightWay, way, 1 - Math.exp(-dt / SIGHT.ease));
-    const framing = topDownFraming(Math.sin(sightWay), -Math.cos(sightWay), { width: viewW, height: viewH, desktop }, c.cls.topSpeed);
+    const framed = topDownFraming(Math.sin(sightWay), -Math.cos(sightWay), { width: viewW, height: viewH, desktop }, c.cls.topSpeed);
+    // (CAMERA in the settings: in closer by its share, the look ahead shortened to match so the car stays as placed)
+    const near = CAMERA_DISTANCES[cameraSetting()];
+    const framing = { zoom: framed.zoom * near, lead: framed.lead / near };
     if (lookAt) {
       // (the debug hook's: the camera on a point of the map)
       target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
