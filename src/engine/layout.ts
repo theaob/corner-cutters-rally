@@ -12,6 +12,10 @@
 // screen fills the window instead: a fixed DESKTOP_GAME_HEIGHT tall, as wide as the window
 // allows up to 16:9 (never narrower than the phone's GAME_WIDTH), and the
 // deck becomes a HUD over it. Phones keep the portrait layout above.
+//
+// The landscape layout (SPLIT, the experiment: deck.ts driveScheme) is the desktop one's shape on any device: the wide
+// screen across a phone held sideways (or the window), the deck over it as a HUD, and the screen's two halves the
+// controls while you drive.
 
 export const GAME_WIDTH = 195;
 export const MIN_GAME_HEIGHT = 216;
@@ -24,6 +28,8 @@ export const MAX_APP_WIDTH = 430;
 /** Desktop: the game's height in game pixels (the phone's tallest), and the widest it gets. */
 export const DESKTOP_GAME_HEIGHT = MAX_GAME_HEIGHT;
 export const MAX_DESKTOP_ASPECT = 16 / 9;
+/** Landscape (SPLIT): the widest it gets, a long phone held sideways edge to edge. */
+export const MAX_LANDSCAPE_ASPECT = 22 / 9;
 
 export interface ScreenFit {
   /** CSS pixels per game pixel. */
@@ -57,24 +63,26 @@ export function fitScreen(availWidth: number, availHeight: number): ScreenFit {
 }
 
 /** The desktop screen: fills the window's height, and its width up to 16:9. */
-export function fitDesktop(availWidth: number, availHeight: number): ScreenFit {
+export function fitDesktop(availWidth: number, availHeight: number, maxAspect = MAX_DESKTOP_ASPECT): ScreenFit {
   const height = DESKTOP_GAME_HEIGHT;
   let scale = Math.max(availHeight, 1) / height;
   // a window narrower than the phone's screen at that scale: shrink to fit the width
   if (availWidth < GAME_WIDTH * scale) scale = Math.max(availWidth, 1) / GAME_WIDTH;
-  const width = Math.max(GAME_WIDTH, Math.min(Math.floor(height * MAX_DESKTOP_ASPECT), Math.floor(availWidth / scale)));
+  const width = Math.max(GAME_WIDTH, Math.min(Math.floor(height * maxAspect), Math.floor(availWidth / scale)));
   return { scale, width, height, desktop: true };
 }
 
-export type LayoutMode = 'handheld' | 'desktop';
+export type LayoutMode = 'handheld' | 'desktop' | 'landscape';
 
 /**
  * The layout to start in: always the handheld one, unless the player switched
  * to desktop (their choice is saved) or the address forces it (?desktop or
  * ?mobile, for testing). It never switches by itself.
  */
-export function startLayout(search: string, saved: string | null): LayoutMode {
+export function startLayout(search: string, saved: string | null, split = false): LayoutMode {
   const params = new URLSearchParams(search);
+  // (SPLIT is always landscape)
+  if (split) return 'landscape';
   if (params.has('desktop')) return 'desktop';
   if (params.has('mobile')) return 'handheld';
   return saved === 'desktop' ? 'desktop' : 'handheld';
@@ -95,6 +103,7 @@ export function isTouchScreen(win: Pick<Window, 'matchMedia' | 'navigator'> = wi
 
 export function measureFit(mode: LayoutMode, win: Window = window): ScreenFit {
   if (mode === 'desktop') return fitDesktop(win.innerWidth, win.innerHeight);
+  if (mode === 'landscape') return fitDesktop(win.innerWidth, win.innerHeight, MAX_LANDSCAPE_ASPECT);
   const width = Math.min(win.innerWidth, MAX_APP_WIDTH);
   return fitHandheld(width, win.innerHeight);
 }

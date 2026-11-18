@@ -11,7 +11,8 @@ import type { Button } from '../engine/controls';
 import { applyDamage, newCar, speedOf, type Car, type DriveInput, type StepEvents } from '../engine/driving';
 import { SIM_DT, advance, fixedClock, lerp, lerpAngle, resetClock } from '../engine/fixedStep';
 import { groundAt } from '../engine/sim';
-import { aiInput, keysWheel, lateralOffset, newProgress, lineCornerSpeed, lineDecel, playerInput, stageSplits, wheelInput } from './racing';
+import { aiInput, keysWheel, lateralOffset, newProgress, lineCornerSpeed, lineDecel, playerInput, splitWheel, stageSplits, wheelInput } from './racing';
+import { splitOn } from '../engine/deck';
 import { stopAt } from './stageDressing';
 import { NORMAL, handlingFor, type Difficulty } from './difficulty';
 import { DRY, lookAt as weatherLook, type Weather } from './weather';
@@ -19,7 +20,7 @@ import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
 import { advance as nextPrompt, apexesPassed, newOnboarding, pointsOn, prompt, STEPS, type Device, type Onboarding } from './onboarding';
 import { RESCUE, newRescue, stepRescue } from './rescue';
-import { SIGHT, bestKey, rallyCar, styleHandling, topDownFraming } from './style';
+import { CAMERA_DISTANCES, SIGHT, bestKey, cameraSetting, rallyCar, styleHandling, topDownFraming } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { DustLayer, dustKindOf } from '../engine/render/dust';
@@ -664,15 +665,16 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const s = controls.lastSource();
     if (s === 'keyboard') return 'keys';
     if (s === 'gamepad') return 'pad';
-    if (s === 'dpad') return 'touch';
+    if (s === 'dpad' || s === 'split') return 'touch';
     return isTouchScreen() ? 'touch' : 'keys';
   };
 
   /** What each deck button does just now (race/deckLabels.ts). */
   const deckLabels = () => labelsFor({
     settings: pauseSettingsOn, resultsUp: results.style.display === 'block', tutorial: session === 'tutorial', learnt: learn?.o.step === 'done', done, paused,
-    // (DRIFT: on the keys and a gamepad; on a touch screen the deck shows it on dirt only: game.css)
-    drift: true,
+    // (DRIFT: on the keys and a gamepad; on a touch screen the deck shows it on dirt only: game.css; SPLIT has none, its
+    // halves steer and brake)
+    drift: !splitOn(),
   });
   const deckEl = document.getElementById('deck');
   const showDeckLabels = () => {
@@ -831,9 +833,14 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const source = controls.lastSource();
     const drive = source === 'gamepad' ? controls.drive('gamepad') : undefined;
     const points = pointsOn(device());
+    // SPLIT (the experiment): the screen's halves, or the left and right keys, steer, both brake and then reverse, and
+    // the gas is always on (down is both, too); a gamepad keeps its own wheel
+    const split = splitOn();
+    const halves = { left: controls.isDown('left') || controls.isDown('down'), right: controls.isDown('right') || controls.isDown('down') };
     /** your car's input for one fixed step */
     const driveInput = (car: Car): DriveInput =>
-      points ? playerInput(drive ? { ...pad, stick: drive.stick ?? { x: 0, y: 0 } } : pad)
+      split && !drive ? wheelInput(splitWheel(halves), car)
+      : points ? playerInput(drive ? { ...pad, stick: drive.stick ?? { x: 0, y: 0 } } : pad)
       : drive ? wheelInput({ ...drive, drift: pad.b }, car)
       : wheelInput(keysWheel({ up: controls.isDown('up'), down: controls.isDown('down'), left: controls.isDown('left'), right: controls.isDown('right') }, pad.b), car);
     /** past the flying finish (or the controls lap's end): on the brakes to the stop */
@@ -842,7 +849,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     if (session === 'rally') {
       const car = race.entrants[you].car;
       const input = driveInput(car);
-      const gas = input.wheel ? (input.wheel.reverse ? 0 : input.wheel.gas) : Math.hypot(input.steer?.x ?? 0, input.steer?.y ?? 0);
+      // (SPLIT's gas is always on: its getaway is a half held, so a touch as the lights go out is the launch)
+      const gas = split && !drive ? (halves.left || halves.right ? 1 : 0)
+        : input.wheel ? (input.wheel.reverse ? 0 : input.wheel.gas) : Math.hypot(input.steer?.x ?? 0, input.steer?.y ?? 0);
       const verdict = stepLaunch(launch, race.phase === 'lights' && race.clock >= 0, race.phase === 'racing' ? race.clock : undefined, gas);
       if (verdict === 'jump') {
         race.entrants[you].progress.penalty += LAUNCH.jumpPenalty;
@@ -900,7 +909,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       fitTyres(me.tyres, me.car, race.wetness);
       learn.bends += apexesPassed(tutorApexes, learn.lastIdx, p.idx, track.samples.length);
       learn.lastIdx = p.idx;
-      const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: pad.b, canDrift: device() !== 'touch' || !!layout.dirt, lapDone: pastFinish() };
+      const facts = { speed: speedOf(me.car), top: me.car.cls.topSpeed, bends: learn.bends, drifting: pad.b, canDrift: !split && (device() !== 'touch' || !!layout.dirt), lapDone: pastFinish() };
       if (nextPrompt(learn.o, facts)) sounds.record();
       if (me.car.wrecked) startTutorial();
     }
@@ -1027,7 +1036,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       const state = {
         out: me.car.wrecked || !!p.retired, done, finishedPlace: stage?.result?.place || undefined, clean: stage?.result?.clean, resultsUp: results.style.display === 'block',
         wrongWay: p.wrongWay, clock, notice,
-        learn: learn && { text: prompt(learn.o.step, device()), last: learn.o.step === 'done' },
+        learn: learn && { text: prompt(learn.o.step, device(), split), last: learn.o.step === 'done' },
       };
       const [text, color] = bannerMessage(state);
       showBanner(text);
@@ -1072,7 +1081,10 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const way = moving ? Math.atan2(c.vx, -c.vy) : c.heading;
     // (snapped to it after a restart)
     sightWay = sightWay === undefined || !before ? way : lerpAngle(sightWay, way, 1 - Math.exp(-dt / SIGHT.ease));
-    const framing = topDownFraming(Math.sin(sightWay), -Math.cos(sightWay), { width: viewW, height: viewH, desktop }, c.cls.topSpeed);
+    const framed = topDownFraming(Math.sin(sightWay), -Math.cos(sightWay), { width: viewW, height: viewH, desktop }, c.cls.topSpeed);
+    // (CAMERA in the settings: in closer by its share, the look ahead shortened to match so the car stays as placed)
+    const near = CAMERA_DISTANCES[cameraSetting()];
+    const framing = { zoom: framed.zoom * near, lead: framed.lead / near };
     if (lookAt) {
       // (the debug hook's: the camera on a point of the map)
       target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);

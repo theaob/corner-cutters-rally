@@ -99,7 +99,7 @@ export function gameTexts(): string[] {
     // (said through a variable: the stage notes on the results, the road's state)
     'WENT OFF', 'WORN', 'WRECKED', 'SPIN', 'PUNCTURE', 'ROLLED', 'DNF', 'PENALTY', 'DRY', 'DAMP', 'WET',
   ];
-  const prompts = STEPS.flatMap((step) => (['touch', 'keys', 'pad'] as Device[]).map((d) => prompt(step, d)));
+  const prompts = STEPS.flatMap((step) => (['touch', 'keys', 'pad'] as Device[]).flatMap((d) => [prompt(step, d), prompt(step, d, true)]));
 
   return [...new Set([...calls.keys(), ...tables, ...prompts])].filter((s) => translatable(s) && !SAME.has(s));
 }

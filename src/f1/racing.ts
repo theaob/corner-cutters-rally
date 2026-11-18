@@ -332,6 +332,20 @@ export const keysWheel = (keys: { up: boolean; down: boolean; left: boolean; rig
   turn: (keys.right ? 1 : 0) - (keys.left ? 1 : 0), gas: keys.up ? 1 : 0, brake: keys.down ? 1 : 0, drift,
 });
 
+/** Which halves of the screen are held (SPLIT: a touch screen's left and right halves, or the left and right keys). */
+export interface Halves {
+  left: boolean;
+  right: boolean;
+}
+
+/**
+ * SPLIT's wheel: the gas is always on; holding one half steers that way at full lock, holding both brakes (and,
+ * kept held once stopped, reverses: wheelInput does that, as for the brake key); neither drives straight on.
+ */
+export const splitWheel = (h: Halves): WheelPad =>
+  h.left && h.right ? { turn: 0, gas: 0, brake: 1, drift: false }
+  : { turn: (h.right ? 1 : 0) - (h.left ? 1 : 0), gas: 1, brake: 0, drift: false };
+
 /**
  * The driving input for keys or a gamepad: the wheel turns the car (a gentle
  * curve on an analogue stick, for fine corrections), the gas pulls, the brake

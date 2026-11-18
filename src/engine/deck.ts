@@ -21,6 +21,28 @@ export function setStickSide(deck: HTMLElement, side: StickSide): void {
   save('settings', 'stickSide', side);
 }
 
+/**
+ * How you drive with a touch screen or the keys (DRIVING in the settings; kept on the device): SPLIT, the experiment,
+ * the screen in landscape and in two halves (hold one to steer that way, both to brake and then reverse; the gas is
+ * always on), or STICK, Corner Cutters' floating thumbstick in portrait (and the keys' own gas and brake). SPLIT unless
+ * the player picked STICK; ?stick or ?split in the address picks one for the visit (for testing).
+ */
+export type DriveScheme = 'split' | 'stick';
+export const DRIVE_SCHEMES: DriveScheme[] = ['split', 'stick'];
+export function driveScheme(search: string = globalThis.location?.search ?? ''): DriveScheme {
+  const params = new URLSearchParams(search);
+  if (params.has('stick')) return 'stick';
+  if (params.has('split')) return 'split';
+  return saved('settings', 'drive') === 'stick' ? 'stick' : 'split';
+}
+/** Whether you drive by the screen's halves (SPLIT). */
+export const splitOn = (): boolean => driveScheme() === 'split';
+/** Pick how you drive, and remember it; the page (src/app.ts) hears 'drive-scheme' and lays itself out for it. */
+export function setDriveScheme(scheme: DriveScheme): void {
+  save('settings', 'drive', scheme);
+  globalThis.dispatchEvent?.(new Event('drive-scheme'));
+}
+
 /** A tick under the finger on a button press (if vibration is on). */
 const buzz = () => vibrate(8);
 
@@ -56,6 +78,7 @@ export function bindDeck(deck: HTMLElement, controls: Controls): void {
 
   const stick = deck.querySelector<HTMLElement>('[data-dpad]');
   if (stick) bindStick(stick, controls, deck);
+  bindSplit(deck, controls);
 
   for (const el of deck.querySelectorAll<HTMLElement>('[data-button]')) {
     const button = el.dataset.button as Button;
@@ -174,9 +197,62 @@ function bindStick(pad: HTMLElement, controls: Controls, deck: HTMLElement): voi
   releaseAnywhere(() => held, release);
 }
 
+/** Which halves of a pad from `left` to `right` (px) the fingers at `xs` are on (SPLIT). */
+export function splitHalves(xs: number[], left: number, right: number): { left: boolean; right: boolean } {
+  const mid = (left + right) / 2;
+  return { left: xs.some((x) => x < mid), right: xs.some((x) => x >= mid) };
+}
+
+/**
+ * SPLIT's pad (shown over the whole screen while you drive, landscape: the CSS's html.split): its left half holds
+ * `left`, its right half `right`, each finger by where it is now (one sliding across moves over), both at once
+ * meaning both (the stage brakes, then reverses). It's the 'split' source, so the stage knows to drive by halves.
+ */
+function bindSplit(deck: HTMLElement, controls: Controls): void {
+  const pad = document.createElement('div');
+  pad.className = 'split-pad';
+  pad.setAttribute('aria-hidden', 'true');
+  deck.prepend(pad);
+  const fingers = new Map<number, number>();
+  const update = () => {
+    const r = pad.getBoundingClientRect();
+    const h = splitHalves([...fingers.values()], r.left, r.right);
+    const held: Button[] = [...(h.left ? (['left'] as const) : []), ...(h.right ? (['right'] as const) : [])];
+    if (fingers.size) controls.set('split', held);
+    else controls.clear('split');
+    pad.classList.toggle('held-left', h.left);
+    pad.classList.toggle('held-right', h.right);
+  };
+  pad.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (!fingers.size) buzz();
+    fingers.set(e.pointerId, e.clientX);
+    capture(pad, e.pointerId);
+    update();
+  });
+  pad.addEventListener('pointermove', (e) => {
+    if (!fingers.has(e.pointerId)) return;
+    fingers.set(e.pointerId, e.clientX);
+    update();
+  });
+  const lift = (e: PointerEvent) => {
+    if (fingers.delete(e.pointerId)) update();
+  };
+  pad.addEventListener('pointerup', lift);
+  pad.addEventListener('pointercancel', lift);
+  pad.addEventListener('lostpointercapture', lift);
+  for (const type of ['pointerup', 'pointercancel'] as const) window.addEventListener(type, lift);
+  // (the controls let go of everything from outside, as the page is hidden: the pad lets go too)
+  pad.addEventListener('split-release', () => {
+    fingers.clear();
+    update();
+  });
+}
+
 /** Show every deck button as let go (after the controls were cleared from outside). */
 export function releaseDeck(deck: HTMLElement): void {
   deck.querySelectorAll('.pressed').forEach((el) => el.classList.remove('pressed'));
+  deck.querySelector('.split-pad')?.dispatchEvent(new Event('split-release'));
   deck.querySelector<HTMLElement>('[data-dpad] .knob')?.style.setProperty('transform', 'translate(0px, 0px)');
 }
 

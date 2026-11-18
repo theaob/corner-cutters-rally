@@ -5,6 +5,7 @@
 
 import { REFERENCE, carClass, type CarClass, type HandlingParams } from '../engine/driving';
 import { HD2D_VIEW } from '../engine/look';
+import { save, saved } from '../engine/save';
 
 export const TOP_DOWN = {
   /** the car's top speed against the reference car's (the rivals' times come from a run in the same car, so they scale with it) */
@@ -41,6 +42,27 @@ export const SIGHT = {
   /** s the camera takes to settle on a new way (a gentle ease: no pumping through a slide or a quick wiggle) */
   ease: 0.9,
 };
+
+/**
+ * CAMERA in the settings: how close the camera sits. FAR is the framing above (SIGHT: the most road ahead); MEDIUM
+ * and CLOSE come in by these shares, showing less of the road ahead and the car bigger. MEDIUM unless the player
+ * picked another (kept on the device).
+ */
+export const CAMERA_DISTANCES = { far: 1, medium: 1.35, close: 1.75 } as const;
+export type CameraDistance = keyof typeof CAMERA_DISTANCES;
+export const CAMERA_SETTINGS = Object.keys(CAMERA_DISTANCES) as CameraDistance[];
+let camera: CameraDistance | undefined;
+export function cameraSetting(): CameraDistance {
+  if (!camera) {
+    const v = saved('settings', 'camera');
+    camera = typeof v === 'string' && v in CAMERA_DISTANCES ? (v as CameraDistance) : 'medium';
+  }
+  return camera;
+}
+export function setCameraSetting(c: CameraDistance): void {
+  camera = c;
+  save('settings', 'camera', c);
+}
 
 /** The screen the stage is drawn on, in game px: a phone's has its deck over the bottom, a desktop's none. */
 export interface SightScreen {
