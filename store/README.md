@@ -30,10 +30,10 @@ be uploaded by hand now or by `fastlane supply` later). The steps that need your
 | --- | --- | --- |
 | App icon | `icon.png` | 512 × 512, the gravel hairpin (`public/icon-512.png`, drawn by `tools/android-art.py`) |
 | Feature graphic | `featureGraphic.png` | 1024 × 500 |
-| Phone screenshots (2 to 8) | `phoneScreenshots/1…6` | 1920 × 1080 (16:9, landscape) |
+| Phone screenshots (2 to 8) | `phoneScreenshots/1…6` | 1080 × 1920 (9:16) |
 
 The screenshots are taken from the game itself in its one view (CLASSIC, north up), with the co-driver's card. They
-show the one-thumb ring of before, upright; retake them in landscape (the game is landscape only now): a gravel hairpin in the forests, snow, sand and tarmac stages, home with the
+show the one-thumb ring of before; retake them with the thumbstick: a gravel hairpin in the forests, snow, sand and tarmac stages, home with the
 four rallies, and the standings after a stage. A promo video is optional (a YouTube link); add it later.
 
 ## App content (Policy → App content)
