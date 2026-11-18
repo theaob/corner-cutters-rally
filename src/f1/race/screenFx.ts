@@ -15,43 +15,6 @@ function sizeOf(el: HTMLCanvasElement): { w: number; h: number } {
   return size;
 }
 
-/** The rush of speed: streaks past the screen's edges (rally keeps them: its camera holds its framing, SIGHT, rather than zooming out). */
-export function createStreaks() {
-  const el = document.createElement('canvas');
-  style(el, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: '1', pointerEvents: 'none' });
-  const ctx = el.getContext('2d')!;
-  const streakAt = () => ({ x: Math.random(), y: Math.random(), len: 0.05 + Math.random() * 0.07, v: 1.4 + Math.random() * 1.4 });
-  const list = Array.from({ length: 28 }, streakAt);
-  const size = sizeOf(el);
-  /** whether there's anything on it to clear */
-  let drawn = false;
-  /** Draw the streaks for `rush` (0…1), flowing back from the way the car's going on the screen (`dx`, `dy`, a unit vector). */
-  const draw = (dt: number, rush: number, dx: number, dy: number) => {
-    const { w, h } = size;
-    if (el.width !== w || el.height !== h) [el.width, el.height] = [w, h];
-    if (drawn) ctx.clearRect(0, 0, w, h);
-    drawn = rush >= 0.02;
-    if (!drawn) return;
-    ctx.strokeStyle = `rgba(244,242,250,${(0.5 * rush).toFixed(3)})`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (const st of list) {
-      st.x -= dx * st.v * rush * dt;
-      st.y -= dy * st.v * rush * dt;
-      if (st.x < -0.1 || st.x > 1.1 || st.y < -0.1 || st.y > 1.1) Object.assign(st, streakAt());
-      // (only round the edges: outside an oval over the middle)
-      const ox = (st.x - 0.5) / 0.5;
-      const oy = (st.y - 0.5) / 0.5;
-      if (ox * ox + oy * oy < 0.55) continue;
-      const len = st.len * h * (0.5 + rush);
-      ctx.moveTo(Math.round(st.x * w), Math.round(st.y * h));
-      ctx.lineTo(Math.round(st.x * w - dx * len), Math.round(st.y * h - dy * len));
-    }
-    ctx.stroke();
-  };
-  return { el, draw };
-}
-
 /** Rain over the picture: streaks falling at a slant, under the readouts. */
 export function createRain() {
   const el = document.createElement('canvas');
