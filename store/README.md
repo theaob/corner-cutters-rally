@@ -1,12 +1,14 @@
 # Google Play: the store listing and the Console, step by step
 
 Everything to put into the Play Console for Corner Cutters Rally, ready to paste or upload. The listing's texts and art
-are in [`fastlane/metadata/android/en-US/`](../fastlane/metadata/android/en-US/) (fastlane's `supply` layout, so they can
-be uploaded by hand now or by `fastlane supply` later). The steps that need your account are at the bottom, in order.
+are in [`fastlane/metadata/android/`](../fastlane/metadata/android/) (fastlane's `supply` layout, so they can be
+uploaded by hand now or by `fastlane supply` later): `en-US/` holds the default listing and the art, and `es-ES/`,
+`fr-FR/`, `de-DE/`, `pt-BR/`, `it-IT/`, `tr-TR/` and `ja-JP/` the translated texts for the game's seven other languages
+(Play shows the English art for them). The steps that need your account are at the bottom, in order.
 
 - App id: `io.github.theaob.cornercuttersrally` (its own app, beside Corner Cutters)
 - Privacy policy: **https://theaob.github.io/corner-cutters-rally/privacy.html** (from `legal/privacy.html`, deployed by
-  `pages.yml`; GitHub Pages has to be turned on once: Settings → Pages → Source: GitHub Actions)
+  `pages.yml` to GitHub Pages)
 - Terms of service: **https://theaob.github.io/corner-cutters-rally/terms.html**
 - Free, no ads, no in-app purchases.
 
@@ -15,11 +17,11 @@ be uploaded by hand now or by `fastlane supply` later). The steps that need your
 | Field | Limit | File |
 | --- | --- | --- |
 | App name | 30 | `title.txt`: **Corner Cutters Rally** (20) |
-| Short description | 80 | `short_description.txt` (80) |
-| Full description | 4000 | `full_description.txt` (about 1,800) |
+| Short description | 80 | `short_description.txt` (all locales 80 or under) |
+| Full description | 4000 | `full_description.txt` (about 2,000 to 2,300) |
 | Release notes | 500 | `changelogs/default.txt` |
 
-**Category:** Game → **Racing**. **Tags** (pick up to 5): Racing, Arcade, Rally, Drifting, Offline / Single player.
+**Category:** Game → **Racing**. **Tags** (pick up to 5): Racing, Arcade, Rally, Offline, Single player.
 
 **Contact details:** an email address (required; Play shows it publicly), and the website
 `https://github.com/theaob/corner-cutters-rally` or the itch.io page.
@@ -30,11 +32,14 @@ be uploaded by hand now or by `fastlane supply` later). The steps that need your
 | --- | --- | --- |
 | App icon | `icon.png` | 512 × 512, the gravel hairpin (`public/icon-512.png`, drawn by `tools/android-art.py`) |
 | Feature graphic | `featureGraphic.png` | 1024 × 500 |
-| Phone screenshots (2 to 8) | `phoneScreenshots/1…6` | 1080 × 1920 (9:16) |
+| Phone screenshots (2 to 8) | `phoneScreenshots/1…` | 1920 × 1080 (16:9, landscape) |
 
-The screenshots are taken from the game itself in its one view (CLASSIC, north up), with the co-driver's card. They
-show the one-thumb ring of before; retake them with the thumbstick: a gravel hairpin in the forests, snow, sand and tarmac stages, home with the
-four rallies, and the standings after a stage. A promo video is optional (a YouTube link); add it later.
+The game is played sideways, so the screenshots are landscape, taken from the game itself with the co-driver's card on
+screen: one stage from each of the five rallies. A promo video is optional (a YouTube link); add it later.
+
+**Translations:** in the Console, Store listing → Manage translations → Add your own translation text, add Spanish
+(es-ES), French (fr-FR), German (de-DE), Portuguese (Brazil, pt-BR), Italian (it-IT), Turkish (tr-TR) and Japanese
+(ja-JP), and paste each folder's three texts. The app name stays Corner Cutters Rally in every language.
 
 ## App content (Policy → App content)
 
@@ -82,8 +87,7 @@ the answer is then **No** to collecting data. Answer for the build you actually 
 
 ## The steps, in order
 
-1. **Turn on GitHub Pages** (repo Settings → Pages → Source: GitHub Actions) and re-run `pages`, so the privacy URL
-   above answers. Play checks the link.
+1. **Check the privacy URL** above opens (GitHub Pages is on; `pages` deploys it). Play checks the link.
 2. **Create the app** (Play Console → Create app): name Corner Cutters Rally, default language English (United
    States) – en-US, **Game**, **Free**, and accept the declarations.
 3. **App content:** fill in every section above. The Dashboard lists what's left.
@@ -106,4 +110,4 @@ the answer is then **No** to collecting data. Answer for the build you actually 
 - **Version codes** are the workflow's run number. Play refuses a code it has seen before, so always upload a newer
   run's AAB.
 - **The screenshots and feature graphic** were taken from the game in a browser at a 360 × 640 phone screen, 3×
-  pixels, with the scripts in `tools/store-shots/`. Retake them when the look of a stage or the HUD changes.
+  pixels (now 640 × 360 landscape), with the scripts in `tools/store-shots/`. Retake them when the look of a stage or the HUD changes.

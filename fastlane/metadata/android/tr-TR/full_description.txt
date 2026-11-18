@@ -1,0 +1,29 @@
+Beş, dört, üç, iki, bir, BAŞLA! Corner Cutters Rally, net bir piksel 3B görünümlü arcade ralli oyunu. Uzun özel etaplarda kronometreye karşı, her seferinde tek araç olarak yarışırken yardımcı pilotun önündeki her virajı okur.
+
+YARDIMCI PİLOT HER VİRAJI OKUR
+SOL 4. SAĞ 2 DARALIYOR. FİRKETE. ATLAMA. TÜNEL. Her viraj 6 (neredeyse gaz kesmeden) ile 1 (en yavaş) arasında bir not alır; sesli okunur ve ekranın üstündeki bir kartta gösterilir. Harita yok: notlara güven, gazdan ayağını çekme.
+
+BİR SEZON, HER HAFTA BİR AYAK
+Beş ralli bir sezonu oluşturur ve her hafta yeni bir ayak açılır. Aynı dokuz rakip ekip bütün sezon boyunca seninle yarışır. Her ayakta ilk on puan alır, son etabın, yani Power Stage'in en hızlı beşi de bonus puan kazanır. Sezon sonunda en çok puanı toplayan şampiyon olur.
+
+BEŞ RALLİ, ON YEDİ ETAP
+- Ormanlar Rallisi: çamların arasından ve bozkırdan geçen toprak yollar
+- Kış Rallisi: dağların tepesinde kar ve buz
+- Çöl Rallisi: kum, toz, palmiyeler ve develer
+- Asfalt Rallisi: dağ geçitleri, bağlar, sahil ve bir kale tepesi
+- Riviera Rallisi: denizin üstünde, firketeleri ve tünelleriyle dar uçurum yolları
+Her etap kendine ait uzun bir yol; atlamalar, yavaş virajlarda seyirciler ve hızlı bir finişle.
+
+ARACINA İYİ BAK
+Hasar, servis parkında onarılana kadar etaptan etaba taşınır. Rakiplerin de kötü günleri olur: bir spin, bir patlak lastik, bir takla. Ara zamanlar nerede olduğunu gösterir.
+
+İKİ BAŞPARMAK, BAŞKA BİR ŞEY YOK
+Telefonu yan tut, bütün ekran direksiyonun olsun: sola dönmek için ekranın soluna, sağa dönmek için sağına basılı tut, fren için ikisine birden. Gaz hep sonuna kadar açık, sen sadece çizgine odaklan. Kendi adını sıralamaya yaz.
+
+KOLAYCA BAŞLA
+Kısa bir alıştırma turu temelleri öğretir. Rahat KOLAY'dan son sürat ZOR'a üç zorluk seviyesi.
+
+HERKES İÇİN
+Büyük yazı, renk körlüğüne uygun ara zamanlar, kapatılabilen kamera sarsıntısı ve sekiz dil: English, Español, Français, Deutsch, Português, Italiano, Türkçe ve 日本語.
+
+Ücretsiz. Reklam yok. Hesap yok. Çevrimdışı oynanır.

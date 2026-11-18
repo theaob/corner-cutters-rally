@@ -4,7 +4,7 @@ How the Play listing's art in `fastlane/metadata/android/en-US/images/` was take
 changes. Needs Playwright with Chromium and Pillow. Start the game first (`npm run dev`, on port 5173), then run these
 from a scratch folder with a `shots/` folder in it:
 
-- `node stage2.mjs "RALLY OF THE FORESTS" forest 30` drives SS1 of a rally on the autopilot at a 360 × 640 phone screen
+- `node stage3.mjs "RIVIERA RALLY" riviera 30` is the one for the landscape game (640 × 360 at 3×, so 1920 × 1080; `?seasonday=40` opens every round). The older portrait one: `node stage2.mjs "RALLY OF THE FORESTS" forest 30` drives SS1 of a rally on the autopilot at a 360 × 640 phone screen
   (3× pixels, so 1080 × 1920), a thumb held on the one-thumb ring pointing down the road, and saves a shot every 2.5 s
   of the stage clock. The same for `"WINTER RALLY" winter`, `"DESERT RALLY" desert` and `"TARMAC RALLY" tarmac`.
 - `node menus.mjs` saves home (`home.png`), the standings after two stages of a made-up rally (`standings.png`) and the
