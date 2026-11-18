@@ -1,6 +1,7 @@
 // The touch controls, tried on Android: the app (a debug build, its WebView open to DevTools) on an emulator or a
-// phone over adb, driven down the shakedown with the phone's own touch input (src/engine/deck.ts: Corner Cutters'
-// floating thumbstick, pointed the way to go and pushed further for more speed, on either side, and DRIFT on dirt)
+// phone over adb, driven down the shakedown with the phone's own touch input (src/engine/deck.ts: SPLIT, the default,
+// landscape with the screen's halves steering; and STICK, Corner Cutters' floating thumbstick in portrait, pointed the
+// way to go and pushed further for more speed, on either side, and DRIFT on dirt)
 // (`input motionevent`: a real finger down, moved, lifted), and the car's speed and heading read back from the game's
 // debug hook. Run by .github/workflows/android-e2e.yml; locally, with a device on adb and the app installed:
 //   npm install --no-save playwright-core && node tools/android-e2e.mjs out-dir
@@ -124,8 +125,11 @@ async function calibrate() {
     };
     window.addEventListener('pointerdown', f, true);
   });
-  const sx = Math.round(screenW / 2);
-  const sy = Math.round(screenH / 2);
+  // (the middle of the screen as it's turned now: `wm size` gives it upright, and SPLIT turns the app sideways)
+  const [iw, ih] = await viewport();
+  const [w, h] = (iw > ih) === (screenW > screenH) ? [screenW, screenH] : [screenH, screenW];
+  const sx = Math.round(w / 2);
+  const sy = Math.round(h / 2);
   await sh(`input tap ${sx} ${sy}`);
   const cal = await (await page.waitForFunction(() => window.__cal, null, { timeout: 10000 })).jsonValue();
   const dpr = await page.evaluate(() => devicePixelRatio);
@@ -162,6 +166,8 @@ async function stage(drive = {}) {
   await launch();
   await open('/?debug&circuit=ss-shakedown&mode=tutorial', drive);
   await page.waitForFunction(() => window.__cc?.phase?.() === 'racing', null, { timeout: 180000 });
+  // (the app turned for the way it's driven: landscape for SPLIT, portrait for STICK; the browser's page keeps its shape)
+  if (!BROWSER) await page.waitForFunction((tall) => (innerHeight > innerWidth) === tall, drive.drive === 'stick', { timeout: 30000 });
   await sleep(1500);
 }
 
@@ -207,9 +213,35 @@ const shown = (sel) => page.evaluate((sel) => { const e = document.querySelector
 
 /** Each part of the run: the settings it's driven with, and what it tries. */
 const schemes = {
+  split: {
+    // (SPLIT, the default: landscape, hold a half to steer that way, the gas always on; both halves (brake, then
+    // reverse) take two fingers, which `input motionevent` can't give: tests/split.test.ts covers them)
+    drive: { drive: 'split' },
+    async run() {
+      const [w, h] = await viewport();
+      check('SPLIT: the app is landscape', BROWSER ? true : w > h, `${w}x${h}`);
+      check('SPLIT: the halves are up while driving', await shown('.split-pad'), 'split pad');
+      check('SPLIT: no thumbstick', !(await shown('.stick-zone')), 'stick zone');
+      await placeCar(0);
+      await game(1.5);
+      const rolled = await me();
+      check('SPLIT: no finger, the gas is on', rolled.speed > 15, `speed ${fmt(rolled.speed)}`);
+      const left = await hold([w * 0.25, h * 0.6], 0.6, 150);
+      check('SPLIT: the left half held, it turns left (up the screen)', left.turn < -0.03, turned(left));
+      const right = await hold([w * 0.75, h * 0.6], 0.6, 150);
+      check('SPLIT: the right half held, it turns right (down the screen)', right.turn > 0.03, turned(right));
+      await placeCar(150);
+      await down([w * 0.25, h * 0.6]);
+      await game(0.2);
+      const lit = await page.evaluate(() => document.querySelector('.split-pad').classList.contains('held-left'));
+      await shot('split');
+      await up([w * 0.25, h * 0.6]);
+      check('SPLIT: the held half lights up', lit, `held-left: ${lit}`);
+    },
+  },
   stick: {
-    // (STICK: RIGHT, the default)
-    drive: {},
+    // (STICK: RIGHT, the default side)
+    drive: { drive: 'stick' },
     async run() {
       const [w] = await viewport();
       const deck = await page.evaluate(() => document.getElementById('deck').className);
@@ -248,7 +280,7 @@ const schemes = {
     },
   },
   left: {
-    drive: { stickSide: 'left' },
+    drive: { drive: 'stick', stickSide: 'left' },
     async run() {
       const [w] = await viewport();
       const zone = await centre('.stick-zone');
@@ -264,16 +296,13 @@ const schemes = {
 /** The app went down under the run (an emulator just booted can kill it while Play services settle): worth one more go. */
 const wentDown = (err) => /closed|crashed|Target page/i.test(String(err));
 
-let first = true;
 for (const [name, { run }] of Object.entries(schemes)) {
   for (let attempt = 1; attempt <= 2; attempt++) {
     const mark = results.length;
     try {
       await stage(schemes[name].drive);
-      if (first) {
-        await calibrate();
-        first = false;
-      }
+      // (again for each part: the app turns between them, SPLIT sideways and STICK upright)
+      await calibrate();
       const deck = await page.evaluate(() => document.getElementById('deck').className);
       console.log(`\n${name.toUpperCase()} · deck: ${deck} · game runs at ×${fmt(await pace())} real time`);
       await run();
@@ -320,7 +349,7 @@ try {
   await tapLabel('CONTROLS');
   await shot('settings');
   const rows = await page.evaluate(() => document.body.innerText);
-  check('SETTINGS: CONTROLS has STICK and VIBRATION', ['STICK', 'VIBRATION'].every((r) => rows.includes(r)), rows.split('\n').slice(0, 12).join(' | '));
+  check('SETTINGS: CONTROLS has DRIVING and VIBRATION', ['DRIVING', 'VIBRATION'].every((r) => rows.includes(r)), rows.split('\n').slice(0, 12).join(' | '));
   const gone = ['STYLE', 'VIEW', 'STEERING', 'ASSIST', 'SIDES'].filter((r) => rows.split('\n').some((l) => l.trim() === r));
   check('SETTINGS: no driving style, camera or steering rows', gone.length === 0, `still there: ${gone.join(', ') || 'none'}`);
 } catch (err) {
