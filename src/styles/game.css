@@ -607,6 +607,27 @@ html.no-pause-blur .pause-settings {
   border-radius: 10px;
   background: rgba(14, 13, 22, 0.82);
 }
+/* a card in two columns (src/f1/screens/rally.ts columns): the stage up next and its buttons, or how a rally went,
+   beside the standings, so the buttons stay on a phone held sideways and not under a table ten crews long */
+.circuit-menu .card-columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.circuit-menu .card-columns > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.circuit-menu .card-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* (the season's standings in two halves side by side: 1 to 5, 6 to 10) */
+.circuit-menu .table-halves {
+  display: flex;
+  gap: 16px;
+}
 /* home's rallies, as Corner Cutters' menu lays out its modes: a grid of square tiles, an icon over its name
    (src/f1/menuTiles.ts, src/f1/screens/rally.ts) */
 .circuit-menu .menu-tiles {
