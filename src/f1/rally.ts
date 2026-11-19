@@ -120,13 +120,15 @@ export interface Rally {
   health: number;
   /** the season it's a round of (season.ts), if it is one */
   season?: string;
+  /** a round's: the class whose championship it's in (one from before the classes: HISTORIC's) */
+  cls?: string;
 }
 
 /**
  * A new rally: you in your car's `scheme` against nine of the rival crews, drawn by `seed`; or, for a round of a
  * season (`season`: its id), against the season's `rivals`, at the pace they have all season.
  */
-export function newRally(o: { event: RallyEvent; seed: number; scheme: Scheme; car?: string; difficulty: string; season?: { id: string; rivals: RallyCrew[] } }): Rally {
+export function newRally(o: { event: RallyEvent; seed: number; scheme: Scheme; car?: string; difficulty: string; season?: { id: string; cls?: string; rivals: RallyCrew[] } }): Rally {
   const rng = seededRandom(o.seed);
   let rivals: RallyCrew[];
   if (o.season) rivals = o.season.rivals.map((c) => ({ ...c }));
@@ -144,7 +146,7 @@ export function newRally(o: { event: RallyEvent; seed: number; scheme: Scheme; c
   // (you start in the middle of the running order)
   const you = Math.floor(RALLY.crews / 2);
   const crews = [...rivals.slice(0, you), { scheme: o.scheme.id, ...(o.car ? { car: o.car } : {}) }, ...rivals.slice(you)];
-  return { v: 2, event: o.event.id, seed: o.seed, difficulty: o.difficulty, crews, you, stages: [], health: 1, ...(o.season ? { season: o.season.id } : {}) };
+  return { v: 2, event: o.event.id, seed: o.seed, difficulty: o.difficulty, crews, you, stages: [], health: 1, ...(o.season ? { season: o.season.id, ...(o.season.cls ? { cls: o.season.cls } : {}) } : {}) };
 }
 
 export const rallyEvent = (r: Rally): RallyEvent => rallyById(r.event) ?? RALLIES[0];

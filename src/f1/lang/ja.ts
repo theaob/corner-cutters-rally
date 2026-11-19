@@ -791,5 +791,6 @@ export const ja: Language = {
   'CLASSIC': 'クラシック',
   'GROUP B': 'グループB',
   'GROUP A': 'グループA',
+  'EACH CLASS HAS ITS OWN CHAMPIONSHIP · CHANGE CAR TO SWITCH CLASS': 'クラスごとに選手権 · マシンを替えるとクラスが変わります',
   },
 };

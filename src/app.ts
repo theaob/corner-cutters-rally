@@ -24,7 +24,7 @@ import { reportProblem, watchCrashes } from './f1/crashes';
 import { hintToast } from './f1/screens/celebrate';
 import { listenForBack, pressBack } from './engine/backButton';
 import { newSeed } from './engine/rng';
-import { SEASON, currentSeason, retireRound, saveSeason } from './f1/season';
+import { SEASON, currentSeason, loadSeasons, retireRound, roundClass, saveSeason } from './f1/season';
 import { loadCareer, payCareer, yourCar } from './f1/career';
 import { carById } from './f1/cars';
 import { NORMAL, difficultyById } from './f1/difficulty';
@@ -348,11 +348,12 @@ async function showHome(id: number, page: HomePage): Promise<void> {
   const freeRally = loadRally('free');
   const slot: RallySlot | undefined = page === 'season' || page === 'free' ? page : undefined;
   const rally = page === 'season' ? seasonRally : page === 'free' ? freeRally : undefined;
-  const season = currentSeason(newSeed());
-  // (anything the season owes your career paid: a round driven before career points were kept, say)
-  payCareer(season);
-  // (a language change built home again with the settings open: they open again, at LANGUAGE, home not under them)
+  // (anything the championships owe your career paid: a round driven before career points were kept, say)
+  payCareer(...Object.values(loadSeasons()));
   const career = loadCareer().points;
+  // the championship shown: the class of the round under way, or else of your car (each class runs its own)
+  const season = currentSeason(newSeed(), seasonRally ? roundClass(seasonRally) : yourCar(career).cls);
+  // (a language change built home again with the settings open: they open again, at LANGUAGE, home not under them)
   const showing: Promise<RallyAction> = settingsResumePending()
     ? Promise.resolve('settings' as const)
     : page === 'garage'
@@ -368,6 +369,7 @@ async function showHome(id: number, page: HomePage): Promise<void> {
   if (action !== 'settings') stopBackdrop();
   if (action === 'stage' && rally && slot && !rallyOver(rally)) navigate(withStage(rallyEvent(rally).stages[nextStage(rally)].layout, stageMode(slot)));
   else if (action === 'back') navigate(withStage(null));
+  else if (action === 'car') void route();
   else if (action === 'abandon') {
     if (slot) clearRally(slot);
     void route();
@@ -380,8 +382,9 @@ async function showHome(id: number, page: HomePage): Promise<void> {
     clearRally('season');
     void route();
   } else if (action === 'new-season') {
-    clearRally('season');
-    saveSeason(undefined);
+    // (a new championship for this class: the other classes' carry on)
+    if (!seasonRally || roundClass(seasonRally) === season.cls) clearRally('season');
+    saveSeason(undefined, season.cls);
     void route();
   } else if (action === 'settings') {
     menuName = 'settings';
@@ -394,7 +397,7 @@ async function showHome(id: number, page: HomePage): Promise<void> {
     // a new rally, in the paint picked (kept for the next), at the difficulty in the settings
     save('choices', 'scheme', action.scheme.id);
     // (a round of the season, against the season's crews; free play's, against a field of its own)
-    saveRally(newRally({ event: action.start, seed: newSeed(), scheme: action.scheme, car: yourCar().id, difficulty: savedDifficulty().id, ...(page === 'season' ? { season } : {}) }));
+    saveRally(newRally({ event: action.start, seed: newSeed(), scheme: action.scheme, car: yourCar().id, difficulty: savedDifficulty().id, ...(page === 'season' ? { season: { id: season.id, cls: season.cls, rivals: season.rivals } } : {}) }));
     void route();
   }
 }
