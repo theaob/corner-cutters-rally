@@ -1598,11 +1598,11 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const red = k.paint(0xd42a2a);
     const amber = k.paint(0xf29a1a);
     /** the bonnet's height at `z`, from the nose up to the screen */
-    const bonnet = (z: number) => 5.15 + ((z - front - 0.8) * 0.25) / (-4.6 - front - 0.8);
+    const bonnet = (z: number) => 5.35 + ((z - front - 0.8) * 0.25) / (-4.6 - front - 0.8);
     // the wheels sit in openings cut straight into the body: no arches stand out from the sides
     const hubY = 2.25;
     const axles = [-8.2, 7.8];
-    const R = 2.8;
+    const R = 2.95;
     const a = Math.asin((hubY - 1.5) / R);
     // the body in one piece: a low rounded nose, the bonnet rising to the screen, high hips over the engine, a
     // square tail
@@ -1619,10 +1619,19 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(4.4, 7.1);
       s.lineTo(-4.6, 5.4);
       s.lineTo(front + 1.4, bonnet(front + 1.4));
-      s.quadraticCurveTo(front, 5.15, front, 3.5);
+      s.quadraticCurveTo(front, 5.35, front, 3.6);
       s.lineTo(front, 2.2);
       s.quadraticCurveTo(front, 1.6, front + 0.6, 1.5);
-    }, w, 0.5, 8), [k.pods, k.body]);
+    }, w, 0.3, 24), [k.pods, k.body]);
+    // a dark liner inside each wheel opening, so it reads as a wheel well
+    for (const z of axles) {
+      k.add(profile((s) => {
+        s.moveTo(z + R * Math.cos(a), 1.5);
+        s.absarc(z, hubY, R, -a, Math.PI + a, false);
+        s.lineTo(z - (R - 0.2) * Math.cos(a), 1.5);
+        s.absarc(z, hubY, R - 0.2, Math.PI + a, -a, true);
+      }, w - 0.4, 0, 24), [black, black]);
+    }
     // the glasshouse: a big raked screen, a short roof, a near-upright small back window
     k.add(profile((s) => {
       s.moveTo(-4.7, 5.35);
