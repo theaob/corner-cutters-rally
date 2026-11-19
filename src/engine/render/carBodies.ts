@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 
-export type CarModel = 'mini' | 'fulvia' | 'alpine' | 'brisk' | 'stiletto' | 'volta' | 'raia' | 'saetta' | 'quadra' | 'kestrel' | 'merlin' | 'vortice' | 'corsaro' | 'typhoon' | 'falco' | 'apex';
+export type CarModel = 'mini' | 'fulvia' | 'alpine' | 'brisk' | 'stiletto' | 'volta' | 'raia' | 'saetta' | 'quadra' | 'kestrel' | 'merlin' | 'vortice' | 'corsaro' | 'typhoon' | 'falco' | 'leone' | 'apex';
 
 type Faces = THREE.Material[];
 
@@ -2533,6 +2533,168 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       axles: [axles[0], axles[1]],
       wheel: { radius: 2.25, width: 2.7, half: w / 2 - 1.3, rim: '#f4f4f0' },
       tail: { z: back + 0.1, y: 4.9, x: w / 2 - 1.7, w: 2.8, h: 1 },
+      exhaust: { x: 1.8, y: 1.75, z: back + 0.5 },
+    };
+  },
+
+  /**
+   * LEONE S, around 2000: the short three-door hatch that won three makers' titles in a row (the 206 WRC's kind of
+   * car). A rounded sloping nose with long swept-back headlamps and a wide grinning intake, a short bonnet, a long
+   * screen, a domed roof, a steep hatch with a spoiler over it, round flares over all four wheels.
+   */
+  leone(k) {
+    const w = 12.8;
+    const front = -11.4;
+    const back = 10.6;
+    const black = k.paint(0x16171b);
+    const blue = k.paint(0x1d3f9a);
+    const red = k.paint(0xd0242a);
+    const amber = k.paint(0xf29a1a);
+    const waist = 5.7;
+    /** the bonnet's height at `z`, from the nose up to the screen */
+    const bonnet = (z: number) => 4.6 + ((z - front - 0.8) * 1.1) / (-3.8 - front - 0.8);
+    // the body: a rounded sloping nose, a short bonnet, level sides, an upright tail
+    k.add(profile((s) => {
+      s.moveTo(front + 0.6, 1.5);
+      s.lineTo(back - 0.4, 1.5);
+      s.lineTo(back, 2.1);
+      s.lineTo(back, 5.6);
+      s.lineTo(back - 0.4, 6.0);
+      s.lineTo(8.6, 6.0);
+      s.lineTo(-3.8, waist);
+      s.lineTo(front + 0.8, bonnet(front + 0.8));
+      s.quadraticCurveTo(front, 4.6, front, 3.8);
+      s.lineTo(front, 2.1);
+      s.quadraticCurveTo(front, 1.5, front + 0.6, 1.5);
+    }, w, 0.45, 8), [k.pods, k.body]);
+    // the glasshouse: a long raked screen, a domed roof, a steep hatch
+    k.add(profile((s) => {
+      s.moveTo(-3.9, 5.6);
+      s.lineTo(-0.6, 8.65);
+      s.quadraticCurveTo(3, 9.0, 6.6, 8.65);
+      s.lineTo(back - 0.6, 6.0);
+      s.lineTo(back - 0.6, 5.6);
+    }, w - 1.9, 0, 8), [k.glass, k.glass]);
+    k.add(profile((s) => {
+      s.moveTo(-0.8, 8.55);
+      s.quadraticCurveTo(3, 8.9, 6.8, 8.55);
+      s.lineTo(6.6, 9.0);
+      s.quadraticCurveTo(3, 9.35, -0.5, 9.0);
+    }, w - 1.6, 0.25, 8), [k.body, k.body]);
+    const px = (w - 1.9) / 2;
+    for (const side of [-1, 1]) {
+      const x = side * px;
+      // (the screen pillars, the door's rear edge, and the broad rear pillar down to the tail)
+      k.add(profile((s) => {
+        s.moveTo(-4.15, 5.6);
+        s.lineTo(-0.85, 8.65);
+        s.lineTo(-0.35, 8.65);
+        s.lineTo(-3.65, 5.6);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+      k.add(profile((s) => {
+        s.moveTo(4.6, 8.75);
+        s.lineTo(6.7, 8.65);
+        s.lineTo(back - 0.5, 6.0);
+        s.lineTo(back - 0.5, 5.6);
+        s.lineTo(6.2, 5.6);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // the spoiler over the hatch, its lip in the driver's colour (yours gold); a small vent on the front of the roof
+    k.add(profile((s) => {
+      s.moveTo(6.2, 9.05);
+      s.lineTo(9.4, 8.95);
+      s.lineTo(9.4, 8.6);
+      s.lineTo(6.6, 8.75);
+    }, w - 1.4, 0.08, 3), [k.body, k.body]);
+    k.box(w - 1.6, 0.16, 0.22, 9.0, 9.35, k.all(k.scoop));
+    for (const x of [-(w / 2 - 0.75), w / 2 - 0.75]) k.box(0.15, 0.9, 3.2, 8.75, 7.9, k.all(k.body), undefined, x);
+    k.box(2.2, 0.4, 1.5, 9.4, 0.4, k.all(k.body));
+    k.box(1.8, 0.25, 0.08, 9.4, -0.37, k.all(black));
+    // vents in the bonnet either side
+    for (const x of [-3, 3]) for (let i = 0; i < 3; i++) k.box(2, 0.08, 0.25, bonnet(-7.2 + i * 0.5) + 0.05, -7.2 + i * 0.5, k.all(black), undefined, x);
+    // round flares over all four wheels
+    const R = 2.85;
+    const hubY = 2.25;
+    const axles = [-7, 6.6];
+    const reaches = [3.5, 3.4];
+    for (let i = 0; i < 2; i++) for (const x of [-(w / 2 - 0.35), w / 2 - 0.35]) {
+      const z = axles[i];
+      const reach = reaches[i];
+      k.add(profile((s) => {
+        const a = Math.asin((hubY - 1.8) / R);
+        s.moveTo(z - reach, 1.8);
+        s.lineTo(z - reach, 4.4);
+        s.quadraticCurveTo(z - reach, 5.45, z - reach + 1.2, 5.45);
+        s.lineTo(z + reach - 1.2, 5.45);
+        s.quadraticCurveTo(z + reach, 5.45, z + reach, 4.4);
+        s.lineTo(z + reach, 1.8);
+        s.absarc(z, hubY, R, -a, Math.PI + a, false);
+      }, 1.2, 0.2, 8).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // the colours: white, a blue band low along the doors with a red line over it, blue along the bonnet's edges
+    /** a flat piece in the (z, y) plane on a side at `x` */
+    const side2d = (pts: [number, number][], x: number, m: THREE.Material) => {
+      k.add(profile((s) => {
+        s.moveTo(pts[0][0], pts[0][1]);
+        for (const [z, y] of pts.slice(1)) s.lineTo(z, y);
+      }, 0.08).translate(x, 0, 0), [m, m]);
+    };
+    const d0 = axles[0] + reaches[0];
+    const d1 = axles[1] - reaches[1];
+    for (const side of [-1, 1]) {
+      const bx = side * (w / 2 + 0.04);
+      side2d([[d0, 1.8], [d1, 1.8], [d1, 3.9], [d0, 3.2]], bx, blue);
+      side2d([[d0, 3.35], [d1, 4.05], [d1, 4.3], [d0, 3.6]], bx, red);
+    }
+    const onBonnet = (pts: [number, number][], m: THREE.Material) => {
+      const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
+      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
+      const pos = g.getAttribute('position');
+      for (let n = 0; n < pos.count; n++) pos.setY(n, pos.getY(n) + bonnet(pos.getZ(n)) + 0.08);
+      g.computeVertexNormals();
+      k.add(g, [m, m]);
+    };
+    for (const side of [-1, 1]) onBonnet([[side * 4.6, front + 1.2], [side * 5.6, front + 1.2], [side * 5.6, -4], [side * 4.6, -4]], blue);
+    // the nose: long headlamps swept back along the top of each corner, a small grille between them, the bumper below
+    // with a wide black intake, round fog lamps at its corners, amber indicators, a black splitter
+    for (const side of [-1, 1]) {
+      k.add(profile((s) => {
+        s.moveTo(front - 0.02, 3.95);
+        s.lineTo(front - 0.02, 4.45);
+        s.lineTo(front + 2.4, bonnet(front + 2.4) - 0.1);
+        s.lineTo(front + 2.4, bonnet(front + 2.4) - 0.5);
+      }, 2.6).translate(side * (w / 2 - 1.7), 0, 0), [black, k.lamp]);
+    }
+    k.front(2.6, 0.5, 0.1, 4.15, front - 0.04, k.all(black));
+    k.front(w + 0.2, 1.8, 0.8, 2.4, front - 0.2, k.all(k.body));
+    k.front(6.4, 1.1, 0.1, 2.35, front - 0.62, k.all(black));
+    for (const side of [-1, 1]) {
+      k.add(drum(0.5, 0.12, 'z', side * 4.6, 2.35, front - 0.66 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+      k.front(1, 0.35, 0.1, 3.1, front - 0.62, k.all(amber), side * (w / 2 - 0.8));
+    }
+    k.front(w, 0.15, 1.2, 1.45, front - 0.4, k.all(black));
+    // at night or in the evening, a black pod of four big round lamps on the front of the bonnet
+    if (k.floodlights) {
+      k.add(profile((s) => {
+        s.moveTo(front + 0.5, bonnet(front + 0.8) - 0.3);
+        s.lineTo(front + 0.5, bonnet(front + 0.8) + 1.6);
+        s.lineTo(front + 1.7, bonnet(front + 1.7) + 1.4);
+        s.lineTo(front + 2.5, bonnet(front + 2.5));
+      }, 7.4, 0.15, 2), [black, black]);
+      for (const x of [-2.7, -0.9, 0.9, 2.7]) {
+        k.add(drum(0.74, 0.1, 'z', x, bonnet(front + 0.8) + 0.65, front + 0.42 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+      }
+    }
+    // the tail: tall red lamps up the corners on a black panel, a white bumper
+    k.box(w - 1, 1, 0.12, 4.8, back + 0.03, k.all(black));
+    for (const x of [-(w / 2 - 1.2), w / 2 - 1.2]) k.box(1.6, 1.8, 0.15, 4.8, back + 0.06, k.all(red), undefined, x);
+    k.box(w + 0.2, 1.2, 0.6, 2.4, back + 0.2, k.all(k.body));
+    // blue mud flaps behind the wheels
+    for (const z of [-3.3, 10.05]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(blue), undefined, x);
+    return {
+      axles: [axles[0], axles[1]],
+      wheel: { radius: 2.25, width: 2.7, half: w / 2 - 1.3, rim: '#f4f4f0' },
+      tail: { z: back + 0.1, y: 4.8, x: w / 2 - 1.2, w: 1.4, h: 1.6 },
       exhaust: { x: 1.8, y: 1.75, z: back + 0.5 },
     };
   },
