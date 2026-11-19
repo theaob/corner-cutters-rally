@@ -734,7 +734,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
    * three-box saloon made fierce, square and upright with a flat bonnet and boot, big blistered flares, a spoiler on
    * the roof's edge and one on the boot, four round headlamps in a black grille and four spotlights in white covers on
    * the bumper. Its own paint, after its famous works colours: white, the sills and the bumpers' feet green, a green
-   * stripe with an orange one inside it slanting up behind each door, gold wheels; the roof's spoiler in the driver's
+   * stripe with an orange one inside it slanting up behind each door, the roof red-orange with dark stripes, a green
+   * band and orange wedges on the bonnet, gold wheels; the roof's spoiler in the driver's
    * colour (yours gold).
    */
   volta(k) {
@@ -834,6 +835,32 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         }, 0.1).translate(side * (w / 2 + 0.05), 0, 0), [m, m]);
       }
     }
+    // on top, the works colours again: the roof red-orange with two dark green stripes down its middle; a green band
+    // across the bonnet's back with an orange wedge at each end, and a bonnet scoop
+    const flat = (pts: [number, number][], y: (z: number) => number, m: THREE.Material) => {
+      const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
+      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
+      const pos = g.getAttribute('position');
+      for (let n = 0; n < pos.count; n++) pos.setY(n, pos.getY(n) + y(pos.getZ(n)));
+      g.computeVertexNormals();
+      k.add(g, [m, m]);
+    };
+    const roof = () => 9.58;
+    const bonnet = (z: number) => 5.35 + ((z - front - 0.4) * 0.25) / (-4.2 - front - 0.4) + 0.08;
+    const rw = (w - 1.9) / 2;
+    flat([[-rw, -1.3], [rw, -1.3], [rw, 5], [-rw, 5]], roof, orange);
+    for (const x of [-0.45, 0.45]) flat([[x - 0.18, -1.3], [x + 0.18, -1.3], [x + 0.18, 5], [x - 0.18, 5]], () => 9.62, k.trim);
+    const bw = w / 2 - 0.5;
+    flat([[-bw, -7.6], [bw, -7.6], [bw, -4.5], [-bw, -4.5]], bonnet, k.trim);
+    for (const side of [-1, 1]) {
+      flat([[side * bw, -7.3], [side * bw, -4.7], [side * 1.7, -4.7]], (z) => bonnet(z) + 0.04, orange);
+    }
+    k.add(profile((s) => {
+      s.moveTo(-7.4, bonnet(-7.4) - 0.1);
+      s.lineTo(-4.6, bonnet(-4.6) - 0.1);
+      s.lineTo(-4.6, bonnet(-4.6) + 0.55);
+      s.lineTo(-6.4, bonnet(-6.4) + 0.55);
+    }, 2.6, 0.12, 2), [k.body, k.body]);
     // a white roundel on each front door, for the rally number
     for (const x of [-(w / 2 + 0.06), w / 2 + 0.06]) k.add(drum(1.2, 0.1, 'x', x, 3.8, -2.6, 14), [white, white, white]);
     // the nose: a black grille across it with two round headlamps in chrome rings at each end, a bumper with a green
