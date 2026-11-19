@@ -2771,8 +2771,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     };
     // the front corners rounded right round seen from above, `NR` in radius: anything out past the curve is pulled in
     const NR = 2.6;
-    /** the nose's half width: a little wider than the body behind, its wings smooth over the front wheels */
-    const HW = w / 2 + 0.2;
+    /** the nose's half width: flush with the body behind, its wings smooth over the front wheels */
+    const HW = w / 2;
     const round = (g: THREE.BufferGeometry, grow = 0) => {
       const pos = g.getAttribute('position');
       for (let n = 0; n < pos.count; n++) {
@@ -2808,6 +2808,12 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     // the body behind it: level sides, an upright tail
     k.add(profile((s) => {
       s.moveTo(-4.4, 1.5);
+      // (the rear wheel's opening cut clean into it, no flare)
+      const a = Math.asin((2.25 - 1.5) / 2.85);
+      for (let n = 0; n <= 20; n++) {
+        const t = Math.PI + a - ((Math.PI + 2 * a) * n) / 20;
+        s.lineTo(7 + 2.85 * Math.cos(t), 2.25 + 2.85 * Math.sin(t));
+      }
       s.lineTo(back - 0.4, 1.5);
       s.lineTo(back, 2.1);
       s.lineTo(back, 5.3);
@@ -2885,28 +2891,11 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     k.box(1.8, 0.25, 0.08, roof(0.3) + 0.45, -0.47, k.all(black));
     // vents in the bonnet either side
     for (const x of [-3.4, 3.4]) for (let i = 0; i < 3; i++) k.box(1.8, 0.08, 0.25, bonnet(-6.8 + i * 0.5) + 0.12, -6.8 + i * 0.5, k.all(black), undefined, x);
-    // broad flares over all four wheels: lime at the front, blue at the back
+    // the wheel openings cut into the nose and body, flush, no flares
     const R = 2.85;
     const hubY = 2.25;
     const axles = [-7.4, 7];
     const reaches = [3.1, 3.4];
-    for (let i = 1; i < 2; i++) for (const x of [-(w / 2 - 0.35), w / 2 - 0.35]) {
-      const z = axles[i];
-      const reach = reaches[i];
-      const m = i === 0 ? lime : blue;
-      const g = profile((s) => {
-        const a = Math.asin((hubY - 1.8) / R);
-        s.moveTo(z - reach, 1.8);
-        // (the front one sweeping up gently from low at its leading edge, into the rounded nose)
-        const lead = i === 0 ? 2.6 : 3.6;
-        s.lineTo(z - reach, lead);
-        s.bezierCurveTo(z - reach + (i === 0 ? 0.6 : 0), 4.9, z - reach + 1.4, 5.5, z, 5.5);
-        s.bezierCurveTo(z + reach - 1.4, 5.5, z + reach, 4.9, z + reach, 3.6);
-        s.lineTo(z + reach, 1.8);
-        s.absarc(z, hubY, R, -a, Math.PI + a, false);
-      }, 1.2, 0.2, 8).translate(x, 0, 0);
-      k.add(i === 0 ? round(g, 0.02) : g, [m, m]);
-    }
     // the colours: white, the nose and front wings lime; a blue and a light blue stripe down behind the front flare;
     // green low on the door, rising to the front; behind it a light blue stripe and deep blue over the rear quarter,
     // slanting up to the rear pillar; a blue band up the middle of the bonnet; a blue tail
@@ -2935,7 +2924,6 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       }, 0.08).translate(x, 0, 0), [m, m]);
     };
     const d0 = axles[0] + reaches[0];
-    const d1 = axles[1] - reaches[1];
     /** the slant between the green and the blue: its z at height `y` */
     const slant = (y: number) => 0.6 + (y - 1.8) * 1.25;
     const top = (z: number) => waist + ((z + 4) * 0.3) / 12.6 - 0.05;
@@ -2947,7 +2935,13 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       // (green low on the door, its top rising toward the front)
       side2d([[d0 + 0.75, 1.8], [slant(1.8), 1.8], [slant(4.1), 4.1], [-0.5, 4.4], [d0 + 0.75, 5.0]], bx, green);
       side2d([[slant(1.8), 1.8], [slant(1.8) + 0.5, 1.8], [slant(top(5)) + 0.5, top(5)], [slant(top(5)), top(5)]], bx, sky);
-      side2d([[slant(1.8) + 0.5, 1.8], [d1, 1.8], [d1, 5.5], [back - 0.3, 5.5], [back - 0.3, top(back)], [slant(top(5)) + 0.5, top(5)]], bx, blue);
+      // (the blue rear quarter wraps round the rear wheel's opening)
+      const a = Math.asin((hubY - 1.8) / (R + 0.05));
+      const arch: [number, number][] = Array.from({ length: 21 }, (_, n) => {
+        const t = Math.PI + a - ((Math.PI + 2 * a) * n) / 20;
+        return [axles[1] + (R + 0.05) * Math.cos(t), hubY + (R + 0.05) * Math.sin(t)];
+      });
+      side2d([[slant(1.8) + 0.5, 1.8], ...arch, [back - 0.3, 1.8], [back - 0.3, top(back)], [slant(top(5)) + 0.5, top(5)]], bx, blue);
     }
     // a blue band up the middle of the bonnet from over the lamps to the screen
     k.add(profile((s) => {
@@ -2992,12 +2986,12 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.lineTo(back - 0.6, 5.75);
       }, 1).translate(side * (w / 2 - 0.85), 0, 0), [red, red]);
     }
-    slab(-(w / 2 + 0.1), w / 2 + 0.1, back - 2, back + 0.5, 1.4, 3, 1.2, blue);
+    slab(-w / 2, w / 2, back - 2, back + 0.5, 1.4, 3, 1.2, blue);
     // black mud flaps behind the wheels
     for (const z of [-3.7, 10.45]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(black), undefined, x);
     return {
       axles: [axles[0], axles[1]],
-      wheel: { radius: 2.25, width: 2.7, half: w / 2 - 1.3, rim: '#f4f4f0' },
+      wheel: { radius: 2.25, width: 2.6, half: w / 2 - 1.5, rim: '#f4f4f0' },
       tail: { z: back + 0.1, y: 4.85, x: w / 2 - 1, w: 1.4, h: 1.7 },
       exhaust: { x: -1.8, y: 1.75, z: back + 0.5 },
     };
