@@ -251,6 +251,14 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(-3.2, 5.25);
       s.lineTo(front + 0.5, 4.8);
     }, w - 1.2), [matt, matt]);
+    // a small tricolore stripe along the bonnet's left side (left of the driver: −x), green outboard, red inboard
+    const tricolore = [k.paint(0x169b46), k.paint(0xf4f4f0), k.paint(0xd2232a)];
+    tricolore.forEach((m, i) => k.add(profile((s) => {
+      s.moveTo(front + 0.6, 4.81);
+      s.lineTo(-3.4, 5.26);
+      s.lineTo(-3.4, 5.31);
+      s.lineTo(front + 0.6, 4.86);
+    }, 0.4).translate(-4.2 + i * 0.4, 0, 0), [m, m]));
     // (the straps in the driver's colour: leather on the rivals' cars, gold on yours)
     for (const x of [-2.6, 2.6]) k.box(0.8, 0.14, 1.8, 4.93, front + 1.9, k.all(k.scoop), undefined, x);
     // the glasshouse: light, thin pillars, the screen raked, the back window sloping down to the boot
