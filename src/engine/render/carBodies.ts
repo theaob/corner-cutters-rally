@@ -108,8 +108,9 @@ export function drum(r: number, len: number, axis: 'x' | 'y' | 'z', x: number, y
 /** A top's faces: `top` on it, `side` round it, dark under. */
 const capped = (side: THREE.Material, top: THREE.Material, dark: THREE.Material): Faces => [side, side, top, dark, side, side];
 
-/** A row of `n` spotlights `gap` apart on the nose, at `y`, their lenses at `z`, on a carbon pod `podW` wide. */
+/** A row of `n` spotlights `gap` apart on the nose (on a night or evening rally only), at `y`, their lenses at `z`, on a carbon pod `podW` wide. */
 function spotlights(k: BodyKit, n: number, gap: number, y: number, z: number, podW: number, size = 1.6): void {
+  if (!k.floodlights) return; // (by day, none)
   k.front(podW, size + 0.4, 1, y, z + 0.55, capped(k.carbon, k.carbon, k.dark));
   for (let i = 0; i < n; i++) k.front(size + 0.4, size, 0.4, y, z, k.all(k.lamp), (i - (n - 1) / 2) * gap);
 }
@@ -185,7 +186,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     }
     // a white roundel on each door, for the rally number
     for (const x of [-(w / 2 + 0.04), w / 2 + 0.04]) k.add(drum(1.5, 0.1, 'x', x, 4.2, -1.9, 14), [white, white, white]);
-    // the nose: a chrome grille, round headlamps in chrome rings, two spotlights before the grille, a chrome bumper
+    // the nose: a chrome grille, round headlamps in chrome rings, two spotlights before the grille (on a
+    // night or evening rally), a chrome bumper
     k.front(5.6, 2.8, 0.3, 4.3, front - 0.05, k.all(k.chrome));
     k.front(4.8, 2.2, 0.3, 4.3, front - 0.12, k.all(black));
     for (const y of [3.7, 4.3, 4.9]) k.front(4.8, 0.16, 0.3, y, front - 0.2, k.all(k.chrome));
@@ -195,7 +197,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       k.add(drum(1.05, 0.4, 'z', x, 4.9, front - 0.65 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
       k.add(drum(0.85, 0.2, 'z', x, 4.9, front - 0.8 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
     }
-    for (const x of [-1.5, 1.5]) {
+    if (k.floodlights) for (const x of [-1.5, 1.5]) {
       k.add(drum(0.9, 0.9, 'z', x, 3.3, front - 0.9 - k.noseZ, 12), [black, black, black], k.nose);
       k.add(drum(0.75, 0.15, 'z', x, 3.3, front - 1.4 - k.noseZ, 12), [k.lamp, k.lamp, k.lamp], k.nose);
     }
@@ -292,13 +294,14 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     // a white roundel on each door, for the rally number
     for (const x of [-(w / 2 + 0.04), w / 2 + 0.04]) k.add(drum(1.3, 0.1, 'x', x, 3.3, -0.6, 14), [white, white, white]);
     // the nose: a wide flat grille with a thin chrome frame, four round headlamps across it, two big spotlights before
+    // it at night or in the evening
     k.front(w - 0.8, 1.9, 0.3, 3.6, front - 0.05, k.all(k.chrome));
     k.front(w - 1.2, 1.5, 0.3, 3.6, front - 0.12, k.all(black));
     for (const x of [-4.4, -2.4, 2.4, 4.4]) {
       k.add(drum(0.82, 0.3, 'z', x, 3.6, front - 0.25 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
       k.add(drum(0.66, 0.12, 'z', x, 3.6, front - 0.42 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
     }
-    for (const x of [-1.25, 1.25]) {
+    if (k.floodlights) for (const x of [-1.25, 1.25]) {
       k.add(drum(1.05, 0.9, 'z', x, 2.7, front - 0.95 - k.noseZ, 14), [black, black, black], k.nose);
       k.add(drum(0.88, 0.15, 'z', x, 2.7, front - 1.45 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       k.front(0.4, 1, 0.4, 1.9, front - 0.7, k.all(black), x); // its stalk
@@ -527,8 +530,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       k.add(drum(1.55, 0.08, 'x', x, 3.3, -0.6, 14), [k.scoop, k.scoop, k.scoop]);
       k.add(drum(1.3, 0.1, 'x', x + Math.sign(x) * 0.03, 3.3, -0.6, 14), [white, white, white]);
     }
-    // the nose: a black grille across it, a round headlamp in a chrome ring at each end, two big chrome spotlights
-    // standing before the grille and two more below the slim black bumper, amber indicators at its corners
+    // the nose: a black grille across it, a round headlamp in a chrome ring at each end, at night or in the evening
+    // two big chrome spotlights standing before the grille and two more below the slim black bumper, amber indicators at its corners
     k.front(w - 1.4, 2, 0.2, 4.05, front - 0.05, k.all(black));
     const lamp = (x: number, y: number, z: number, r: number, depth: number, shell: THREE.Material) => {
       k.add(drum(r, depth, 'z', x, y, z + depth / 2 - k.noseZ, 14), [shell, shell, shell], k.nose);
@@ -536,8 +539,10 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     };
     for (const side of [-1, 1]) {
       lamp(side * (w / 2 - 1.55), 4.05, front - 0.25, 0.85, 0.2, k.chrome);
-      lamp(side * 1.75, 4.05, front - 1.15, 1.05, 1, k.chrome);
-      lamp(side * 1.75, 1.75, front - 1.15, 0.85, 0.9, k.chrome);
+      if (k.floodlights) {
+        lamp(side * 1.75, 4.05, front - 1.15, 1.05, 1, k.chrome);
+        lamp(side * 1.75, 1.75, front - 1.15, 0.85, 0.9, k.chrome);
+      }
       k.front(1, 0.4, 0.2, 1.9, front - 0.55, k.all(amber), side * (w / 2 - 0.6));
     }
     k.front(w + 0.2, 0.6, 0.6, 1.9, front - 0.2, k.all(black));
@@ -695,17 +700,17 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     }
     // a white roundel on each door, for the rally number
     for (const x of [-(w / 2 + 0.06), w / 2 + 0.06]) k.add(drum(1.1, 0.1, 'x', x, 3.5, 2.2, 14), [white, white, white]);
-    // the nose: the black pod of five spotlights on the bonnet, a yellow fog lamp at each end of the lip
+    // the nose: the black pod of five spotlights on the bonnet (night and evening rallies), a yellow fog lamp at each end of the lip
     const podZ = front + 2.4;
     const podY = nose(podZ);
-    k.add(profile((s) => {
+    if (k.floodlights) k.add(profile((s) => {
       s.moveTo(podZ - 0.8, nose(podZ - 0.8) - 0.4);
       s.lineTo(podZ + 0.8, nose(podZ + 0.8) - 0.4);
       s.lineTo(podZ + 0.8, podY + 1.9);
       s.lineTo(podZ - 0.5, podY + 1.9);
       s.lineTo(podZ - 0.8, podY + 1.6);
     }, w - 1.8, 0.15, 2).translate(0, 0, -k.noseZ), [black, black], k.nose);
-    for (let i = 0; i < 5; i++) {
+    if (k.floodlights) for (let i = 0; i < 5; i++) {
       const x = (i - 2) * 1.95;
       k.add(drum(0.82, 0.25, 'z', x, podY + 0.9, podZ - 0.9 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
       k.add(drum(0.68, 0.12, 'z', x, podY + 0.9, podZ - 1.06 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
@@ -864,7 +869,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     // a white roundel on each front door, for the rally number
     for (const x of [-(w / 2 + 0.06), w / 2 + 0.06]) k.add(drum(1.2, 0.1, 'x', x, 3.8, -2.6, 14), [white, white, white]);
     // the nose: a black grille across it with two round headlamps in chrome rings at each end, a bumper with a green
-    // foot, four spotlights in white covers standing on it
+    // foot, four spotlights in white covers standing on it (on a night or evening rally)
     k.front(w - 1.2, 1.9, 0.2, 4.25, front - 0.05, k.all(black));
     const lamp = (x: number, y: number, z: number, r: number, depth: number, shell: THREE.Material, lens: THREE.Material) => {
       k.add(drum(r, depth, 'z', x, y, z + depth / 2 - k.noseZ, 14), [shell, shell, shell], k.nose);
@@ -872,7 +877,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     };
     for (const side of [-1, 1]) {
       for (const x of [w / 2 - 1.4, w / 2 - 3.05]) lamp(side * x, 4.3, front - 0.2, 0.7, 0.2, k.chrome, k.lamp);
-      for (const x of [1.25, 3.7]) lamp(side * x, 3.05, front - 1.1, 0.8, 0.6, black, white);
+      if (k.floodlights) for (const x of [1.25, 3.7]) lamp(side * x, 3.05, front - 1.1, 0.8, 0.6, black, white);
     }
     k.front(w + 0.2, 0.5, 0.8, 2.45, front - 0.3, k.all(black));
     k.front(w, 0.8, 0.7, 1.8, front - 0.25, k.all(k.trim));
@@ -1006,15 +1011,15 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     // black vent slats on the bonnet's bulge
     for (const z of [-8.4, -7.7, -7]) k.box(3.4, 0.12, 0.3, bonnet(z) + 0.48, z, k.all(black));
     // the nose, all its lamps in a row high up: twin round headlamps set into the nose at each end, four round
-    // spotlights between them, amber indicators under the headlamps; the grille a low black slot in the blue air
-    // dam beneath, with a red and white stripe across the dam
+    // spotlights between them (night and evening rallies), amber indicators under the headlamps; the grille a low
+    // black slot in the blue air dam beneath, with a red and white stripe across the dam
     const amber = k.paint(0xf29a1a);
     for (const side of [-1, 1]) {
       for (const x of [w / 2 - 1.15, w / 2 - 2.6]) {
         k.add(drum(0.72, 0.14, 'z', side * x, 3.5, front - 0.03 - k.noseZ, 14), [black, black, black], k.nose);
         k.add(drum(0.56, 0.1, 'z', side * x, 3.5, front - 0.1 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       }
-      for (const x of [0.72, 2.0]) {
+      if (k.floodlights) for (const x of [0.72, 2.0]) {
         k.add(drum(0.6, 0.4, 'z', side * x, 3.5, front - 0.3 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
         k.add(drum(0.48, 0.12, 'z', side * x, 3.5, front - 0.52 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       }
@@ -1347,14 +1352,14 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       k.add(g, [orange, orange]);
     }
     // the nose: a square headlamp at each end, a black grille between them with two big round lamps on it, four
-    // round spotlights standing on the chin, amber indicators under the square lamps; the chin a long
-    // yellow wedge sloping forward to the ground
+    // round spotlights standing on the chin at night or in the evening, amber indicators under the square lamps;
+    // the chin a long yellow wedge sloping forward to the ground
     for (const side of [-1, 1]) {
       k.front(1.5, 1, 0.12, 3.9, front - 0.04, k.all(k.lamp), side * (w / 2 - 1.3));
       k.front(1, 0.4, 0.1, 3.05, front - 0.04, k.all(amber), side * (w / 2 - 1.3));
       k.add(drum(0.85, 0.5, 'z', side * 1.9, 3.9, front - 0.35 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
       k.add(drum(0.72, 0.1, 'z', side * 1.9, 3.9, front - 0.62 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
-      for (const x of [0.85, 2.5]) {
+      if (k.floodlights) for (const x of [0.85, 2.5]) {
         k.add(drum(0.72, 0.5, 'z', side * x, 3.35, front - 0.9 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
         k.add(drum(0.6, 0.1, 'z', side * x, 3.35, front - 1.17 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       }
