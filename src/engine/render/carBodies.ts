@@ -2010,11 +2010,12 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(back - 2.2, 7.3);
     }, w - 1, 0.08, 3), [k.body, k.body]);
     k.box(w - 1.2, 0.18, 0.25, 7.9, back + 0.1, k.all(k.scoop));
-    for (const x of [-(w / 2 - 1.6), w / 2 - 1.6]) k.box(0.25, 1.3, 0.5, 6.75, back - 1.2, k.all(black), undefined, x);
+    for (const x of [-(w / 2 - 1.6), w / 2 - 1.6]) k.box(0.3, 1.4, 0.7, 6.75, back - 1.2, k.all(k.body), undefined, x);
     // bonnet vents either side, close to the screen
     for (const x of [-2.6, 2.6]) for (let i = 0; i < 3; i++) k.box(2.2, 0.08, 0.25, bonnet(-6.4 + i * 0.55) + 0.05, -6.4 + i * 0.55, k.all(black), undefined, x);
-    // the colours (until the reference arrives): white, a red band low along the flanks, a green line above it,
-    // red and green stripes over the bonnet
+    // the colours: white, with a red and a green swoosh sweeping up each flank from the doors to the rear quarter,
+    // green arcs over the front wheels with red ahead of them, green and red on the bonnet corners and roof edges, and
+    // red and green halves across the tail
     /** a flat piece in the (z, y) plane on a side at `x` */
     const side2d = (pts: [number, number][], x: number, m: THREE.Material) => {
       k.add(profile((s) => {
@@ -2022,12 +2023,38 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         for (const [z, y] of pts.slice(1)) s.lineTo(z, y);
       }, 0.08).translate(x, 0, 0), [m, m]);
     };
-    const f0 = axles[0] + R + 0.05;
-    const r0 = axles[1] - R - 0.05;
+    /** the swoosh's leading edge at `t` (0 low on the door, 1 at the waist) */
+    const sweep = (t: number): [number, number] => {
+      const u = 1 - t;
+      return [u * u * -3.5 + 2 * u * t * 2.5 + t * t * 4.2, u * u * 1.7 + 2 * u * t * 1.9 + t * t * 5.35];
+    };
+    const band = (d0: number, d1: number): [number, number][] => {
+      const pts: [number, number][] = [];
+      for (let n = 0; n <= 12; n++) {
+        const [z, y] = sweep(n / 12);
+        pts.push([z + d0, y]);
+      }
+      for (let n = 12; n >= 0; n--) {
+        const [z, y] = sweep(n / 12);
+        pts.push([z + d1, y]);
+      }
+      return pts;
+    };
+    /** a band round wheel opening `i`, from angle `a0` to `a1`, `r0` to `r1` from the hub */
+    const arc = (i: number, r0: number, r1: number, a0: number, a1: number, x: number, m: THREE.Material) => {
+      k.add(profile((s) => {
+        s.absarc(axles[i], hubY, r1, a0, a1, false);
+        s.absarc(axles[i], hubY, r0, a1, a0, true);
+      }, 0.08, 0, 16).translate(x, 0, 0), [m, m]);
+    };
     for (const side of [-1, 1]) {
       const bx = side * (w / 2 + 0.04);
-      side2d([[f0, 1.6], [r0, 1.6], [r0, 3.1], [f0, 3.1]], bx, red);
-      side2d([[f0, 3.25], [r0, 3.25], [r0, 3.6], [f0, 3.6]], bx, green);
+      side2d(band(0, 1), bx, red);
+      side2d(band(1.1, 1.85), bx, green);
+      // (round the front wheel's opening ahead of and behind it, meeting the green along the bonnet's edges)
+      arc(0, R + 0.1, R + 0.6, 2.2, 2.85, bx, green);
+      arc(0, R + 0.1, R + 0.6, 0.3, 0.94, bx, green);
+      side2d([[front + 0.7, 2.6], [axles[0] - R - 0.1, 2.6], [axles[0] - R - 0.1, 3.5], [front + 0.9, 3.7]], bx, red);
     }
     const onBonnet = (pts: [number, number][], m: THREE.Material) => {
       const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
@@ -2037,31 +2064,38 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       g.computeVertexNormals();
       k.add(g, [m, m]);
     };
-    onBonnet([[-1.4, front + 1.5], [0.2, front + 1.5], [0.2, -4.6], [-1.4, -4.6]], red);
-    onBonnet([[0.4, front + 1.5], [1, front + 1.5], [1, -4.6], [0.4, -4.6]], green);
-    // the nose: a wide dark lamp unit each side with twin round lamps, a thin slot between, a bumper below with a wide
-    // black intake, amber indicators at its corners, a black splitter
     for (const side of [-1, 1]) {
-      k.front(2.9, 0.85, 0.12, 3.3, front - 0.04, k.all(black), side * (w / 2 - 2.55));
-      for (const dx of [-0.7, 0.7]) {
-        k.add(drum(0.36, 0.15, 'z', side * (w / 2 - 2.55) + dx, 3.3, front - 0.1 - k.noseZ, 12), [k.lamp, k.lamp, k.lamp], k.nose);
-      }
-      k.front(0.7, 0.45, 0.1, 3.3, front - 0.04, k.all(amber), side * (w / 2 - 0.65));
+      onBonnet([[side * 4.4, front + 1.5], [side * 5.9, front + 1.5], [side * 5.9, -6.2], [side * 5.3, -5.6]], green);
+      onBonnet([[side * 2.4, front + 1.5], [side * 4.2, front + 1.5], [side * 4.2, front + 3.4], [side * 2.9, front + 2.6]], red);
     }
-    k.front(2.8, 0.25, 0.1, 3.3, front - 0.04, k.all(black));
-    k.front(5.4, 0.8, 0.1, 2.2, front - 0.06, k.all(black));
+    for (const [z, m] of [[-0.55, green], [-0.2, red], [2.6, red], [2.95, green]] as const) k.box(w - 2.6, 0.06, 0.32, 8.6, z, k.all(m));
+    // the nose: a square headlamp set back in a black pod at each corner of the bonnet, black between them, a white
+    // bumper below with two wide black mesh intakes, amber indicators and small slots at its corners, a black splitter
+    for (const side of [-1, 1]) {
+      const x = side * (w / 2 - 2.1);
+      k.front(2.7, 1.15, 0.12, 3.95, front - 0.02, k.all(black), x);
+      k.front(1.9, 0.8, 0.1, 3.95, front - 0.08, k.all(k.lamp), x);
+      k.front(1.1, 0.4, 0.1, 2.95, front - 0.06, k.all(amber), side * (w / 2 - 1));
+      k.front(1.1, 0.4, 0.1, 2.05, front - 0.06, k.all(black), side * (w / 2 - 1));
+    }
+    k.front(3.6, 0.55, 0.1, 3.95, front - 0.03, k.all(black));
+    k.front(6.6, 0.5, 0.1, 2.95, front - 0.06, k.all(black));
+    k.front(6.6, 0.65, 0.1, 2.05, front - 0.06, k.all(black));
     k.front(w - 0.8, 0.15, 1.2, 1.45, front - 0.3, k.all(black));
-    // at night or in the evening, four round lamps on a bar across the nose
+    // at night or in the evening, four big round lamps on a bar between the headlamps
     if (k.floodlights) {
-      k.front(7.4, 0.3, 1.2, 3.9, front - 0.5, k.all(black));
-      for (const x of [-2.7, -0.9, 0.9, 2.7]) {
-        k.add(drum(0.85, 0.5, 'z', x, 4.9, front - 0.65 - k.noseZ, 14), [black, black, black], k.nose);
-        k.add(drum(0.72, 0.1, 'z', x, 4.9, front - 0.92 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+      k.front(7, 0.3, 1.2, 3.45, front - 0.5, k.all(black));
+      for (const x of [-2.55, -0.85, 0.85, 2.55]) {
+        k.add(drum(0.82, 0.5, 'z', x, 4.25, front - 0.65 - k.noseZ, 14), [black, black, black], k.nose);
+        k.add(drum(0.7, 0.1, 'z', x, 4.25, front - 0.92 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       }
     }
-    // the tail: a full-width red lamp band on a black panel, a white bumper, twin exhausts
+    // the tail: a full-width lamp band, red with amber ends, on a black panel; red and green halves below it
     k.box(w - 1, 1, 0.12, 4.9, back + 0.03, k.all(black));
-    for (const x of [-(w / 2 - 1.8), w / 2 - 1.8]) k.box(3.2, 0.8, 0.15, 4.9, back + 0.06, k.all(red), undefined, x);
+    k.box(w - 3, 0.75, 0.15, 4.9, back + 0.06, k.all(red));
+    for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.2, 0.75, 0.15, 4.9, back + 0.06, k.all(amber), undefined, x);
+    k.box(w / 2 - 1, 0.9, 0.1, 3.65, back + 0.04, k.all(red), undefined, -(w / 4));
+    k.box(w / 2 - 1, 0.9, 0.1, 3.65, back + 0.04, k.all(green), undefined, w / 4);
     k.box(w + 0.2, 1.1, 0.5, 2.2, back + 0.15, k.all(k.body));
     // red mud flaps behind the wheels
     for (const z of [-4.4, 10.3]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(red), undefined, x);
