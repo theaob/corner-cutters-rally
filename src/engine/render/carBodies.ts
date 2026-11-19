@@ -213,7 +213,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const z of [-4.2, 10.2]) for (const x of [-(w / 2 - 0.9), w / 2 - 0.9]) k.box(1.8, 1.6, 0.2, 1.3, z, k.all(black), undefined, x);
     return {
       axles: [-7.3, 7.3],
-      wheel: { radius: 2.75, width: 2.5, half: w / 2 - 0.55, rim: '#a7adb5' },
+      wheel: { radius: 2.4, width: 2.2, half: w / 2 - 0.75, rim: '#a7adb5' },
       tail: { z: back + 0.05, y: 4.6, x: w / 2 - 0.9, w: 0.9, h: 1.7 },
     };
   },
@@ -314,7 +314,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const z of [-5.6, 10.2]) for (const x of [-(w / 2 - 1), w / 2 - 1]) k.box(1.8, 1.5, 0.2, 1.2, z, k.all(black), undefined, x);
     return {
       axles: [-8.4, 7.6],
-      wheel: { radius: 2.35, width: 2.3, half: w / 2 - 1.1, rim: '#c4c8ce' },
+      wheel: { radius: 2.1, width: 2.1, half: w / 2 - 1.25, rim: '#c4c8ce' },
       tail: { z: back + 0.05, y: 4.1, x: w / 2 - 1.3, w: 2, h: 0.9 },
     };
   },
@@ -391,11 +391,11 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const z of [-8.3, 8]) for (const x of [-(w / 2 + 0.1), w / 2 + 0.1]) {
       k.add(profile((s) => {
         s.moveTo(z - 3.3, 1.9);
-        s.quadraticCurveTo(z - 3.1, 5.1, z, 5.2);
-        s.quadraticCurveTo(z + 3.1, 5.1, z + 3.3, 1.9);
+        s.quadraticCurveTo(z - 3.1, 5.4, z, 5.5);
+        s.quadraticCurveTo(z + 3.1, 5.4, z + 3.3, 1.9);
         s.lineTo(z + 2.7, 1.9);
-        s.quadraticCurveTo(z + 2.5, 4.5, z, 4.6);
-        s.quadraticCurveTo(z - 2.5, 4.5, z - 2.7, 1.9);
+        s.quadraticCurveTo(z + 2.6, 4.9, z, 5);
+        s.quadraticCurveTo(z - 2.6, 4.9, z - 2.7, 1.9);
       }, 1, 0.3).translate(x, 0, 0), [k.body, k.body]);
     }
     // a white roundel on each door, for the rally number
@@ -419,7 +419,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const z of [-4.8, 11.4]) for (const x of [-(w / 2 - 1), w / 2 - 1]) k.box(1.8, 1.4, 0.2, 1.1, z, k.all(black), undefined, x);
     return {
       axles: [-8.3, 8],
-      wheel: { radius: 2.35, width: 2.5, half: w / 2 - 1, rim: '#c4c8ce' },
+      wheel: { radius: 2.1, width: 2.3, half: w / 2 - 0.8, rim: '#c4c8ce' },
       tail: { z: back + 0.08, y: 3.9, x: w / 2 - 1.6, w: 1.4, h: 1 },
     };
   },

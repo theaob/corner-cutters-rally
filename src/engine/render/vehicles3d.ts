@@ -96,8 +96,11 @@ function deckTexture(look: CarLook, second: string, w: number, h: number): THREE
   return canvasTexture(paintPattern(Math.round(w * 8), Math.round(h * 8), look.pattern ?? 'plain', look.body, second));
 }
 
-/** Off-road tyres: px more radius and width than the tarmac's, and their tread blocks (how many round, how proud) */
-const OFF_ROAD = { radius: 0.7, width: 1, blocks: 14, proud: 0.45 };
+/**
+ * Off-road tyres: px more radius and width than the tarmac's (the extra width grows inward, so a tyre stays inside
+ * its arch), and their tread blocks (how many round, how proud)
+ */
+const OFF_ROAD = { radius: 0.15, width: 0.4, blocks: 14, proud: 0.3 };
 
 /** A knobbly tyre's tread blocks round a tyre `wr` px in radius and `ww` wide (its axle along x): two staggered rows. */
 function knobs(wr: number, ww: number): THREE.BufferGeometry {
@@ -247,7 +250,7 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   // wheels: [z, radius, tyre width, half-track] per axle
   const axles: [number, number, number, number][] = spec.axles
     .map((z) => [z, spec.wheel.radius, spec.wheel.width, spec.wheel.half])
-    .map(([z, wr, ww, half]) => (offRoad ? [z, wr + OFF_ROAD.radius, ww + OFF_ROAD.width, half + OFF_ROAD.width / 2] : [z, wr, ww, half]));
+    .map(([z, wr, ww, half]) => (offRoad ? [z, wr + OFF_ROAD.radius, ww + OFF_ROAD.width, half - OFF_ROAD.width / 2] : [z, wr, ww, half]));
   // (the tread blocks caked in earth, so the knobbly tread shows against the tyre)
   const tread = offRoad ? lambert({ color: 0x6a5038 }) : undefined;
   // a tyre, its compound band and its rim are one mesh in one draw call: the band's and rim's vertices are marked, and

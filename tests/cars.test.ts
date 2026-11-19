@@ -45,3 +45,20 @@ describe('each car body', () => {
     });
   }
 });
+
+describe('the rebuilt cars', () => {
+  // (the cars rebuilt one by one after real ones; the rest are the first sketches, still to be replaced)
+  for (const id of ['mini', 'fulvia', 'alpine'] as const) {
+    it(`${id}: its gravel tyres stay inside its bodywork, seen from above`, () => {
+      const car = createCarMesh('f1', { body: '#d8323c', stripe: '#f4f4f8', model: id }, true);
+      const wheels = car.userData.parts.wheels as THREE.Group[];
+      const tyres = wheels.map((w) => new THREE.Box3().setFromObject(w));
+      for (const w of wheels) w.removeFromParent();
+      const body = new THREE.Box3().setFromObject(car, true);
+      for (const tyre of tyres) {
+        expect(tyre.max.x).toBeLessThanOrEqual(body.max.x + 0.01);
+        expect(tyre.min.x).toBeGreaterThanOrEqual(body.min.x - 0.01);
+      }
+    });
+  }
+});
