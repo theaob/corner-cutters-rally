@@ -1598,89 +1598,94 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const red = k.paint(0xd42a2a);
     const amber = k.paint(0xf29a1a);
     /** the bonnet's height at `z`, from the nose up to the screen */
-    const bonnet = (z: number) => 5.35 + ((z - front - 0.8) * 0.25) / (-4.6 - front - 0.8);
+    const bonnet = (z: number) => 4.75 + ((z - front - 0.3) * 1.05) / (-4.8 - front - 0.3);
     // the wheels sit in openings cut straight into the body: no arches stand out from the sides
     const hubY = 2.25;
-    const axles = [-8.2, 7.8];
-    const R = 2.95;
-    const a = Math.asin((hubY - 1.5) / R);
-    // the body in one piece: a low rounded nose, the bonnet rising to the screen, high hips over the engine, a
-    // square tail
+    const axles = [-7.9, 8.3];
+    const R = 2.85;
+    const a = Math.asin((hubY - 1.4) / R);
+    // the body in one piece: a low rounded nose, the bonnet rising gently to the screen, the sides level along the
+    // doors, rising behind them to a short deck and a square tail
     k.add(profile((s) => {
-      s.moveTo(front + 0.6, 1.5);
-      s.lineTo(axles[0] - R * Math.cos(a), 1.5);
+      s.moveTo(front + 0.6, 1.4);
+      s.lineTo(axles[0] - R * Math.cos(a), 1.4);
       s.absarc(axles[0], hubY, R, Math.PI + a, -a, true);
-      s.lineTo(axles[1] - R * Math.cos(a), 1.5);
+      s.lineTo(axles[1] - R * Math.cos(a), 1.4);
       s.absarc(axles[1], hubY, R, Math.PI + a, -a, true);
-      s.lineTo(back - 0.4, 1.5);
-      s.lineTo(back, 2.1);
-      s.lineTo(back, 6.4);
-      s.lineTo(back - 0.4, 6.7);
-      s.lineTo(4.4, 7.1);
-      s.lineTo(-4.6, 5.4);
-      s.lineTo(front + 1.4, bonnet(front + 1.4));
-      s.quadraticCurveTo(front, 5.35, front, 3.6);
-      s.lineTo(front, 2.2);
-      s.quadraticCurveTo(front, 1.6, front + 0.6, 1.5);
+      s.lineTo(back - 0.4, 1.4);
+      s.lineTo(back, 2);
+      s.lineTo(back, 6.2);
+      s.lineTo(back - 0.3, 6.35);
+      s.lineTo(9.4, 6.7);
+      s.lineTo(3.2, 5.6);
+      s.lineTo(-4.8, 5.6);
+      s.lineTo(front + 1.3, bonnet(front + 1.3));
+      s.quadraticCurveTo(front, 4.75, front, 3.6);
+      s.lineTo(front, 2.1);
+      s.quadraticCurveTo(front, 1.5, front + 0.6, 1.4);
     }, w, 0.3, 24), [k.pods, k.body]);
     // a dark liner inside each wheel opening, so it reads as a wheel well
     for (const z of axles) {
       k.add(profile((s) => {
-        s.moveTo(z + R * Math.cos(a), 1.5);
+        s.moveTo(z + R * Math.cos(a), 1.4);
         s.absarc(z, hubY, R, -a, Math.PI + a, false);
-        s.lineTo(z - (R - 0.2) * Math.cos(a), 1.5);
-        s.absarc(z, hubY, R - 0.2, Math.PI + a, -a, true);
+        s.lineTo(z - (R - 0.12) * Math.cos(a), 1.4);
+        s.absarc(z, hubY, R - 0.12, Math.PI + a, -a, true);
       }, w - 0.4, 0, 24), [black, black]);
     }
-    // the glasshouse: a big raked screen, a short roof, a near-upright small back window
+    // the glasshouse: a raked screen, a short low roof, a long back window sloping down to the deck
     k.add(profile((s) => {
-      s.moveTo(-4.7, 5.35);
-      s.lineTo(-1.2, 9.1);
-      s.lineTo(3.4, 9.1);
-      s.lineTo(4.2, 7.1);
-      s.lineTo(0, 5.6);
+      s.moveTo(-4.9, 5.5);
+      s.lineTo(-1.6, 8.35);
+      s.lineTo(2.6, 8.35);
+      s.lineTo(9.3, 6.7);
+      s.lineTo(9.3, 5.5);
     }, w - 2), [k.glass, k.glass]);
     k.add(profile((s) => {
-      s.moveTo(-1.4, 9);
-      s.lineTo(3.6, 9);
-      s.lineTo(3.5, 9.45);
-      s.lineTo(-1.1, 9.45);
+      s.moveTo(-1.8, 8.25);
+      s.lineTo(2.8, 8.25);
+      s.lineTo(2.7, 8.7);
+      s.lineTo(-1.5, 8.7);
     }, w - 1.7, 0.25, 2), [k.body, k.body]);
-    // the roof intake, low and wide at the back of the roof
+    // the roof intake at the back of the roof, reaching out over the back window
     k.add(profile((s) => {
-      s.moveTo(0.6, 9.4);
-      s.lineTo(1.4, 10.2);
-      s.lineTo(3.6, 10.2);
-      s.lineTo(3.6, 9.4);
+      s.moveTo(1.6, 8.6);
+      s.lineTo(2.4, 9.15);
+      s.lineTo(5.6, 9.15);
+      s.lineTo(5.6, 7.6);
+      s.lineTo(2.6, 8.3);
     }, 4.2, 0.12, 2), [blue, blue]);
-    k.box(3.6, 0.6, 0.1, 9.85, 1.05, k.all(black));
+    k.box(3.6, 0.9, 0.1, 8.35, 5.65, k.all(black));
     for (const side of [-1, 1]) {
       const x = side * (w - 2) / 2;
-      // (the screen pillars, the door pillar, the rear quarter sweeping down to the hips)
+      // (the screen pillars; the broad rear quarter, solid from the doors back, a small window high in it)
       k.add(profile((s) => {
-        s.moveTo(-4.9, 5.35);
-        s.lineTo(-1.4, 9.1);
-        s.lineTo(-0.9, 9.1);
-        s.lineTo(-4.4, 5.35);
+        s.moveTo(-5.1, 5.5);
+        s.lineTo(-1.8, 8.35);
+        s.lineTo(-1.3, 8.35);
+        s.lineTo(-4.6, 5.5);
       }, 0.3).translate(x, 0, 0), [k.body, k.body]);
       k.add(profile((s) => {
-        s.moveTo(1.8, 9.1);
-        s.lineTo(3.6, 9.1);
-        s.lineTo(6.6, 6.95);
-        s.lineTo(2.4, 6.3);
+        s.moveTo(2.6, 8.4);
+        s.lineTo(9.4, 6.75);
+        s.lineTo(9.4, 5.5);
+        s.lineTo(2.9, 5.5);
       }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+      k.add(profile((s) => {
+        s.moveTo(3.3, 6.5);
+        s.lineTo(4.6, 6.5);
+        s.lineTo(4.6, 7.75);
+        s.lineTo(3.3, 8.05);
+      }, 0.1).translate(x + side * 0.18, 0, 0), [black, black]);
     }
-    // the white tail wing grown from the hips, level with the roof line's end, its lip in the driver's colour (yours gold)
+    // the tail wing grown from the deck, its tips rising, its lip in the driver's colour (yours gold)
     k.add(profile((s) => {
-      s.moveTo(back - 3.2, 6.9);
-      s.lineTo(back - 0.6, 7.7);
-      s.lineTo(back + 0.5, 8.1);
-      s.lineTo(back + 0.5, 7.7);
-      s.lineTo(back - 0.2, 6.6);
+      s.moveTo(8.8, 6.75);
+      s.lineTo(back + 0.4, 7.35);
+      s.lineTo(back + 0.4, 6.95);
+      s.lineTo(back - 0.4, 6.3);
     }, w - 0.2, 0.1, 3), [k.body, k.body]);
-    k.box(w - 0.4, 0.2, 0.25, 8.15, back + 0.4, k.all(k.scoop));
-    // engine cover louvres
-    for (let i = 0; i < 4; i++) k.box(5, 0.1, 0.35, 7.05 - i * 0.03, 5.6 + i * 1.05, k.all(black));
+    k.box(w - 0.4, 0.18, 0.25, 7.4, back + 0.3, k.all(k.scoop));
     // the colours: white, the back half of the car blue from the doors on, a white notch in the doors, white stripes
     // slanting down and back across the blue ahead of the rear wheels
     /** a flat piece in the (z, y) plane on a side at `x` */
@@ -1691,7 +1696,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       }, 0.08).translate(x, 0, 0), [m, m]);
     };
     /** the top of the body side (under the windows) at `z` */
-    const waist = (z: number) => (z < 4.4 ? 5.4 + ((z + 4.6) * 1.7) / 9 : 7.1 - ((z - 4.4) * 0.4) / (back - 0.4 - 4.4)) - 0.15;
+    const waist = (z: number) => (z < 3.2 ? 5.6 : z < 9.4 ? 5.6 + ((z - 3.2) * 1.1) / 6.2 : 6.7 - ((z - 9.4) * 0.35) / (back - 0.3 - 9.4)) - 0.15;
     for (const side of [-1, 1]) {
       const bx = side * (w / 2 + 0.04);
       // (the blue from the doors back, round the rear wheel's opening)
@@ -1701,7 +1706,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.absarc(axles[1], hubY, R + 0.02, Math.PI + a, -a, true);
         s.lineTo(back - 0.4, 1.6);
         s.lineTo(back - 0.4, waist(back - 0.4));
-        s.lineTo(4.4, waist(4.4));
+        s.lineTo(9.4, waist(9.4));
+        s.lineTo(3.2, waist(3.2));
         s.lineTo(-0.6, waist(-0.6));
         s.lineTo(-3.4, 3.9);
       }, 0.08, 0, 12).translate(bx, 0, 0), [blue, blue]);
@@ -1710,8 +1716,6 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       for (const z0 of [-0.4, 0.4, 1.2, 2]) {
         side2d([[z0, waist(z0)], [z0 + 0.4, waist(z0 + 0.4)], [z0 + 2.6, 1.6], [z0 + 2.2, 1.6]], side * (w / 2 + 0.07), white);
       }
-      // the black intake in the hip, high ahead of the rear wheel
-      k.box(0.12, 0.7, 1.8, waist(2.6) - 0.5, 2.6, k.all(black), undefined, side * (w / 2 + 0.1));
     }
     // a small black vent in the middle of the bonnet's nose
     k.box(2, 0.1, 0.5, bonnet(front + 2.2) + 0.03, front + 2.2, k.all(black));
