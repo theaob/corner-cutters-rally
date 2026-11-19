@@ -2844,7 +2844,17 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     // green low on the door, rising to the front; behind it a light blue stripe and deep blue over the rear quarter,
     // slanting up to the rear pillar; a blue band up the middle of the bonnet; a blue tail
     /** a slab with corners rounded `r` seen from above, `x0..x1` across, `z0..z1` along, its top at `y`, `h` deep */
-    const slab = (x0: number, x1: number, z0: number, z1: number, r: number, y: number, h: number, m: THREE.Material) => {
+    // (the front bumper's face bulges: it rolls under at the bottom and back into the nose at the top)
+    const bz = front - 0.6;
+    const tuck = (z: number, y: number) => 0.75 * ((y - 2.45) / 0.95) ** 2 * Math.max(0, 1 - (z - bz) / 2);
+    const bend = (g: THREE.BufferGeometry) => {
+      const pos = g.getAttribute('position');
+      for (let n = 0; n < pos.count; n++) pos.setZ(n, pos.getZ(n) + tuck(pos.getZ(n), pos.getY(n)));
+      g.computeVertexNormals();
+      return g;
+    };
+    const slab = (x0: number, x1: number, z0: number, z1: number, r: number, y: number, h: number, m: THREE.Material, bent = false) => {
+      r = Math.min(r, (z1 - z0) / 2 - 0.01, (x1 - x0) / 2 - 0.01);
       const s = new THREE.Shape();
       s.moveTo(x0 + r, z0);
       s.lineTo(x1 - r, z0);
@@ -2856,8 +2866,9 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(x0, z0 + r);
       s.quadraticCurveTo(x0, z0, x0 + r, z0);
       const b = h < 1 ? 0 : 0.2;
-      const g = new THREE.ExtrudeGeometry(s, { depth: h - 2 * b, bevelEnabled: b > 0, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 6 });
-      k.add(g.rotateX(Math.PI / 2).translate(0, y - b, 0), [m, m]);
+      const g = new THREE.ExtrudeGeometry(s, { depth: h - 2 * b, steps: bent ? 8 : 1, bevelEnabled: b > 0, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 8 });
+      g.rotateX(Math.PI / 2).translate(0, y - b, 0);
+      k.add(bent ? bend(g) : g, [m, m]);
     };
     /** a flat piece in the (z, y) plane on a side at `x` */
     const side2d = (pts: [number, number][], x: number, m: THREE.Material) => {
@@ -2913,15 +2924,25 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     k.front(w - 0.6, 1.5, 0.02, 4.2, front - 0.01, k.all(lime));
     k.front(3.4, 0.75, 0.1, 4.15, front - 0.04, k.all(blue));
     k.front(3.0, 0.5, 0.1, 4.15, front - 0.08, k.all(black));
-    slab(-(w / 2 + 0.1), w / 2 + 0.1, front - 0.6, front + 2.2, 1.6, 3.4, 1.9, lime);
-    k.add(profile((s) => {
-      s.moveTo(-4.6, 1.6);
-      s.lineTo(4.6, 1.6);
-      s.lineTo(3.4, 3.2);
-      s.lineTo(-3.4, 3.2);
-    }, 0.1).rotateY(Math.PI / 2).translate(0, 0, front - 0.62 - 0.05), [black, black]);
-    for (const side of [-1, 1]) k.front(1, 0.35, 0.1, 3.1, front - 0.62, k.all(k.paint(0xf29a1a)), side * (w / 2 - 1.9));
-    slab(-w / 2, w / 2, front - 0.95, front + 0.6, 1.5, 1.55, 0.45, black);
+    slab(-(w / 2 + 0.1), w / 2 + 0.1, bz, front + 2.2, 2.4, 3.4, 1.9, lime, true);
+    {
+      const s = new THREE.Shape([new THREE.Vector2(-4.6, 1.6), new THREE.Vector2(4.6, 1.6), new THREE.Vector2(3.4, 3.2), new THREE.Vector2(-3.4, 3.2)]);
+      const g = new THREE.ShapeGeometry(s, 1);
+      // (split finely so it can follow the bulge)
+      const fine = new THREE.PlaneGeometry(9.2, 1.6, 8, 8).rotateY(Math.PI).translate(0, 2.4, 0);
+      const pos = fine.getAttribute('position');
+      for (let n = 0; n < pos.count; n++) {
+        const y = pos.getY(n);
+        const half = 4.6 - ((y - 1.6) / 1.6) * 1.2;
+        pos.setX(n, (pos.getX(n) / 4.6) * half);
+        pos.setZ(n, bz - 0.04);
+      }
+      g.dispose();
+      fine.addGroup(0, fine.getIndex()!.count, 0);
+      k.add(bend(fine), [black, black]);
+    }
+    for (const side of [-1, 1]) k.front(1, 0.35, 0.1, 3.1, bz - 0.02 + tuck(bz, 3.1), k.all(k.paint(0xf29a1a)), side * (w / 2 - 2.6));
+    slab(-(w / 2 - 0.3), w / 2 - 0.3, front - 0.75, front + 0.6, 2.4, 1.5, 0.45, black);
     // at night or in the evening, a black pod of four big round lamps on the front of the bonnet
     if (k.floodlights) {
       k.add(profile((s) => {
