@@ -2550,6 +2550,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const blue = k.paint(0x1d3f9a);
     const red = k.paint(0xd0242a);
     const amber = k.paint(0xf29a1a);
+    const mesh = k.paint(0x6b6e75);
     const waist = 5.7;
     /** the bonnet's height at `z`, from the nose up to the screen */
     const bonnet = (z: number) => 4.6 + ((z - front - 0.8) * 1.1) / (-3.8 - front - 0.8);
@@ -2599,15 +2600,24 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.lineTo(6.2, 5.6);
       }, 0.3).translate(x, 0, 0), [k.body, k.body]);
     }
-    // the spoiler over the hatch, its lip in the driver's colour (yours gold); a small vent on the front of the roof
+    // the tall wing over the hatch on two stays, big end plates, reaching back over the tail, its
+    // lip in the driver's colour (yours gold); a small vent on the front of the roof
     k.add(profile((s) => {
-      s.moveTo(6.2, 9.05);
-      s.lineTo(9.4, 8.95);
-      s.lineTo(9.4, 8.6);
-      s.lineTo(6.6, 8.75);
-    }, w - 1.4, 0.08, 3), [k.body, k.body]);
-    k.box(w - 1.6, 0.16, 0.22, 9.0, 9.35, k.all(k.scoop));
-    for (const x of [-(w / 2 - 0.75), w / 2 - 0.75]) k.box(0.15, 0.9, 3.2, 8.75, 7.9, k.all(k.body), undefined, x);
+      s.moveTo(7.2, 9.85);
+      s.lineTo(back + 0.3, 9.65);
+      s.lineTo(back + 0.3, 9.3);
+      s.lineTo(7.5, 9.55);
+    }, w - 1.3, 0.1, 3), [k.body, k.body]);
+    k.box(w - 1.5, 0.16, 0.22, 9.72, back + 0.25, k.all(k.scoop));
+    for (const x of [-(w / 2 - 0.75), w / 2 - 0.75]) {
+      k.add(profile((s) => {
+        s.moveTo(7, 9.0);
+        s.lineTo(7, 10.15);
+        s.lineTo(back + 0.4, 9.95);
+        s.lineTo(back + 0.4, 9.0);
+      }, 0.18, 0.06, 2).translate(x, 0, 0), [k.body, k.body]);
+    }
+    for (const x of [-2.8, 2.8]) k.box(0.35, 2.4, 0.9, 8.3, 8.6, k.all(k.body), undefined, x);
     k.box(2.2, 0.4, 1.5, 9.4, 0.4, k.all(k.body));
     k.box(1.8, 0.25, 0.08, 9.4, -0.37, k.all(black));
     // vents in the bonnet either side
@@ -2629,9 +2639,11 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.quadraticCurveTo(z + reach, 5.45, z + reach, 4.4);
         s.lineTo(z + reach, 1.8);
         s.absarc(z, hubY, R, -a, Math.PI + a, false);
-      }, 1.2, 0.2, 8).translate(x, 0, 0), [k.body, k.body]);
+      }, 1.2, 0.2, 8).translate(x, 0, 0), [blue, blue]);
     }
-    // the colours: white, a blue band low along the doors with a red line over it, blue along the bonnet's edges
+    // the colours: white with blue brush strokes: the flares blue, a ragged blue wave on each door behind the front
+    // flare, a thin blue line along the sills, the left half of the nose and bonnet blue with a ragged edge, blue
+    // across a corner of the tail
     /** a flat piece in the (z, y) plane on a side at `x` */
     const side2d = (pts: [number, number][], x: number, m: THREE.Material) => {
       k.add(profile((s) => {
@@ -2643,9 +2655,12 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const d1 = axles[1] - reaches[1];
     for (const side of [-1, 1]) {
       const bx = side * (w / 2 + 0.04);
-      side2d([[d0, 1.8], [d1, 1.8], [d1, 3.9], [d0, 3.2]], bx, blue);
-      side2d([[d0, 3.35], [d1, 4.05], [d1, 4.3], [d0, 3.6]], bx, red);
+      side2d([[d0, 1.8], [d0 + 1.9, 1.8], [d0 + 1.1, 2.6], [d0 + 1.6, 3.4], [d0 + 0.6, 4.3], [d0 + 1.2, 5.1], [d0 + 0.4, 5.55], [d0, 5.6]], bx, blue);
+      side2d([[d0 + 1.9, 1.8], [d1, 1.8], [d1, 2.02], [d0 + 1.7, 2.02]], bx, blue);
+      // (above the rear flare, up to the waist)
+      side2d([[d1, 5.4], [back - 0.3, 5.4], [back - 0.3, 5.9], [d1 + 1.5, 5.85], [d1 + 0.6, 5.6]], bx, blue);
     }
+    k.box(4.6, 2.6, 0.08, 4.3, back + 0.02, k.all(blue), undefined, w / 2 - 2.5);
     const onBonnet = (pts: [number, number][], m: THREE.Material) => {
       const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
       const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
@@ -2654,9 +2669,12 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       g.computeVertexNormals();
       k.add(g, [m, m]);
     };
-    for (const side of [-1, 1]) onBonnet([[side * 4.6, front + 1.2], [side * 5.6, front + 1.2], [side * 5.6, -4], [side * 4.6, -4]], blue);
+    const ex = w / 2 - 0.3;
+    onBonnet([[-ex, front + 0.6], [-1.2, front + 0.6], [-2.3, front + 2.2], [-1.3, front + 3.6], [-2.9, front + 5.4], [-2.2, -4.2], [-ex, -4.2]], blue);
+    k.front(w / 2 - 1.4, 1.8, 0.1, 2.4, front - 0.61, k.all(blue), -(w / 2 + 1.4) / 2);
+    k.front(1.4, 0.9, 0.1, 2.85, front - 0.61, k.all(blue), -1);
     // the nose: long headlamps swept back along the top of each corner, a small grille between them, the bumper below
-    // with a wide black intake, round fog lamps at its corners, amber indicators, a black splitter
+    // with a wide grey mesh intake right across it, amber indicators at its corners, a black splitter
     for (const side of [-1, 1]) {
       k.add(profile((s) => {
         s.moveTo(front - 0.02, 3.95);
@@ -2667,11 +2685,10 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     }
     k.front(2.6, 0.5, 0.1, 4.15, front - 0.04, k.all(black));
     k.front(w + 0.2, 1.8, 0.8, 2.4, front - 0.2, k.all(k.body));
-    k.front(6.4, 1.1, 0.1, 2.35, front - 0.62, k.all(black));
-    for (const side of [-1, 1]) {
-      k.add(drum(0.5, 0.12, 'z', side * 4.6, 2.35, front - 0.66 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
-      k.front(1, 0.35, 0.1, 3.1, front - 0.62, k.all(amber), side * (w / 2 - 0.8));
-    }
+    k.front(9.6, 1.3, 0.1, 2.3, front - 0.64, k.all(black));
+    k.front(9.2, 1.0, 0.1, 2.3, front - 0.68, k.all(mesh));
+    for (let i = 0; i < 3; i++) k.front(9.2, 0.06, 0.1, 1.95 + i * 0.35, front - 0.72, k.all(black));
+    for (const side of [-1, 1]) k.front(1, 0.35, 0.1, 3.1, front - 0.62, k.all(amber), side * (w / 2 - 0.8));
     k.front(w, 0.15, 1.2, 1.45, front - 0.4, k.all(black));
     // at night or in the evening, a black pod of four big round lamps on the front of the bonnet
     if (k.floodlights) {
