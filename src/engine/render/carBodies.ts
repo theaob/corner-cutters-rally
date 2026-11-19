@@ -2785,14 +2785,14 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.lineTo(7.4, 5.7);
       }, 0.3).translate(x, 0, 0), [blue, blue]);
     }
-    // the big wing over the hatch on tall black end plates reaching back past the tail, its lip in the driver's
+    // the big black wing over the hatch on tall end plates reaching back past the tail, its lip in the driver's
     // colour (yours gold); a small vent on the front of the roof
     k.add(profile((s) => {
       s.moveTo(7.3, 9.75);
       s.lineTo(back + 0.4, 9.55);
       s.lineTo(back + 0.4, 9.2);
       s.lineTo(7.6, 9.45);
-    }, w - 1.3, 0.1, 3), [blue, blue]);
+    }, w - 1.3, 0.1, 3), [black, black]);
     k.box(w - 1.5, 0.16, 0.22, 9.62, back + 0.35, k.all(k.scoop));
     for (const x of [-(w / 2 - 0.75), w / 2 - 0.75]) {
       k.add(profile((s) => {
@@ -2864,15 +2864,22 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const ex = w / 2 - 0.3;
     onBonnet([[-ex, front + 0.7], [ex, front + 0.7], [ex, -4.2], [-ex, -4.2]], lime);
     onBonnet([[-1.6, front + 0.7], [1.6, front + 0.7], [2.3, -4.2], [-2.3, -4.2]], blue, 0.12);
-    // the nose: swept-back headlamps at the top corners, a blue-rimmed black grille between them, the lime bumper
+    // the nose: big headlamps swept back from the corners, a blue-rimmed black grille between them, the lime bumper
     // below with a big black trapezoid intake, amber indicators at its corners, a black splitter
     for (const side of [-1, 1]) {
+      // (a big lamp at each corner, its top along the bonnet's edge, swept far back and up into the wing, its
+      // inner end black with a round projector in it, wrapping a little round onto the side)
+      const x = side * (w / 2 - 1.75);
       k.add(profile((s) => {
-        s.moveTo(front - 0.08, 3.95);
-        s.lineTo(front - 0.08, 4.5);
-        s.lineTo(front + 2.6, bonnet(front + 2.6) - 0.1);
-        s.lineTo(front + 2.6, bonnet(front + 2.6) - 0.5);
-      }, 2.6).translate(side * (w / 2 - 1.7), 0, 0), [black, k.lamp]);
+        s.moveTo(front - 0.08, 3.85);
+        s.lineTo(front - 0.08, 4.65);
+        s.lineTo(front + 3.6, bonnet(front + 3.6) + 0.03);
+        s.lineTo(front + 3.6, bonnet(front + 3.6) - 0.25);
+        s.lineTo(front + 1.2, 3.85);
+      }, 3.1).translate(x, 0, 0), [k.lamp, k.lamp]);
+      k.box(1.1, 0.75, 0.08, 4.25, front - 0.13, k.all(black), undefined, side * (w / 2 - 2.7));
+      k.add(drum(0.28, 0.08, 'z', side * (w / 2 - 2.7), 4.25, front - 0.19 - k.noseZ, 12), [k.lamp, k.lamp, k.lamp], k.nose);
+      side2d([[front + 0.3, 3.9], [front + 1.3, 3.9], [front + 1.3, 4.75], [front + 0.3, 4.6]], side * (w / 2 + 0.06), k.lamp);
     }
     k.front(w - 0.6, 1.5, 0.02, 4.2, front - 0.01, k.all(lime));
     k.front(3.4, 0.75, 0.1, 4.15, front - 0.04, k.all(blue));
@@ -2900,14 +2907,25 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     }
     // the tail: blue, red lamps high at the corners, a blue bumper
     k.box(w - 0.4, 3.6, 0.08, 3.9, back + 0.02, k.all(blue));
-    for (const x of [-(w / 2 - 1.3), w / 2 - 1.3]) k.box(2, 1, 0.15, 5.0, back + 0.06, k.all(red), undefined, x);
+    // (tall red lamps up the rear corners, running on up the edge of each rear pillar beside the hatch)
+    for (const side of [-1, 1]) {
+      k.box(1.5, 1.9, 0.15, 4.85, back + 0.06, k.all(red), undefined, side * (w / 2 - 1));
+      k.add(profile((s) => {
+        s.moveTo(back + 0.05, 5.75);
+        s.lineTo(back - 0.35, 6.3);
+        s.lineTo(7.4, 8.75);
+        s.lineTo(6.9, 8.6);
+        s.lineTo(back - 0.9, 5.95);
+        s.lineTo(back - 0.6, 5.75);
+      }, 1).translate(side * (w / 2 - 0.85), 0, 0), [red, red]);
+    }
     k.box(w + 0.2, 1.2, 0.6, 2.4, back + 0.2, k.all(blue));
     // black mud flaps behind the wheels
     for (const z of [-3.7, 10.45]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(black), undefined, x);
     return {
       axles: [axles[0], axles[1]],
       wheel: { radius: 2.25, width: 2.7, half: w / 2 - 1.3, rim: '#f4f4f0' },
-      tail: { z: back + 0.1, y: 5.0, x: w / 2 - 1.3, w: 1.8, h: 0.9 },
+      tail: { z: back + 0.1, y: 4.85, x: w / 2 - 1, w: 1.4, h: 1.7 },
       exhaust: { x: -1.8, y: 1.75, z: back + 0.5 },
     };
   },
