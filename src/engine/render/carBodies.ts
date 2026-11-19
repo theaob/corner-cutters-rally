@@ -735,7 +735,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
    * the roof's edge and one on the boot, four round headlamps in a black grille and four spotlights in white covers on
    * the bumper. Its own paint, after its famous works colours: white, the sills and the bumpers' feet green, a green
    * stripe with an orange one inside it slanting up behind each door, the roof red-orange with dark stripes, a green
-   * band and orange wedges on the bonnet, gold wheels; the roof's spoiler in the driver's
+   * band and orange wedges on the bonnet and the boot, gold wheels; the roof's spoiler in the driver's
    * colour (yours gold).
    */
   volta(k) {
@@ -836,7 +836,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       }
     }
     // on top, the works colours again: the roof red-orange with two dark green stripes down its middle; a green band
-    // across the bonnet's back with an orange wedge at each end, and a bonnet scoop
+    // across the bonnet's back with an orange wedge at each end, and a bonnet scoop; the band and wedges again on the boot
     const flat = (pts: [number, number][], y: (z: number) => number, m: THREE.Material) => {
       const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
       const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
@@ -855,6 +855,9 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const side of [-1, 1]) {
       flat([[side * bw, -7.3], [side * bw, -4.7], [side * 1.7, -4.7]], (z) => bonnet(z) + 0.04, orange);
     }
+    // the same on the boot, the wedges mirrored toward the back window
+    flat([[-bw, 8], [bw, 8], [bw, back - 2.1], [-bw, back - 2.1]], () => 5.68, k.trim);
+    for (const side of [-1, 1]) flat([[side * bw, 8.2], [side * bw, back - 2.3], [side * 1.7, 8.2]], () => 5.72, orange);
     k.add(profile((s) => {
       s.moveTo(-7.4, bonnet(-7.4) - 0.1);
       s.lineTo(-4.6, bonnet(-4.6) - 0.1);
