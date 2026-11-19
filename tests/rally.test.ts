@@ -8,10 +8,10 @@ import { layoutById } from '../src/f1/layouts';
 import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
 import {
   RALLIES, RALLY, aiStage, crewName, crewScheme, gapText, loadBests, loadRally, loadStageBests, newRally, nextStage, parseRally,
-  rallyOver, recordBest, recordStage, recordStageBest, referenceStage, saveRally, serviceAfter, stageOrder, standings, yourPlace,
+  rallyOver, recordBest, recordStage, recordStageBest, referenceStage, saveRally, clearRally, serviceAfter, stageOrder, standings, yourPlace,
 } from '../src/f1/rally';
 import { CREWS, SCHEMES, crewById } from '../src/f1/crews';
-import { useSave } from '../src/engine/save';
+import { save, saved, useSave } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
 
 const forests = RALLIES[0];
@@ -108,12 +108,40 @@ describe('a rally', () => {
     const r = fresh();
     run(r, 31.5);
     saveRally(r);
-    expect(loadRally()).toEqual(r);
+    expect(loadRally('free')).toEqual(r);
+    expect(loadRally('season')).toBeUndefined();
     expect(parseRally({ ...r, event: 'nowhere' })).toBeUndefined();
     expect(parseRally({ ...r, stages: [{ times: [1] }] })).toBeUndefined();
     expect(parseRally('rally')).toBeUndefined();
     expect(parseRally({ ...r, v: 1 })).toBeUndefined();
     expect(parseRally({ ...r, crews: r.crews.map((c, i) => (i === r.you ? { scheme: 'no-such-paint' } : c)) })).toBeUndefined();
+  });
+  it('keeps a season round and a free play rally apart: one started or let go leaves the other', () => {
+    const free = fresh();
+    run(free, 31);
+    const round = newRally({ event: forests, seed: 9, scheme: SCHEMES[1], difficulty: 'normal', season: { id: '2026-27', rivals: free.crews.filter((_, i) => i !== free.you) } });
+    saveRally(round);
+    saveRally(free);
+    expect(loadRally('season')).toEqual(round);
+    expect(loadRally('free')).toEqual(free);
+    clearRally('free');
+    expect(loadRally('free')).toBeUndefined();
+    expect(loadRally('season')).toEqual(round);
+    saveRally(free);
+    clearRally('season');
+    expect(loadRally('season')).toBeUndefined();
+    expect(loadRally('free')).toEqual(free);
+  });
+  it("finds a free play rally saved before the two were kept apart, and moves it out of the season's place", () => {
+    const old = fresh();
+    run(old, 31);
+    save('rally', 'current', old);
+    expect(loadRally('season')).toBeUndefined();
+    expect(loadRally('free')).toEqual(old);
+    run(old, 32);
+    saveRally(old);
+    expect(saved('rally', 'current')).toBeUndefined();
+    expect(loadRally('free')).toEqual(old);
   });
   it('keeps your best finish in each rally', () => {
     const r = fresh();

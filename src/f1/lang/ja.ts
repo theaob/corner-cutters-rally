@@ -761,5 +761,13 @@ export const ja: Language = {
   'TURN YOUR PHONE SIDEWAYS': 'スマホを横向きにしてね',
   'SCREEN HALVES': '画面の左右',
   'left steers left, right steers right · both brake, then reverse': '左で左へ、右で右へ · 両方でブレーキ、そのままバック',
+  'SEASON': 'シーズン',
+  'FREE PLAY': 'フリープレイ',
+  'ANY RALLY, ANY TIME · NO SEASON POINTS': 'どのラリーでもいつでも · ポイントなし',
+  'UNDER WAY · SS{n} OF {total}': '進行中 · SS{n}/{total}',
+  'NEXT ROUND {date}': '次のラウンド {date}',
+  'SEASON OVER': 'シーズン終了',
+  'a new round each week, points and standings': '毎週新しいラウンド、ポイントとランキング',
+  'any rally, as often as you like, for no points': 'どのラリーでも何度でも、ポイントなし',
   },
 };

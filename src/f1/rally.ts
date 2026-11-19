@@ -269,8 +269,46 @@ export function parseRally(v: unknown): Rally | undefined {
   return ok ? { ...r, stages: r.stages.map((s) => ({ times: s.times, notes: Array.isArray(s.notes) ? s.notes : s.times.map(() => undefined) })) } : undefined;
 }
 
-export const loadRally = (): Rally | undefined => parseRally(saved('rally', 'current'));
-export const saveRally = (r: Rally | undefined): void => save('rally', 'current', r);
+/**
+ * The two kinds of play, each with its rally under way kept apart, so starting one never ends the other: a round of the
+ * season ('season', kept as 'current') and a rally of free play ('free': any rally, any time, for no season points).
+ */
+export type RallySlot = 'season' | 'free';
+const SLOT_KEY: Record<RallySlot, string> = { season: 'current', free: 'free' };
+/** The kind of play rally `r` is. */
+export const slotOf = (r: Rally): RallySlot => (r.season ? 'season' : 'free');
+
+/** The rally under way in `slot`, if any (a rally of free play saved before the two were kept apart is found too). */
+export function loadRally(slot: RallySlot): Rally | undefined {
+  const r = parseRally(saved('rally', SLOT_KEY[slot]));
+  if (r && slotOf(r) === slot) return r;
+  if (slot === 'free') {
+    const old = parseRally(saved('rally', SLOT_KEY.season));
+    if (old && slotOf(old) === 'free') return old;
+  }
+  return undefined;
+}
+/** Rally `r` kept, in its own kind of play's place. */
+export function saveRally(r: Rally): void {
+  const slot = slotOf(r);
+  save('rally', SLOT_KEY[slot], r);
+  // (a rally of free play from before the two were kept apart: moved out of the season's place)
+  if (slot === 'free') clearOld();
+}
+/** The rally under way in `slot` let go. */
+export function clearRally(slot: RallySlot): void {
+  if (slot === 'season') {
+    const had = parseRally(saved('rally', SLOT_KEY.season));
+    if (!had || slotOf(had) === 'season') save('rally', SLOT_KEY.season, undefined);
+  } else {
+    save('rally', SLOT_KEY.free, undefined);
+    clearOld();
+  }
+}
+function clearOld(): void {
+  const old = parseRally(saved('rally', SLOT_KEY.season));
+  if (old && slotOf(old) === 'free') save('rally', SLOT_KEY.season, undefined);
+}
 
 /** Your best finish in each rally (its place, and your total then). */
 export type RallyBests = Record<string, { place: number; total: number }>;

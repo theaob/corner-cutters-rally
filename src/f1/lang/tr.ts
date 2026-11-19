@@ -767,5 +767,13 @@ export const tr: Language = {
   'TURN YOUR PHONE SIDEWAYS': 'TELEFONUNU YAN ÇEVİR',
   'SCREEN HALVES': 'EKRAN YARILARI',
   'left steers left, right steers right · both brake, then reverse': 'sol sola, sağ sağa çevirir · ikisi birden fren, sonra geri vites',
+  'SEASON': 'SEZON',
+  'FREE PLAY': 'SERBEST OYUN',
+  'ANY RALLY, ANY TIME · NO SEASON POINTS': 'HER RALLİ, HER ZAMAN · SEZON PUANI YOK',
+  'UNDER WAY · SS{n} OF {total}': 'DEVAM EDİYOR · ÖE{n}/{total}',
+  'NEXT ROUND {date}': 'SONRAKİ TUR {date}',
+  'SEASON OVER': 'SEZON BİTTİ',
+  'a new round each week, points and standings': 'her hafta yeni bir tur, puanlar ve sıralama',
+  'any rally, as often as you like, for no points': 'istediğin ralli, istediğin kadar, puansız',
   },
 };
