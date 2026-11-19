@@ -2743,68 +2743,82 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.moveTo(front + 0.6, 1.5);
       s.lineTo(back - 0.4, 1.5);
       s.lineTo(back, 2.1);
-      s.lineTo(back, 5.7);
-      s.lineTo(back - 0.4, 6.1);
+      s.lineTo(back, 5.3);
+      s.quadraticCurveTo(back, 6.1, back - 0.8, 6.1);
       s.lineTo(8.6, 6.1);
       s.lineTo(-4, waist);
       s.lineTo(front + 0.8, bonnet(front + 0.8));
       s.quadraticCurveTo(front, 4.7, front, 3.9);
       s.lineTo(front, 2.1);
       s.quadraticCurveTo(front, 1.5, front + 0.6, 1.5);
-    }, w, 0.45, 8), [k.pods, k.body]);
-    // the glasshouse: a long raked screen, a flat roof, a steep hatch
+    }, w, 0.75, 8), [k.pods, k.body]);
+    // the glasshouse: one smooth arc from the raked screen over the domed roof down the sloping hatch, its shoulders
+    // rounded in
+    const arc = new THREE.SplineCurve([
+      new THREE.Vector2(-4.1, 5.7), new THREE.Vector2(-2.3, 7.5), new THREE.Vector2(-0.4, 8.65), new THREE.Vector2(2.2, 8.95),
+      new THREE.Vector2(5, 8.75), new THREE.Vector2(7.5, 7.75), new THREE.Vector2(back - 0.8, 6.2),
+    ]).getPoints(48);
+    /** the glass's top at `z` */
+    const roof = (z: number) => {
+      for (let n = 1; n < arc.length; n++) {
+        const [a, b] = [arc[n - 1], arc[n]];
+        if (z <= b.x) return a.y + ((b.y - a.y) * (z - a.x)) / (b.x - a.x || 1);
+      }
+      return arc[arc.length - 1].y;
+    };
+    const along = (z0: number, z1: number, dy = 0) => arc.filter((p) => p.x >= z0 && p.x <= z1).map((p) => new THREE.Vector2(p.x, p.y + dy));
     k.add(profile((s) => {
-      s.moveTo(-4.1, 5.7);
-      s.lineTo(-0.7, 8.75);
-      s.lineTo(6.6, 8.75);
-      s.lineTo(back - 0.6, 6.1);
-      s.lineTo(back - 0.6, 5.7);
-    }, w - 1.9), [k.glass, k.glass]);
+      s.moveTo(arc[0].x, arc[0].y);
+      for (const p of arc.slice(1)) s.lineTo(p.x, p.y);
+      s.lineTo(back - 0.8, 5.7);
+    }, w - 1.7, 0.6, 4), [k.glass, k.glass]);
+    // (the roof's skin over it, from the screen's top to the hatch's)
     k.add(profile((s) => {
-      s.moveTo(-0.9, 8.65);
-      s.lineTo(6.8, 8.65);
-      s.lineTo(6.6, 9.1);
-      s.lineTo(-0.6, 9.1);
-    }, w - 1.6, 0.25, 2), [k.body, k.body]);
-    const px = (w - 1.9) / 2;
+      const top = along(-1.2, 7.2, 0.28);
+      const under = along(-1.2, 7.2, -0.12).reverse();
+      s.moveTo(top[0].x, top[0].y);
+      for (const p of [...top.slice(1), ...under]) s.lineTo(p.x, p.y);
+    }, w - 1.5, 0.45, 2), [k.body, k.body]);
+    const px = (w - 2.3) / 2;
     for (const side of [-1, 1]) {
       const x = side * px;
       // (the screen pillars, the door's rear edge, and the broad rear pillar down to the tail, in blue)
       k.add(profile((s) => {
-        s.moveTo(-4.35, 5.7);
-        s.lineTo(-0.95, 8.75);
-        s.lineTo(-0.45, 8.75);
-        s.lineTo(-3.85, 5.7);
+        const top = along(-4.1, -0.9, 0.05);
+        s.moveTo(-4.4, 5.7);
+        for (const p of top) s.lineTo(p.x - 0.25, p.y);
+        for (const p of top.reverse()) s.lineTo(p.x + 0.25, p.y);
+        s.lineTo(-3.8, 5.7);
       }, 0.3).translate(x, 0, 0), [k.body, k.body]);
-      k.box(0.3, 3.05, 0.45, 7.22, 1.8, k.all(k.body), undefined, x);
+      k.box(0.3, roof(1.8) - 5.7, 0.45, (roof(1.8) + 5.7) / 2, 1.8, k.all(k.body), undefined, x);
       k.add(profile((s) => {
-        s.moveTo(5.2, 8.75);
-        s.lineTo(6.7, 8.75);
-        s.lineTo(back - 0.5, 6.1);
-        s.lineTo(back - 0.5, 5.7);
+        const top = along(5.2, back, 0.05);
+        s.moveTo(top[0].x, top[0].y);
+        for (const p of top.slice(1)) s.lineTo(p.x, p.y);
+        s.lineTo(back - 0.6, 5.7);
         s.lineTo(7.4, 5.7);
       }, 0.3).translate(x, 0, 0), [blue, blue]);
     }
     // the big black wing over the hatch on tall end plates reaching back past the tail, its lip in the driver's
     // colour (yours gold); a small vent on the front of the roof
     k.add(profile((s) => {
-      s.moveTo(7.3, 9.75);
-      s.lineTo(back + 0.4, 9.55);
-      s.lineTo(back + 0.4, 9.2);
-      s.lineTo(7.6, 9.45);
+      s.moveTo(7.3, 9.25);
+      s.lineTo(back + 0.4, 9.05);
+      s.lineTo(back + 0.4, 8.7);
+      s.lineTo(7.6, 8.95);
     }, w - 1.3, 0.1, 3), [black, black]);
-    k.box(w - 1.5, 0.16, 0.22, 9.62, back + 0.35, k.all(k.scoop));
+    k.box(w - 1.5, 0.16, 0.22, 9.12, back + 0.35, k.all(k.scoop));
     for (const x of [-(w / 2 - 0.75), w / 2 - 0.75]) {
       k.add(profile((s) => {
-        s.moveTo(6.8, 8.75);
-        s.lineTo(7.1, 10.4);
-        s.lineTo(back + 0.6, 10.1);
+        s.moveTo(7.3, roof(7.3) - 0.1);
+        s.lineTo(7.3, 9.6);
+        s.lineTo(back + 0.6, 9.35);
         s.lineTo(back + 0.6, 8.6);
-        s.lineTo(back - 0.6, 6.4);
+        s.lineTo(9.3, roof(9.3) - 0.1);
       }, 0.18, 0.06, 2).translate(x, 0, 0), [black, black]);
     }
-    k.box(2.2, 0.4, 1.5, 9.35, 0.3, k.all(k.body));
-    k.box(1.8, 0.25, 0.08, 9.35, -0.47, k.all(black));
+    k.box(2.2, 0.4, 1.5, roof(0.3) + 0.45, 0.3, k.all(k.body));
+    k.box(1.8, 0.25, 0.08, roof(0.3) + 0.45, -0.47, k.all(black));
     // vents in the bonnet either side
     for (const x of [-3.4, 3.4]) for (let i = 0; i < 3; i++) k.box(1.8, 0.08, 0.25, bonnet(-6.8 + i * 0.5) + 0.12, -6.8 + i * 0.5, k.all(black), undefined, x);
     // broad flares over all four wheels: lime at the front, blue at the back
@@ -2819,10 +2833,9 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       k.add(profile((s) => {
         const a = Math.asin((hubY - 1.8) / R);
         s.moveTo(z - reach, 1.8);
-        s.lineTo(z - reach, 4.6);
-        s.quadraticCurveTo(z - reach, 5.5, z - reach + 1, 5.5);
-        s.lineTo(z + reach - 1, 5.5);
-        s.quadraticCurveTo(z + reach, 5.5, z + reach, 4.6);
+        s.lineTo(z - reach, 3.6);
+        s.bezierCurveTo(z - reach, 4.9, z - reach + 1.4, 5.5, z, 5.5);
+        s.bezierCurveTo(z + reach - 1.4, 5.5, z + reach, 4.9, z + reach, 3.6);
         s.lineTo(z + reach, 1.8);
         s.absarc(z, hubY, R, -a, Math.PI + a, false);
       }, 1.2, 0.2, 8).translate(x, 0, 0), [m, m]);
@@ -2830,6 +2843,22 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     // the colours: white, the nose and front wings lime; a blue and a light blue stripe down behind the front flare;
     // green low on the door, rising to the front; behind it a light blue stripe and deep blue over the rear quarter,
     // slanting up to the rear pillar; a blue band up the middle of the bonnet; a blue tail
+    /** a slab with corners rounded `r` seen from above, `x0..x1` across, `z0..z1` along, its top at `y`, `h` deep */
+    const slab = (x0: number, x1: number, z0: number, z1: number, r: number, y: number, h: number, m: THREE.Material) => {
+      const s = new THREE.Shape();
+      s.moveTo(x0 + r, z0);
+      s.lineTo(x1 - r, z0);
+      s.quadraticCurveTo(x1, z0, x1, z0 + r);
+      s.lineTo(x1, z1 - r);
+      s.quadraticCurveTo(x1, z1, x1 - r, z1);
+      s.lineTo(x0 + r, z1);
+      s.quadraticCurveTo(x0, z1, x0, z1 - r);
+      s.lineTo(x0, z0 + r);
+      s.quadraticCurveTo(x0, z0, x0 + r, z0);
+      const b = h < 1 ? 0 : 0.2;
+      const g = new THREE.ExtrudeGeometry(s, { depth: h - 2 * b, bevelEnabled: b > 0, bevelSize: b, bevelThickness: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 6 });
+      k.add(g.rotateX(Math.PI / 2).translate(0, y - b, 0), [m, m]);
+    };
     /** a flat piece in the (z, y) plane on a side at `x` */
     const side2d = (pts: [number, number][], x: number, m: THREE.Material) => {
       k.add(profile((s) => {
@@ -2884,15 +2913,15 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     k.front(w - 0.6, 1.5, 0.02, 4.2, front - 0.01, k.all(lime));
     k.front(3.4, 0.75, 0.1, 4.15, front - 0.04, k.all(blue));
     k.front(3.0, 0.5, 0.1, 4.15, front - 0.08, k.all(black));
-    k.front(w + 0.2, 1.9, 0.8, 2.45, front - 0.2, k.all(lime));
+    slab(-(w / 2 + 0.1), w / 2 + 0.1, front - 0.6, front + 2.2, 1.6, 3.4, 1.9, lime);
     k.add(profile((s) => {
       s.moveTo(-4.6, 1.6);
       s.lineTo(4.6, 1.6);
       s.lineTo(3.4, 3.2);
       s.lineTo(-3.4, 3.2);
     }, 0.1).rotateY(Math.PI / 2).translate(0, 0, front - 0.62 - 0.05), [black, black]);
-    for (const side of [-1, 1]) k.front(1, 0.35, 0.1, 3.1, front - 0.62, k.all(k.paint(0xf29a1a)), side * (w / 2 - 0.8));
-    k.front(w, 0.15, 1.2, 1.45, front - 0.4, k.all(black));
+    for (const side of [-1, 1]) k.front(1, 0.35, 0.1, 3.1, front - 0.62, k.all(k.paint(0xf29a1a)), side * (w / 2 - 1.9));
+    slab(-w / 2, w / 2, front - 0.95, front + 0.6, 1.5, 1.55, 0.45, black);
     // at night or in the evening, a black pod of four big round lamps on the front of the bonnet
     if (k.floodlights) {
       k.add(profile((s) => {
@@ -2912,14 +2941,14 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       k.box(1.5, 1.9, 0.15, 4.85, back + 0.06, k.all(red), undefined, side * (w / 2 - 1));
       k.add(profile((s) => {
         s.moveTo(back + 0.05, 5.75);
-        s.lineTo(back - 0.35, 6.3);
-        s.lineTo(7.4, 8.75);
-        s.lineTo(6.9, 8.6);
-        s.lineTo(back - 0.9, 5.95);
+        s.lineTo(back - 0.6, 6.25);
+        s.lineTo(7.4, roof(7.4) + 0.05);
+        s.lineTo(6.9, roof(6.9) - 0.4);
+        s.lineTo(back - 1.1, 5.95);
         s.lineTo(back - 0.6, 5.75);
       }, 1).translate(side * (w / 2 - 0.85), 0, 0), [red, red]);
     }
-    k.box(w + 0.2, 1.2, 0.6, 2.4, back + 0.2, k.all(blue));
+    slab(-(w / 2 + 0.1), w / 2 + 0.1, back - 2, back + 0.5, 1.4, 3, 1.2, blue);
     // black mud flaps behind the wheels
     for (const z of [-3.7, 10.45]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(black), undefined, x);
     return {
