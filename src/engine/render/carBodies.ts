@@ -1553,6 +1553,13 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     k.front(w + 0.2, 1.3, 0.9, 2.3, front - 0.25, k.all(k.body));
     k.front(5.6, 0.8, 0.1, 2.3, front - 0.72, k.all(black));
     k.front(w + 0.6, 0.15, 1.6, 1.45, front - 0.5, k.all(white));
+    // six round floodlights in an arch across the front, the outer ones lower
+    for (let i = 0; i < 6; i++) {
+      const x = (i - 2.5) * 1.85;
+      const y = 3.75 - 0.035 * x * x;
+      k.add(drum(0.78, 0.5, 'z', x, y, front - 0.95 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+      k.add(drum(0.65, 0.1, 'z', x, y, front - 1.22 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    }
     // the tail: red lamps at the corners, a black panel between, a white bumper
     k.box(w - 1, 1.1, 0.12, 4.6, back + 0.03, k.all(black));
     for (const x of [-(w / 2 - 1.4), w / 2 - 1.4]) k.box(2.4, 1.1, 0.15, 4.6, back + 0.06, k.all(red), undefined, x);
