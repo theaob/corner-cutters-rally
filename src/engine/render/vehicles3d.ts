@@ -162,6 +162,8 @@ export interface CarMesh extends THREE.Group {
     tyreMark: { color: THREE.Color };
     /** the brake lights over the tail lights: off (hidden) until the car slows */
     brakeLights: THREE.Group;
+    /** the flame out of the exhaust: hidden until it pops (lifting off at speed), scaled to flicker */
+    flame: THREE.Group;
     /** the parts a big crash can tear off: the nose (with the front wing) and each wheel (front left, front right, rear left, rear right) */
     parts: { nose: THREE.Group; wheels: THREE.Group[] };
   };
@@ -286,12 +288,29 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
   }
   brakeLights.visible = false;
   car.add(brakeLights);
+  // the exhaust: a short dark pipe out under the tail (unless the body has its own), and the flame it pops: an
+  // orange cone round a white-hot core, pointing back, unlit so it glows, hidden until it pops
+  const pipe = spec.exhaust ?? { x: tailX * 0.55, y: 1.8, z: back + 0.3 };
+  if (!spec.exhaust) {
+    const g = new THREE.CylinderGeometry(0.4, 0.4, 1, 10).rotateX(Math.PI / 2).translate(pipe.x, pipe.y, pipe.z - 0.3);
+    kit.add(g, [dark, dark, dark]);
+  }
+  const flame = new THREE.Group();
+  const cone = (r: number, l: number, color: number) => {
+    // (its base at the pipe, its tip pointing back along +z)
+    const g = new THREE.ConeGeometry(r, l, 10).rotateX(Math.PI / 2).translate(0, 0, l / 2);
+    return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: true, opacity: 0.9 }));
+  };
+  flame.add(cone(1.6, 7.5, 0xff6a10), cone(0.9, 4.5, 0xfff0a0));
+  flame.position.set(pipe.x, pipe.y, pipe.z);
+  flame.visible = false;
+  car.add(flame);
   for (const [on, list] of boxes) {
     const m = mergedByMaterial(list);
     m.castShadow = m.receiveShadow = true;
     on.add(m);
   }
 
-  car.userData = { paint, tyreMark, brakeLights, parts: { nose, wheels } };
+  car.userData = { paint, tyreMark, brakeLights, flame, parts: { nose, wheels } };
   return car;
 }

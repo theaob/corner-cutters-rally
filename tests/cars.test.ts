@@ -32,6 +32,8 @@ describe('each car body', () => {
       const car = createCarMesh('f1', { body: '#d8323c', stripe: '#f4f4f8', model: id }, true);
       expect(car.userData.parts.wheels).toHaveLength(4);
       expect(car.userData.parts.nose.children.length).toBeGreaterThan(0);
+      // (its exhaust flame aside: it shows only in a pop)
+      car.userData.flame.removeFromParent();
       const size = new THREE.Box3().setFromObject(car).getSize(new THREE.Vector3());
       expect(size.x).toBeLessThan(W + 3);
       expect(size.z).toBeLessThan(L + 2);
@@ -48,7 +50,7 @@ describe('each car body', () => {
 
 describe('the rebuilt cars', () => {
   // (the cars rebuilt one by one after real ones; the rest are the first sketches, still to be replaced)
-  for (const id of ['mini', 'fulvia', 'alpine', 'brisk', 'stiletto', 'volta', 'raia', 'saetta', 'quadra', 'kestrel'] as const) {
+  for (const id of ['mini', 'fulvia', 'alpine', 'brisk', 'stiletto', 'volta', 'raia', 'saetta', 'quadra', 'kestrel', 'merlin'] as const) {
     it(`${id}: its gravel tyres stay inside its bodywork, seen from above`, () => {
       const car = createCarMesh('f1', { body: '#d8323c', stripe: '#f4f4f8', model: id }, true);
       const wheels = car.userData.parts.wheels as THREE.Group[];
