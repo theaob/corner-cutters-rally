@@ -2738,19 +2738,43 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const waist = 5.8;
     /** the bonnet's height at `z`, from the nose up to the screen */
     const bonnet = (z: number) => 4.7 + ((z - front - 0.8) * 1.05) / (-4 - front - 0.8);
-    // the body: a long sloping nose, the bonnet rising to the screen, level sides, an upright tail
-    k.add(profile((s) => {
+    // the nose and bonnet's front corners rounded right round seen from above, `R` in radius: anything out past the
+    // curve is pulled in onto it
+    const NR = 2.6;
+    const nz = front + NR + 0.2;
+    const round = (g: THREE.BufferGeometry, grow = 0) => {
+      const pos = g.getAttribute('position');
+      for (let n = 0; n < pos.count; n++) {
+        const d = Math.max(0, pos.getZ(n) - front);
+        if (d >= NR) continue;
+        const m = w / 2 - NR + Math.sqrt(Math.max(0, NR * NR - (NR - d) ** 2)) + grow;
+        if (Math.abs(pos.getX(n)) > m) pos.setX(n, Math.sign(pos.getX(n)) * m);
+      }
+      g.computeVertexNormals();
+      return g;
+    };
+    // the nose, in lime: sloping down from the bonnet and rounding over to the front, its corners rounded
+    k.add(round(profile((s) => {
       s.moveTo(front + 0.6, 1.5);
+      for (let n = 1; n <= 12; n++) s.lineTo(front + 0.6 + ((nz - front - 0.6) * n) / 12, 1.5);
+      for (let n = 0; n <= 12; n++) {
+        const zz = nz - ((nz - front - 0.8) * n) / 12;
+        s.lineTo(zz, bonnet(zz));
+      }
+      s.quadraticCurveTo(front, 4.7, front, 3.9);
+      s.lineTo(front, 2.1);
+      s.quadraticCurveTo(front, 1.5, front + 0.6, 1.5);
+    }, w, 0.75, 8)), [lime, lime]);
+    // the body behind it: the bonnet rising to the screen, level sides, an upright tail
+    k.add(profile((s) => {
+      s.moveTo(nz - 0.3, 1.5);
       s.lineTo(back - 0.4, 1.5);
       s.lineTo(back, 2.1);
       s.lineTo(back, 5.3);
       s.quadraticCurveTo(back, 6.1, back - 0.8, 6.1);
       s.lineTo(8.6, 6.1);
       s.lineTo(-4, waist);
-      s.lineTo(front + 0.8, bonnet(front + 0.8));
-      s.quadraticCurveTo(front, 4.7, front, 3.9);
-      s.lineTo(front, 2.1);
-      s.quadraticCurveTo(front, 1.5, front + 0.6, 1.5);
+      s.lineTo(nz - 0.3, bonnet(nz - 0.3));
     }, w, 0.75, 8), [k.pods, k.body]);
     // the glasshouse: one smooth arc from the raked screen over the domed roof down the sloping hatch, its shoulders
     // rounded in
@@ -2825,20 +2849,23 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const R = 2.85;
     const hubY = 2.25;
     const axles = [-7.4, 7];
-    const reaches = [3.5, 3.4];
+    const reaches = [3.1, 3.4];
     for (let i = 0; i < 2; i++) for (const x of [-(w / 2 - 0.35), w / 2 - 0.35]) {
       const z = axles[i];
       const reach = reaches[i];
       const m = i === 0 ? lime : blue;
-      k.add(profile((s) => {
+      const g = profile((s) => {
         const a = Math.asin((hubY - 1.8) / R);
         s.moveTo(z - reach, 1.8);
-        s.lineTo(z - reach, 3.6);
-        s.bezierCurveTo(z - reach, 4.9, z - reach + 1.4, 5.5, z, 5.5);
+        // (the front one sweeping up gently from low at its leading edge, into the rounded nose)
+        const lead = i === 0 ? 2.6 : 3.6;
+        s.lineTo(z - reach, lead);
+        s.bezierCurveTo(z - reach + (i === 0 ? 0.6 : 0), 4.9, z - reach + 1.4, 5.5, z, 5.5);
         s.bezierCurveTo(z + reach - 1.4, 5.5, z + reach, 4.9, z + reach, 3.6);
         s.lineTo(z + reach, 1.8);
         s.absarc(z, hubY, R, -a, Math.PI + a, false);
-      }, 1.2, 0.2, 8).translate(x, 0, 0), [m, m]);
+      }, 1.2, 0.2, 8).translate(x, 0, 0);
+      k.add(i === 0 ? round(g, 0.02) : g, [m, m]);
     }
     // the colours: white, the nose and front wings lime; a blue and a light blue stripe down behind the front flare;
     // green low on the door, rising to the front; behind it a light blue stripe and deep blue over the rear quarter,
@@ -2885,7 +2912,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const side of [-1, 1]) {
       const bx = side * (w / 2 + 0.04);
       // (lime ahead of the front flare, above it)
-      side2d([[front + 0.6, 1.8], [d0 - 7, 1.8], [d0 - 7, 5.5], [d0, 5.5], [d0, top(d0)], [front + 0.6, 4.6]], bx, lime);
+      side2d([[nz - 0.4, 3.2], [axles[0] - 1.1, 4.9], [axles[0], 5.5], [d0, 5.5], [d0, top(d0)], [nz - 0.4, bonnet(nz - 0.4)]], bx, lime);
       side2d([[d0, 1.8], [d0 + 0.45, 1.8], [d0 + 0.45, top(d0 + 0.45)], [d0, top(d0)]], bx, blue);
       side2d([[d0 + 0.45, 1.8], [d0 + 0.75, 1.8], [d0 + 0.75, top(d0 + 0.75)], [d0 + 0.45, top(d0 + 0.45)]], bx, sky);
       // (green low on the door, its top rising toward the front)
@@ -2902,7 +2929,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       k.add(g, [m, m]);
     };
     const ex = w / 2 - 0.3;
-    onBonnet([[-ex, front + 0.7], [ex, front + 0.7], [ex, -4.2], [-ex, -4.2]], lime);
+    onBonnet([[-ex, nz - 0.4], [ex, nz - 0.4], [ex, -4.2], [-ex, -4.2]], lime);
     onBonnet([[-1.6, front + 0.7], [1.6, front + 0.7], [2.3, -4.2], [-2.3, -4.2]], blue, 0.12);
     // the nose: big headlamps swept back from the corners, a blue-rimmed black grille between them, the lime bumper
     // below with a big black trapezoid intake, amber indicators at its corners, a black splitter
@@ -2910,21 +2937,20 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       // (a big lamp at each corner, its top along the bonnet's edge, swept far back and up into the wing, its
       // inner end black with a round projector in it, wrapping a little round onto the side)
       const x = side * (w / 2 - 1.75);
-      k.add(profile((s) => {
+      const lampG = profile((s) => {
         s.moveTo(front - 0.08, 3.85);
         s.lineTo(front - 0.08, 4.65);
         s.lineTo(front + 3.6, bonnet(front + 3.6) + 0.03);
         s.lineTo(front + 3.6, bonnet(front + 3.6) - 0.25);
         s.lineTo(front + 1.2, 3.85);
-      }, 3.1).translate(x, 0, 0), [k.lamp, k.lamp]);
-      k.box(1.1, 0.75, 0.08, 4.25, front - 0.13, k.all(black), undefined, side * (w / 2 - 2.7));
-      k.add(drum(0.28, 0.08, 'z', side * (w / 2 - 2.7), 4.25, front - 0.19 - k.noseZ, 12), [k.lamp, k.lamp, k.lamp], k.nose);
-      side2d([[front + 0.3, 3.9], [front + 1.3, 3.9], [front + 1.3, 4.75], [front + 0.3, 4.6]], side * (w / 2 + 0.06), k.lamp);
+      }, 3.1).translate(x, 0, 0);
+      k.add(round(lampG, 0.06), [k.lamp, k.lamp]);
+      k.box(1.1, 0.75, 0.08, 4.25, front - 0.13, k.all(black), undefined, side * (w / 2 - 3.1));
+      k.add(drum(0.28, 0.08, 'z', side * (w / 2 - 3.1), 4.25, front - 0.19 - k.noseZ, 12), [k.lamp, k.lamp, k.lamp], k.nose);
     }
-    k.front(w - 0.6, 1.5, 0.02, 4.2, front - 0.01, k.all(lime));
     k.front(3.4, 0.75, 0.1, 4.15, front - 0.04, k.all(blue));
     k.front(3.0, 0.5, 0.1, 4.15, front - 0.08, k.all(black));
-    slab(-(w / 2 + 0.1), w / 2 + 0.1, bz, front + 2.2, 2.4, 3.4, 1.9, lime, true);
+    slab(-(w / 2 + 0.1), w / 2 + 0.1, bz, front + 2.2, 3.4, 3.4, 1.9, lime, true);
     {
       const s = new THREE.Shape([new THREE.Vector2(-4.6, 1.6), new THREE.Vector2(4.6, 1.6), new THREE.Vector2(3.4, 3.2), new THREE.Vector2(-3.4, 3.2)]);
       const g = new THREE.ShapeGeometry(s, 1);
@@ -2942,7 +2968,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       k.add(bend(fine), [black, black]);
     }
     for (const side of [-1, 1]) k.front(1, 0.35, 0.1, 3.1, bz - 0.02 + tuck(bz, 3.1), k.all(k.paint(0xf29a1a)), side * (w / 2 - 2.6));
-    slab(-(w / 2 - 0.3), w / 2 - 0.3, front - 0.75, front + 0.6, 2.4, 1.5, 0.45, black);
+    slab(-(w / 2 - 0.3), w / 2 - 0.3, front - 0.75, front + 2.6, 3.2, 1.5, 0.45, black);
     // at night or in the evening, a black pod of four big round lamps on the front of the bonnet
     if (k.floodlights) {
       k.add(profile((s) => {
