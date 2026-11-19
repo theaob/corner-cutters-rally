@@ -426,9 +426,9 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
 
   /**
    * BRISK 1800, after the Ford Escort RS1800 that won on gravel through the late 1970s: a plain two-door saloon, square
-   * and upright, rear driven. A long flat bonnet, a square nose with a black grille and oblong headlamps, four big
-   * spotlights on a bar before it, a tall glasshouse with thick rear pillars, a flat boot, bolt-on box flares. Its own
-   * paint: white, blue and light blue bands across the bonnet and along the waist; the spotlights' housings in the
+   * and upright, rear driven. A long flat bonnet, a square nose with a black grille and round headlamps, four big chrome
+   * spotlights before it, a tall glasshouse with thick rear pillars, a flat boot, bolt-on box flares. Its own
+   * paint: white, blue and light blue bands across the bonnet and along the waist; the door roundels ringed in the
    * driver's colour (yours gold).
    */
   brisk(k) {
@@ -437,6 +437,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const back = 13.6;
     const black = k.paint(0x16171b);
     const white = k.paint(0xf4f4f0);
+    const amber = k.paint(0xf08a1c);
     // the body: a square nose, the bonnet flat and long, the waist level to a flat boot and a square tail
     k.add(profile((s) => {
       s.moveTo(front + 0.5, 1.8);
@@ -524,22 +525,23 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.lineTo(z - 2.75, 1.9);
       }, 1, 0.2, 4).translate(x, 0, 0), [k.body, k.body]);
     }
-    // a white roundel on each door ringed in the second colour, for the rally number
+    // a white roundel on each door, for the rally number, ringed in the driver's colour (yours gold)
     for (const x of [-(w / 2 + 0.06), w / 2 + 0.06]) {
-      k.add(drum(1.55, 0.08, 'x', x, 3.3, -0.6, 14), [k.trim, k.trim, k.trim]);
+      k.add(drum(1.55, 0.08, 'x', x, 3.3, -0.6, 14), [k.scoop, k.scoop, k.scoop]);
       k.add(drum(1.3, 0.1, 'x', x + Math.sign(x) * 0.03, 3.3, -0.6, 14), [white, white, white]);
     }
-    // the nose: a black grille across it, oblong headlamps in chrome surrounds at its ends, four spotlights on a bar
-    // below them (their housings in the driver's colour), a slim black bumper
+    // the nose: a black grille across it, a round headlamp in a chrome ring at each end, two big chrome spotlights
+    // standing before the grille and two more below the slim black bumper, amber indicators at its corners
     k.front(w - 1.4, 2, 0.2, 4.05, front - 0.05, k.all(black));
-    for (const x of [-(w / 2 - 1.9), w / 2 - 1.9]) {
-      k.front(2.4, 1.5, 0.3, 4.05, front - 0.2, k.all(k.chrome), x);
-      k.front(2, 1.1, 0.2, 4.05, front - 0.32, k.all(k.lamp), x);
-    }
-    k.front(w - 1, 0.4, 0.4, 2.5, front - 1.1, k.all(black));
-    for (const x of [-4.05, -1.35, 1.35, 4.05]) {
-      k.add(drum(0.8, 0.9, 'z', x, 2.5, front - 0.95 - k.noseZ, 14), [k.scoop, k.scoop, k.scoop], k.nose);
-      k.add(drum(0.65, 0.15, 'z', x, 2.5, front - 1.45 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    const lamp = (x: number, y: number, z: number, r: number, depth: number, shell: THREE.Material) => {
+      k.add(drum(r, depth, 'z', x, y, z + depth / 2 - k.noseZ, 14), [shell, shell, shell], k.nose);
+      k.add(drum(r - 0.15, 0.15, 'z', x, y, z - 0.05 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    };
+    for (const side of [-1, 1]) {
+      lamp(side * (w / 2 - 1.55), 4.05, front - 0.25, 0.85, 0.2, k.chrome);
+      lamp(side * 1.75, 4.05, front - 1.15, 1.05, 1, k.chrome);
+      lamp(side * 1.75, 1.75, front - 1.15, 0.85, 0.9, k.chrome);
+      k.front(1, 0.4, 0.2, 1.9, front - 0.55, k.all(amber), side * (w / 2 - 0.6));
     }
     k.front(w + 0.2, 0.6, 0.6, 1.9, front - 0.2, k.all(black));
     // the tail: a slim black bumper, the number plate
