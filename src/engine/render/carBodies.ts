@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 
-export type CarModel = 'mini' | 'brisk' | 'stiletto' | 'quadra' | 'typhoon' | 'apex';
+export type CarModel = 'mini' | 'fulvia' | 'brisk' | 'stiletto' | 'quadra' | 'typhoon' | 'apex';
 
 type Faces = THREE.Material[];
 
@@ -215,6 +215,99 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       axles: [-7.3, 7.3],
       wheel: { radius: 2.75, width: 2.5, half: w / 2 - 0.55, rim: '#a7adb5' },
       tail: { z: back + 0.05, y: 4.6, x: w / 2 - 0.9, w: 0.9, h: 1.7 },
+    };
+  },
+
+  /**
+   * VELA 1600, after the Lancia Fulvia coupé that won the rallies of the late sixties and the 1972 Monte Carlo: low,
+   * slim and crisp, a flat bonnet and boot, a light airy glasshouse on thin pillars sloping down to the tail, four round
+   * headlamps across a wide flat grille, and, as the works cars ran, no bumpers, a matt black bonnet held by two
+   * straps and a pair of big spotlights before the grille. Its own paint: deep wine red, the bonnet black.
+   */
+  fulvia(k) {
+    const w = 11.6;
+    const front = -13.5;
+    const back = 13.5;
+    const black = k.paint(0x16171b);
+    const matt = k.paint(0x1d1e22);
+    const white = k.paint(0xf1efe6);
+    // the body: low and crisp, a flat bonnet falling a little to the grille, a flat boot, square ends
+    k.add(profile((s) => {
+      s.moveTo(front + 0.4, 1.4);
+      s.lineTo(back - 0.4, 1.4);
+      s.lineTo(back, 2.2);
+      s.lineTo(back, 4.6);
+      s.lineTo(back - 0.5, 5);
+      s.lineTo(4.2, 5.1);
+      s.lineTo(-3.2, 5.1);
+      s.lineTo(front + 0.5, 4.65);
+      s.lineTo(front, 4.3);
+      s.lineTo(front, 2.2);
+    }, w, 0.35, 2), [k.pods, k.body]);
+    // the bonnet: matt black, with its two leather straps at the front
+    k.add(profile((s) => {
+      s.moveTo(front + 0.5, 4.65);
+      s.lineTo(-3.2, 5.1);
+      s.lineTo(-3.2, 5.25);
+      s.lineTo(front + 0.5, 4.8);
+    }, w - 1.2), [matt, matt]);
+    // (the straps in the driver's colour: leather on the rivals' cars, gold on yours)
+    for (const x of [-2.6, 2.6]) k.box(0.8, 0.14, 1.8, 4.93, front + 1.9, k.all(k.scoop), undefined, x);
+    // the glasshouse: light, thin pillars, the screen raked, the back window sloping down to the boot
+    k.add(profile((s) => {
+      s.moveTo(-3.2, 5.05);
+      s.lineTo(-0.6, 8.1);
+      s.lineTo(3.4, 8.1);
+      s.lineTo(9.4, 5.05);
+    }, w - 1.6), [k.glass, k.glass]);
+    // the roof, in the body colour, a little overhanging
+    k.add(profile((s) => {
+      s.moveTo(-0.9, 8);
+      s.lineTo(3.8, 8);
+      s.lineTo(3.5, 8.5);
+      s.lineTo(-0.6, 8.5);
+    }, w - 1.4, 0.2, 2), [k.body, k.body]);
+    // the pillars: thin at the screen and the door, broader at the back
+    const half = (w - 1.6) / 2;
+    for (const x of [-half, half]) {
+      k.add(profile((s) => {
+        s.moveTo(-3.4, 5.05);
+        s.lineTo(-0.8, 8.1);
+        s.lineTo(-0.4, 8.1);
+        s.lineTo(-2.9, 5.05);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+      k.box(0.3, 3, 0.35, 6.6, 1.8, k.all(k.body), undefined, x);
+      k.add(profile((s) => {
+        s.moveTo(6.4, 5.05);
+        s.lineTo(3, 8.1);
+        s.lineTo(3.8, 8.1);
+        s.lineTo(8.4, 5.05);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // a white roundel on each door, for the rally number
+    for (const x of [-(w / 2 + 0.04), w / 2 + 0.04]) k.add(drum(1.3, 0.1, 'x', x, 3.3, -0.6, 14), [white, white, white]);
+    // the nose: a wide flat grille with a thin chrome frame, four round headlamps across it, two big spotlights before
+    k.front(w - 0.8, 1.9, 0.3, 3.6, front - 0.05, k.all(k.chrome));
+    k.front(w - 1.2, 1.5, 0.3, 3.6, front - 0.12, k.all(black));
+    for (const x of [-4.4, -2.4, 2.4, 4.4]) {
+      k.add(drum(0.82, 0.3, 'z', x, 3.6, front - 0.25 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+      k.add(drum(0.66, 0.12, 'z', x, 3.6, front - 0.42 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    }
+    for (const x of [-1.25, 1.25]) {
+      k.add(drum(1.05, 0.9, 'z', x, 2.7, front - 0.95 - k.noseZ, 14), [black, black, black], k.nose);
+      k.add(drum(0.88, 0.15, 'z', x, 2.7, front - 1.45 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+      k.front(0.4, 1, 0.4, 1.9, front - 0.7, k.all(black), x); // its stalk
+    }
+    k.front(w - 2, 0.5, 1, 1.5, front + 0.2, k.all(black)); // the sump guard under the nose
+    // the tail: no bumper, the number plate, the boot lock
+    k.box(3.4, 1, 0.12, 3.2, back + 0.05, k.all(white));
+    k.box(0.5, 0.3, 0.2, 4.1, back + 0.08, k.all(k.chrome));
+    // mud flaps behind the wheels
+    for (const z of [-5.6, 10.2]) for (const x of [-(w / 2 - 1), w / 2 - 1]) k.box(1.8, 1.5, 0.2, 1.2, z, k.all(black), undefined, x);
+    return {
+      axles: [-8.4, 7.6],
+      wheel: { radius: 2.35, width: 2.3, half: w / 2 - 1.1, rim: '#c4c8ce' },
+      tail: { z: back + 0.05, y: 4.1, x: w / 2 - 1.3, w: 2, h: 0.9 },
     };
   },
 
