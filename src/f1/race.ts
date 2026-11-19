@@ -68,6 +68,7 @@ import { newCaller, paceNotes, screenFacing, stepCaller, type Caller } from './p
 import { createPaceCard, renderStageResults } from './race/rallyView';
 import { formatTime as fmt } from './time';
 import { SCHEMES, liveryOf, type Scheme } from './crews';
+import { carById } from './cars';
 import { COLOR } from './theme';
 
 /** s of count (3, 2, 1) after RESUME before the stage goes on */
@@ -309,8 +310,11 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   // (your car's fire light, in the scene from the start: a light coming or going makes every shader compile again, a
   // hitch mid-stage; effects.ts)
   const [fireLight] = makeFireLights(world.scene, 1);
+  // (?debug&car=<id>: the stage in one of the garage's cars, in its own paint, to see how it looks on the road)
+  const tryCar = new URLSearchParams(window.location.search).has('debug') ? carById(new URLSearchParams(window.location.search).get('car')) : undefined;
   const addLook = (): CarLook => {
-    const mesh: CarMesh = createCarMesh('f1', { ...liveryOf(scheme), helmet: 'gold' }, !!layout.dirt);
+    const paint = tryCar ? { ...tryCar.paint, model: tryCar.id } : liveryOf(scheme);
+    const mesh: CarMesh = createCarMesh('f1', { ...paint, helmet: 'gold' }, !!layout.dirt);
     world.scene.add(mesh);
     return { mesh, fx: new CarFx(mesh, fireLight) };
   };
@@ -488,6 +492,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     return edge;
   };
 
+  /** ?debug: the camera in closer (__cc.zoom) */
+  let debugZoom = 1;
   if (new URLSearchParams(window.location.search).has('debug')) {
     Object.assign(window, {
       __cc: {
@@ -526,6 +532,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
         /** the controls lap's prompt */
         learn: () => learn && { step: learn.o.step, bends: learn.bends },
         session: () => session,
+        /** the camera in closer by `z` (1: as it plays), for looking at the cars */
+        zoom: (z: number) => (debugZoom = z),
         /** the camera held on a point of the map (none: back on your car), for looking at the scenery */
         look: (x?: number, y?: number) => (lookAt = x === undefined || y === undefined ? undefined : { x, y }),
         /** set your tyres' wear (0 new … 1 gone) */
@@ -1056,7 +1064,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       focus.copy(target);
     } else {
       // (looking ahead the way it's going, eased, more of the way the faster it goes)
-      const lead = framing.lead * leadShare(speedOf(c), c.cls.topSpeed);
+      const lead = (framing.lead * leadShare(speedOf(c), c.cls.topSpeed)) / debugZoom;
       target.set(drawn.x + Math.sin(sightWay) * lead, drawn.z * 0.5, drawn.y - Math.cos(sightWay) * lead);
     }
     focus.lerp(target, 1 - Math.exp(-dt * 6));
@@ -1065,7 +1073,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     const rushWant = running(me) ? rushOf(speedOf(me.car), me.car.cls.topSpeed) : 0;
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
     // (pulled back as far as the framing asks)
-    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / framing.zoom) * (1 + RUSH.pullBack * rushNow);
+    const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / framing.zoom / debugZoom) * (1 + RUSH.pullBack * rushNow);
     // the one view: CLASSIC (high, north up: the HD-2D view)
     setFov(LOOK.fov);
     camera.up.set(0, 0, -1);

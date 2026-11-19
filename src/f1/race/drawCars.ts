@@ -14,6 +14,13 @@ import { running, type Race } from '../raceControl';
 import type { Track } from '../racing';
 import { COMPOUNDS } from '../tyres';
 
+/**
+ * Exhaust flames: lifting off (slowing, as the brake lights light) above this share of its top speed starts a run of
+ * pops this long (s), this many a second, each flame showing this long (s); and now and then one on a gear change
+ * (a pop a second, flat out).
+ */
+const POPS = { from: 0.35, run: 0.6, rate: 14, show: 0.08, flat: 0.8 };
+
 /** The brake lights: lit while a car slows by more than this (px/s²: braking hard, or lifting at speed), held this long (s) so they don't flicker. */
 const BRAKE_LIGHTS = { decel: 140, hold: 0.18 };
 
@@ -24,6 +31,9 @@ export interface CarLook {
   /** last frame's speed and health (for its brake lights and its sparks), and s its brake lights stay lit */
   was?: { speed: number; health: number };
   lit?: number;
+  /** s left of a run of exhaust pops (after lifting off at speed), and of the flame showing now */
+  pops?: number;
+  flame?: number;
 }
 
 export interface CarsFrame {
@@ -91,6 +101,18 @@ export function drawCars(f: CarsFrame): void {
     if (dt > 0 && speed > 30 && (was.speed - speed) / dt > BRAKE_LIGHTS.decel) l.lit = BRAKE_LIGHTS.hold;
     else l.lit = Math.max(0, (l.lit ?? 0) - dt);
     l.mesh.userData.brakeLights.visible = l.lit > 0;
+    // exhaust flames: a run of pops as it lifts off at speed, now and then one flat out
+    const pace = speed / e.car.cls.topSpeed;
+    if (l.lit === BRAKE_LIGHTS.hold && !(l.pops! > 0) && pace > POPS.from) l.pops = POPS.run;
+    l.pops = Math.max(0, (l.pops ?? 0) - dt);
+    l.flame = Math.max(0, (l.flame ?? 0) - dt);
+    const popRate = l.pops > 0 ? POPS.rate : pace > 0.85 ? POPS.flat : 0;
+    if (!(l.flame > 0) && Math.random() < dt * popRate) {
+      l.flame = POPS.show;
+      const s = 0.6 + Math.random() * 0.7;
+      l.mesh.userData.flame.scale.set(s, s, s * (0.8 + Math.random() * 0.6));
+    }
+    l.mesh.userData.flame.visible = l.flame > 0;
     // sparks: off a hit, thrown back the way it was going, and off a hard landing, from under it
     const lost = was.health - e.car.health;
     const back = speed > 1 ? { x: -e.car.vx / speed, z: -e.car.vy / speed } : { x: 0, z: 0 };

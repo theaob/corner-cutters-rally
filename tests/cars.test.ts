@@ -1,0 +1,82 @@
+import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
+import { CARS, carById, nextCar, unlockedCars } from '../src/f1/cars';
+import { BODIES } from '../src/engine/render/carBodies';
+import { createCarMesh } from '../src/engine/render/vehicles3d';
+import { carClass } from '../src/engine/driving';
+
+describe('the garage lineup', () => {
+  it('has a body for every car, the first free and each next one dearer and quicker', () => {
+    expect(CARS.map((c) => c.id).sort()).toEqual(Object.keys(BODIES).sort());
+    expect(CARS[0].unlock).toBe(0);
+    for (let i = 1; i < CARS.length; i++) {
+      expect(CARS[i].unlock).toBeGreaterThan(CARS[i - 1].unlock);
+      expect(CARS[i].speed).toBeGreaterThan(CARS[i - 1].speed);
+    }
+    // (today's car is the middle of the field: QUADRA's numbers)
+    expect(carById('quadra')?.speed).toBe(1);
+  });
+
+  it('unlocks by career points', () => {
+    expect(unlockedCars(0).map((c) => c.id)).toEqual(['mini']);
+    expect(unlockedCars(110).map((c) => c.id)).toEqual(['mini', 'fulvia', 'alpine', 'brisk', 'stiletto']);
+    expect(nextCar(110)?.id).toBe('volta');
+    expect(nextCar(10_000)).toBeUndefined();
+  });
+});
+
+describe('each car body', () => {
+  const { width: W, length: L } = carClass('f1');
+  for (const { id } of CARS) {
+    it(`${id}: four wheels, a nose to tear off, about the car's size, a few draw calls`, () => {
+      const car = createCarMesh('f1', { body: '#d8323c', stripe: '#f4f4f8', model: id }, true);
+      expect(car.userData.parts.wheels).toHaveLength(4);
+      expect(car.userData.parts.nose.children.length).toBeGreaterThan(0);
+      // (its exhaust flame aside: it shows only in a pop)
+      car.userData.flame.removeFromParent();
+      const size = new THREE.Box3().setFromObject(car).getSize(new THREE.Vector3());
+      expect(size.x).toBeLessThan(W + 3);
+      expect(size.z).toBeLessThan(L + 2);
+      expect(size.z).toBeGreaterThan(L * 0.75);
+      let calls = 0;
+      car.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh && o.visible) calls += Array.isArray(m.material) ? m.geometry.groups.length : 1;
+      });
+      expect(calls).toBeLessThan(30);
+    });
+  }
+});
+
+describe('the rebuilt cars', () => {
+  // (the cars rebuilt one by one after real ones; the rest are the first sketches, still to be replaced)
+  for (const id of ['mini', 'fulvia', 'alpine', 'brisk', 'stiletto', 'volta', 'raia', 'saetta', 'quadra', 'kestrel', 'merlin'] as const) {
+    it(`${id}: its gravel tyres stay inside its bodywork, seen from above`, () => {
+      const car = createCarMesh('f1', { body: '#d8323c', stripe: '#f4f4f8', model: id }, true);
+      const wheels = car.userData.parts.wheels as THREE.Group[];
+      const tyres = wheels.map((w) => new THREE.Box3().setFromObject(w));
+      for (const w of wheels) w.removeFromParent();
+      const body = new THREE.Box3().setFromObject(car, true);
+      for (const tyre of tyres) {
+        expect(tyre.max.x).toBeLessThanOrEqual(body.max.x + 0.01);
+        expect(tyre.min.x).toBeGreaterThanOrEqual(body.min.x - 0.01);
+      }
+    });
+  }
+});
+
+describe('night floodlights', () => {
+  /** the vertices in a car's meshes */
+  const size = (floodlights: boolean) => {
+    const car = createCarMesh('f1', { body: '#f3f2ec', model: 'kestrel', floodlights }, false);
+    let n = 0;
+    car.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) n += m.geometry.getAttribute('position').count;
+    });
+    return n;
+  };
+  it('a car carries its floodlights only when told to (a night or evening rally)', () => {
+    expect(size(true)).toBeGreaterThan(size(false));
+  });
+});
