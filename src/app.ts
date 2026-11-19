@@ -28,7 +28,8 @@ import { SEASON, currentSeason, retireRound, saveSeason } from './f1/season';
 import { NORMAL, difficultyById } from './f1/difficulty';
 import { DRY, weatherById } from './f1/weather';
 import { openReport, reportOpen } from './f1/report';
-import { loadRally, loadStageBests, newRally, nextStage, rallyEvent, rallyOver, saveRally } from './f1/rally';
+import type { HomePage } from './f1/screens/rally';
+import { clearRally, loadRally, loadStageBests, newRally, nextStage, rallyEvent, rallyOver, saveRally, type RallySlot } from './f1/rally';
 import { SCHEMES, crewById, schemeById } from './f1/crews';
 import { showSettings } from './f1/menu';
 
@@ -97,7 +98,15 @@ function sizeScreen(): ScreenFit {
 let onResize: () => void = () => sizeScreen();
 window.addEventListener('resize', () => onResize());
 
-type Mode = 'rally' | 'tutorial';
+/**
+ * ?mode: with ?circuit, the stage's: a round of the season's ('rally'), free play's ('free') or the controls lap; without,
+ * which of home's screens ('season' or 'free': a kind of play's page; none: home itself).
+ */
+type Mode = 'rally' | 'free' | 'tutorial' | 'season';
+/** The kind of play a stage's ?mode is. */
+const slotFor = (mode: string | null): RallySlot => (mode === 'free' ? 'free' : 'season');
+/** The stage ?mode for a kind of play. */
+const stageMode = (slot: RallySlot): Mode => (slot === 'free' ? 'free' : 'rally');
 /** This page's address with ?circuit set to `id` (or removed: null) and ?mode to `mode` (or removed); other flags (?tune, ?debug…) stay. */
 function withStage(id: string | null, mode?: Mode): string {
   const url = new URL(window.location.href);
@@ -123,7 +132,7 @@ let routeId = 0;
 /** The TUNE button (camera and the like), mounted with the first stage; values are kept on the device. */
 
 /** A new player: never done (or skipped) the controls lap, and nothing played yet (no rally, no stage run). */
-const needsControlsLap = () => saved('progress', 'onboarded') !== true && !loadRally() && !Object.keys(loadStageBests()).length;
+const needsControlsLap = () => saved('progress', 'onboarded') !== true && !loadRally('season') && !loadRally('free') && !Object.keys(loadStageBests()).length;
 
 /**
  * Show the screen the address asks for: ?circuit=<id>&mode=rally the rally's next stage there, ?mode=tutorial the
@@ -162,8 +171,8 @@ async function route(): Promise<void> {
   }
   try {
     if (stage && mode === 'tutorial') await showStage(id, stage, 'tutorial');
-    else if (stage && mode === 'rally') await showStage(id, stage, 'rally');
-    else await showHome(id);
+    else if (stage && (mode === 'rally' || mode === 'free')) await showStage(id, stage, mode);
+    else await showHome(id, !stage && (mode === 'season' || mode === 'free') ? mode : 'home');
   } catch (e) {
     // (a screen that failed to open: the curtain lifted all the same, on whatever got up, rather than black for good;
     // a stage that failed, back home)
@@ -186,7 +195,7 @@ function reportLater(e: unknown): void {
 /** The line under a stage's name on its loading card: the rally and the stage, or the controls lap. */
 function stageLine(mode: string | null): string {
   if (mode === 'tutorial') return `${t('SHAKEDOWN')} · ${t('CONTROLS LAP')}`;
-  const r = loadRally();
+  const r = mode === 'rally' || mode === 'free' ? loadRally(slotFor(mode)) : undefined;
   if (r && !rallyOver(r)) return `${t(rallyEvent(r).name)} · ${t('SS{n} OF {total}', { n: nextStage(r) + 1, total: rallyEvent(r).stages.length })}`;
   return t('RALLY');
 }
@@ -324,7 +333,7 @@ function seasonNow(): number {
   return q.has('debug') && q.has('seasonday') && Number.isFinite(day) ? SEASON.start + day * 24 * 60 * 60 * 1000 : Date.now();
 }
 
-async function showHome(id: number): Promise<void> {
+async function showHome(id: number, page: HomePage): Promise<void> {
   menuScreen();
   fetchRaceSoon();
   menuName = 'rally';
@@ -333,10 +342,15 @@ async function showHome(id: number): Promise<void> {
   current = { close: () => closed.abort() };
   const { showRally } = await import('./f1/screens/rally');
   if (id !== routeId) return;
-  const rally = loadRally();
+  const seasonRally = loadRally('season');
+  const freeRally = loadRally('free');
+  const slot: RallySlot | undefined = page === 'home' ? undefined : page;
+  const rally = page === 'season' ? seasonRally : page === 'free' ? freeRally : undefined;
   const season = currentSeason(newSeed());
   // (a language change built home again with the settings open: they open again, at LANGUAGE, home not under them)
-  const showing = settingsResumePending() ? Promise.resolve('settings' as const) : showRally(screen, services, rally, savedScheme(), closed.signal, { season, now: seasonNow() });
+  const showing = settingsResumePending()
+    ? Promise.resolve('settings' as const)
+    : showRally(screen, services, { page, seasonRally, freeRally, scheme: savedScheme(), view: { season, now: seasonNow() } }, closed.signal);
   curtainUp();
   // rally cars on the shakedown behind it (loaded once it's up)
   const stopBackdrop = carsBehind(closed.signal);
@@ -344,17 +358,18 @@ async function showHome(id: number): Promise<void> {
   if (id !== routeId) return stopBackdrop();
   // (a stage needs the GPU: the cars behind stop; the settings carry them on)
   if (action !== 'settings') stopBackdrop();
-  if (action === 'stage' && rally && !rallyOver(rally)) navigate(withStage(rallyEvent(rally).stages[nextStage(rally)].layout, 'rally'));
+  if (action === 'stage' && rally && slot && !rallyOver(rally)) navigate(withStage(rallyEvent(rally).stages[nextStage(rally)].layout, stageMode(slot)));
+  else if (action === 'back') navigate(withStage(null));
   else if (action === 'abandon') {
-    saveRally(undefined);
+    if (slot) clearRally(slot);
     void route();
   } else if (action === 'retire') {
     // (a season's round retired from: 0 points, and over for the season)
     if (rally && retireRound(season, rally)) saveSeason(season);
-    saveRally(undefined);
+    clearRally('season');
     void route();
   } else if (action === 'new-season') {
-    saveRally(undefined);
+    clearRally('season');
     saveSeason(undefined);
     void route();
   } else if (action === 'settings') {
@@ -363,22 +378,24 @@ async function showHome(id: number): Promise<void> {
     if (id !== routeId) return;
     save('choices', 'difficulty', difficulty.id);
     void route();
-  } else if (typeof action === 'object') {
+  } else if (typeof action === 'object' && 'open' in action) navigate(withStage(null, action.open));
+  else if (typeof action === 'object') {
     // a new rally, in the paint picked (kept for the next), at the difficulty in the settings
     save('choices', 'scheme', action.scheme.id);
-    // (a round of the season, against the season's crews)
-    saveRally(newRally({ event: action.start, seed: newSeed(), scheme: action.scheme, difficulty: savedDifficulty().id, season }));
+    // (a round of the season, against the season's crews; free play's, against a field of its own)
+    saveRally(newRally({ event: action.start, seed: newSeed(), scheme: action.scheme, difficulty: savedDifficulty().id, ...(page === 'season' ? { season } : {}) }));
     void route();
   }
 }
 
-async function showStage(id: number, stage: CircuitLayout, mode: Mode): Promise<void> {
+async function showStage(id: number, stage: CircuitLayout, mode: 'rally' | 'free' | 'tutorial'): Promise<void> {
   racingOn = { circuit: stage.id, mode };
-  // a rally's stage: the rally's next (any other: back home)
-  const rally = mode === 'rally' ? loadRally() : undefined;
+  // a rally's stage: the next of the rally under way in its kind of play (any other: back to that kind of play's page)
+  const slot = mode === 'tutorial' ? undefined : slotFor(mode);
+  const rally = slot ? loadRally(slot) : undefined;
   const next = rally && !rallyOver(rally) ? rallyEvent(rally).stages[nextStage(rally)] : undefined;
-  if (mode === 'rally' && (!rally || !next || next.layout !== stage.id)) {
-    history.replaceState(null, '', withStage(null));
+  if (slot && (!rally || !next || next.layout !== stage.id)) {
+    history.replaceState(null, '', withStage(null, slot));
     return route();
   }
   document.documentElement.classList.remove('menu');
@@ -397,7 +414,8 @@ async function showStage(id: number, stage: CircuitLayout, mode: Mode): Promise<
   if (id !== routeId) return;
   // (the screen measured now: a turn of the phone while the stage's code loaded is in the measure)
   const fit = sizeScreen();
-  const home = () => navigate(withStage(null));
+  // (out of a rally's stage: back to its kind of play's page)
+  const home = () => navigate(withStage(null, slot));
   const quit = mode === 'tutorial'
     ? () => {
         // (done or skipped: either way, not shown on its own again)

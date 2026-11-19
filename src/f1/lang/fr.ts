@@ -761,5 +761,13 @@ export const fr: Language = {
   'TURN YOUR PHONE SIDEWAYS': 'TOURNE TON TÉLÉPHONE EN PAYSAGE',
   'SCREEN HALVES': 'MOITIÉS',
   'left steers left, right steers right · both brake, then reverse': 'la gauche tourne à gauche, la droite à droite · les deux freinent, puis reculent',
+  'SEASON': 'SAISON',
+  'FREE PLAY': 'JEU LIBRE',
+  'ANY RALLY, ANY TIME · NO SEASON POINTS': 'TOUT RALLYE, À TOUT MOMENT · SANS POINTS',
+  'UNDER WAY · SS{n} OF {total}': 'EN COURS · ES{n} SUR {total}',
+  'NEXT ROUND {date}': 'PROCHAINE MANCHE {date}',
+  'SEASON OVER': 'SAISON TERMINÉE',
+  'a new round each week, points and standings': 'une nouvelle manche chaque semaine, points et classement',
+  'any rally, as often as you like, for no points': 'tout rallye, autant de fois que tu veux, sans points',
   },
 };

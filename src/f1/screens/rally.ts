@@ -1,14 +1,15 @@
-// The rally's screen: the game's home. With no rally under way: your car's
-// paint (CAR), the rallies to pick from (a grid of tiles, as Corner Cutters' menu
-// lays out its modes: each its surface's icon over its name, its stages and your
-// best there), and SETTINGS in a row of its own under them. With one under way: where you stand (the
-// standings after the stages run so far), the stage up next and your car's
-// state (repaired at the service park), and START SS…; once it's over, the
-// final standings (a trophy and confetti for a win). Touch, or keys: up/down
-// moves (a row in the rallies' grid), left/right changes CAR (and moves across
-// the grid), A or START picks.
+// The rally's screens: the game's home. Home itself is the two kinds of play, a tile each (as Corner Cutters' menu
+// lays out its modes): SEASON (a new round each week, points and standings) and FREE PLAY (any rally, any time, for no
+// season points), each saying how it stands, and SETTINGS in a row of its own under them. Each kind of play has a
+// page of its own, with BACK to home beside SETTINGS. With no rally under way there: your car's paint (CAR) and the
+// rallies to pick from (the season's rounds, or every rally; each its surface's icon over its name, and how you did
+// there), and on the season's the season's standings. With one under way: where you stand (the standings after the
+// stages run so far), the stage up next and your car's state (repaired at the service park), and START SS…; once it's
+// over, the final standings (a trophy and confetti for a win). Touch, or keys: up/down moves (a row in a grid),
+// left/right changes CAR (and moves across the grid), A or START picks, B (or the phone's back) goes back home.
 
 import type { Button } from '../../engine/controls';
+import { onBack } from '../../engine/backButton';
 import { holdTouches } from '../../engine/deck';
 import type { Services } from '../../engine/services';
 import { menuButton, optionRow, framed, ownTabButton } from '../menu';
@@ -24,10 +25,15 @@ import { reportOpen } from '../report';
 import { gridStep, makeTile } from '../menuTiles';
 import { confetti, trophy } from './celebrate';
 import { COLOR, SURFACE_COLOR } from '../theme';
-import { language, t, upper } from '../../engine/i18n';
+import { backLabel, language, t, upper } from '../../engine/i18n';
 import { ROUNDS, YOU, opensAt, roundOf, roundOpen, seasonOver, seasonPlace, seasonStandings, type Season } from '../season';
 
-export type RallyAction = 'stage' | 'abandon' | 'retire' | 'settings' | 'new-season' | { start: RallyEvent; scheme: Scheme };
+export type RallyAction = 'stage' | 'abandon' | 'retire' | 'settings' | 'new-season' | 'back' | { open: PlayPage } | { start: RallyEvent; scheme: Scheme };
+
+/** A kind of play's page: the season's, or free play's. */
+export type PlayPage = 'season' | 'free';
+/** Which of home's screens: home itself (the kinds of play), or a kind of play's page. */
+export type HomePage = 'home' | PlayPage;
 
 /** The season home shows (season.ts), and the time its calendar goes by. */
 export interface SeasonView {
@@ -157,12 +163,62 @@ export function rallyTile(e: RallyEvent, bestPlace: number | undefined, b: HTMLB
   return b;
 }
 
-/**
- * Show the rally screen in `host` (the rally under way, if any; your car's paint `scheme` for a new one) until the
- * player picks.
- */
-export function showRally(host: HTMLElement, services: Services, rally: Rally | undefined, scheme: Scheme, closed?: AbortSignal, view?: SeasonView): Promise<RallyAction> {
+/** A rally under way, as home's tile for its kind of play says it: the stage up next, or how you finished. */
+function underWay(r: Rally): string {
+  return rallyOver(r)
+    ? t('YOU FINISHED {place}', { place: ordinal(yourPlace(r)) })
+    : t('UNDER WAY · SS{n} OF {total}', { n: nextStage(r) + 1, total: rallyEvent(r).stages.length });
+}
+
+/** A tile's quiet lines under its name (each `color`ed, if given). */
+function tileLines(...lines: { text: string; color?: string }[]): HTMLElement {
+  const sub = document.createElement('span');
+  sub.className = 'tile-sub';
+  for (const l of lines) {
+    const s = document.createElement('span');
+    s.textContent = l.text;
+    s.style.display = 'block';
+    if (l.color) s.style.color = l.color;
+    sub.append(s);
+  }
+  return sub;
+}
+
+/** How the season stands, for its tile on home: the round under way, open or opening next; your place and points. */
+function seasonLines(view: SeasonView, rally: Rally | undefined): { text: string; color?: string }[] {
+  const { season, now } = view;
+  const lines: { text: string; color?: string }[] = [];
+  const open = ROUNDS.findIndex((e, k) => roundOpen(k, now) && !season.results[e.id]);
+  const next = ROUNDS.findIndex((_, k) => !roundOpen(k, now));
+  if (rally) lines.push({ text: `${t('ROUND {n}', { n: roundOf(rally.event) + 1 })} · ${underWay(rally)}`, color: 'var(--accent-b)' });
+  else if (seasonOver(season)) lines.push({ text: t('SEASON OVER'), color: 'var(--gold)' });
+  else if (open >= 0) lines.push({ text: `${t('ROUND {n}', { n: open + 1 })} · ${t('OPEN NOW')}`, color: 'var(--accent-b)' });
+  else if (next >= 0) lines.push({ text: t('NEXT ROUND {date}', { date: shortDate(opensAt(next)) }) });
+  if (Object.keys(season.results).length) {
+    const place = seasonPlace(season);
+    const points = seasonStandings(season).find((c) => c.key === YOU)?.points ?? 0;
+    lines.push({ text: `${ordinal(place)} · ${points} ${t('PTS')}`, color: place === 1 ? 'var(--gold)' : undefined });
+  }
+  return lines;
+}
+
+/** What home's screens show: which page, the rally under way in each kind of play, your car's paint for a new one, and the season. */
+export interface RallyScreen {
+  page: HomePage;
+  /** the season's round under way, if one is */
+  seasonRally?: Rally;
+  /** free play's rally under way, if one is */
+  freeRally?: Rally;
+  scheme: Scheme;
+  view: SeasonView;
+}
+
+/** Show home's screen `o.page` in `host` until the player picks. */
+export function showRally(host: HTMLElement, services: Services, o: RallyScreen, closed?: AbortSignal): Promise<RallyAction> {
   const { controls, hud } = services;
+  const { page, scheme } = o;
+  const view = page === 'season' ? o.view : undefined;
+  const rally = page === 'season' ? o.seasonRally : page === 'free' ? o.freeRally : undefined;
   const screen = document.createElement('div');
   screen.className = 'circuit-menu';
   const title = document.createElement('h1');
@@ -178,6 +234,7 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
     const finish = (a: RallyAction) => {
       if (done) return;
       done = true;
+      offBack();
       menuPick();
       screen.remove();
       resolve(a);
@@ -191,12 +248,34 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
       places.push({ el: b, pick });
       return b;
     };
-    if (!rally) {
-      // a new rally: your car's paint, then the rallies to pick from
+    // (a kind of play's page: back goes home, from the phone's back button or BACK in the top left corner, across from
+    // REPORT, so it's there without scrolling past a long page)
+    const offBack = page === 'home' ? () => {} : onBack(() => (finish('back'), true));
+    if (page !== 'home') {
+      const back = menuButton(backLabel(), () => finish('back'));
+      back.classList.add('page-back');
+      screen.append(back);
+    }
+    if (page === 'home') {
+      // the two kinds of play, each saying how it stands
       title.textContent = 'CORNER CUTTERS RALLY';
+      const grid = document.createElement('div');
+      grid.className = 'menu-tiles mode-tiles';
+      const season = button('', () => finish({ open: 'season' }));
+      makeTile(season, 'season', t('SEASON'), t('a new round each week, points and standings'), tileLines(...seasonLines(o.view, o.seasonRally)));
+      places[places.length - 1].tile = 0;
+      const free = button('', () => finish({ open: 'free' }));
+      makeTile(free, 'free', t('FREE PLAY'), t('any rally, as often as you like, for no points'),
+        tileLines(o.freeRally ? { text: underWay(o.freeRally), color: 'var(--accent-b)' } : { text: t('ANY RALLY, ANY TIME · NO SEASON POINTS') }));
+      places[places.length - 1].tile = 1;
+      grid.append(season, free);
+      screen.append(grid);
+    } else if (!rally) {
+      // a new rally: your car's paint, then the rallies to pick from
+      title.textContent = view ? t('SEASON') : t('FREE PLAY');
       screen.append(panel(line(view
         ? t('A SEASON OF {n} ROUNDS, A NEW ONE EACH WEEK: POINTS FOR THE TOP 10, BONUS POINTS ON EACH POWER STAGE', { n: ROUNDS.length })
-        : t('STAGE BY STAGE AGAINST THE CLOCK, THE CO-DRIVER CALLING THE BENDS: THE LEAST TIME OVERALL WINS'), 'var(--accent-b)')));
+        : t('ANY RALLY, ANY TIME · NO SEASON POINTS'), 'var(--accent-b)')));
       const car = optionRow('CAR', SCHEMES, scheme, (s) => ({ name: s.name, about: 'your paint · #1 on the roof', colors: [s.body, s.trim, ...(s.accent ? [s.accent] : [])] }));
       places.push({ el: car.el, step: car.step });
       screen.append(car.el);
@@ -323,6 +402,7 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
     hud.setLabel('b', '');
     closed?.addEventListener('abort', () => {
       done = true;
+      offBack();
       screen.remove();
     });
     // (the first place that's picked, not the CAR row, highlighted to start with)
@@ -338,7 +418,8 @@ export function showRally(host: HTMLElement, services: Services, rally: Rally | 
     };
     const tick = () => {
       if (done) return;
-      const [down, up, left, right, a, start] = (['down', 'up', 'left', 'right', 'a', 'start'] as const).map((k) => pressed(k) && !reportOpen());
+      const [down, up, left, right, a, start, b] = (['down', 'up', 'left', 'right', 'a', 'start', 'b'] as const).map((k) => pressed(k) && !reportOpen());
+      if (b && page !== 'home') return finish('back');
       const move = (down ? 1 : 0) - (up ? 1 : 0);
       const here = places[focus];
       const tiles = places.filter((p) => p.tile !== undefined);

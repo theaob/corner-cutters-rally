@@ -761,5 +761,13 @@ export const pt: Language = {
   'TURN YOUR PHONE SIDEWAYS': 'VIRE O CELULAR NA HORIZONTAL',
   'SCREEN HALVES': 'METADES',
   'left steers left, right steers right · both brake, then reverse': 'a esquerda vira à esquerda, a direita à direita · as duas freiam, depois dão ré',
+  'SEASON': 'TEMPORADA',
+  'FREE PLAY': 'JOGO LIVRE',
+  'ANY RALLY, ANY TIME · NO SEASON POINTS': 'QUALQUER RALI, A QUALQUER HORA · SEM PONTOS',
+  'UNDER WAY · SS{n} OF {total}': 'EM ANDAMENTO · PE{n} DE {total}',
+  'NEXT ROUND {date}': 'PRÓXIMA ETAPA {date}',
+  'SEASON OVER': 'TEMPORADA ENCERRADA',
+  'a new round each week, points and standings': 'uma etapa nova por semana, pontos e classificação',
+  'any rally, as often as you like, for no points': 'qualquer rali, quantas vezes quiser, sem pontos',
   },
 };
