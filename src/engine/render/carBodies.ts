@@ -895,10 +895,11 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
 
   /**
    * RAIA 400, after the Opel Manta 400, the last rear-driven car to win in the four-wheel-drive Group B years: a long
-   * low coupe, a sloping nose with a black slatted grille and square headlamps, a bulge on the long bonnet, a short
-   * cabin, a sloping back window to a short boot with a lip spoiler, big square flares, a deep air dam, four
-   * spotlights. Its own paint: white, a navy roof, a navy band along the sides with a gold line over it, a navy stripe
-   * up the bonnet; the boot's spoiler in the driver's colour (yours gold).
+   * low coupe, a sloping nose with a black slatted grille, a bulge on the long bonnet, a short
+   * cabin, a sloping back window to a short boot with a lip spoiler, big square flares, a deep air dam, twin round
+   * headlamps each side. Its own paint, after a famous privateer's: yellow, the lower body and the air dam blue, a red
+   * band edged in white between them, a white roof, white wheels; the boot's spoiler in the driver's colour (yours
+   * gold).
    */
   raia(k) {
     const w = 11.6;
@@ -906,7 +907,6 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const back = 15.1;
     const black = k.paint(0x16171b);
     const white = k.paint(0xf4f4f0);
-    const gold = k.paint(0xc9a24a);
     const red = k.paint(0xc8202a);
     /** the bonnet's height at `z`, falling from the screen to the nose */
     const bonnet = (z: number) => 4.5 + ((z - front - 0.6) * 1) / (-4.4 - front - 0.6);
@@ -939,13 +939,13 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(8.9, 5.9);
       s.lineTo(4, 5.6);
     }, w - 1.6), [k.glass, k.glass]);
-    // the roof (navy) and the pillars: the screen's, and the broad rear one sloping with the back window
+    // the roof (white) and the pillars: the screen's, and the broad rear one sloping with the back window
     k.add(profile((s) => {
       s.moveTo(-1.5, 8.8);
       s.lineTo(3.8, 8.8);
       s.lineTo(3.8, 9.35);
       s.lineTo(-1.2, 9.35);
-    }, w - 1.3, 0.25, 2), [k.trim, k.trim]);
+    }, w - 1.3, 0.25, 2), [white, white]);
     for (const x of [-(w - 1.6) / 2, (w - 1.6) / 2]) {
       k.add(profile((s) => {
         s.moveTo(-4.7, 5.45);
@@ -984,11 +984,14 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.lineTo(z - 3, 1.8);
       }, 1, 0.25, 4).translate(x, 0, 0), [k.body, k.body]);
     }
-    // the colours: a navy band along each side with a gold line over it (over the flares too), a navy stripe up the
-    // middle of the bonnet and its bulge
+    // the colours: the lower body blue, a red band over it edged in white, along the sides and over the flares
     const bands = (x: number, z0: number, z1: number) => {
-      k.box(0.1, 1.3, z1 - z0, 3.35, (z0 + z1) / 2, k.all(k.trim), undefined, x);
-      k.box(0.1, 0.22, z1 - z0, 4.3, (z0 + z1) / 2, k.all(gold), undefined, x);
+      const l = z1 - z0;
+      const z = (z0 + z1) / 2;
+      k.box(0.1, 1.4, l, 2.4, z, k.all(k.trim), undefined, x);
+      k.box(0.1, 0.16, l, 3.18, z, k.all(white), undefined, x);
+      k.box(0.1, 0.7, l, 3.6, z, k.all(red), undefined, x);
+      k.box(0.1, 0.16, l, 4.03, z, k.all(white), undefined, x);
     };
     for (const side of [-1, 1]) {
       bands(side * (w / 2 + 0.03), front + 0.6, back - 0.5);
@@ -997,27 +1000,21 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         bands(side * (w / 2 + 0.63), z + 2.95, z + 3.6);
       }
     }
-    k.add(profile((s) => {
-      s.moveTo(-12.4, bonnet(-12.4) + 0.2);
-      s.lineTo(-4.6, bonnet(-4.6) + 0.22);
-      s.lineTo(-4.6, bonnet(-4.6) + 0.5);
-      s.lineTo(-10.6, bonnet(-10.6) + 0.5);
-    }, 2.2, 0.05, 2), [k.trim, k.trim]);
     // a white roundel on each door, for the rally number
     for (const x of [-(w / 2 + 0.06), w / 2 + 0.06]) k.add(drum(1.25, 0.1, 'x', x, 3.6, -1.4, 14), [white, white, white]);
-    // the nose: a black slatted grille with a square headlamp at each end, four spotlights in a row before it, a deep
-    // black air dam
+    // the nose: a black slatted grille with twin round headlamps in chrome rings at each end, a deep blue air dam
+    // with a red and white stripe across it
     k.front(w - 1, 1.7, 0.2, 3.4, front - 0.05, k.all(black));
     for (let i = 0; i < 3; i++) k.front(3.2, 0.14, 0.1, 2.9 + i * 0.45, front - 0.17, k.all(k.carbon));
-    for (const x of [-(w / 2 - 1.6), w / 2 - 1.6]) {
-      k.front(2.2, 1.3, 0.25, 3.45, front - 0.15, k.all(k.chrome), x);
-      k.front(1.9, 1, 0.12, 3.45, front - 0.3, k.all(k.lamp), x);
+    for (const side of [-1, 1]) {
+      for (const x of [w / 2 - 1.35, w / 2 - 2.95]) {
+        k.add(drum(0.75, 0.25, 'z', side * x, 3.45, front - 0.2 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+        k.add(drum(0.62, 0.12, 'z', side * x, 3.45, front - 0.36 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+      }
     }
-    for (const x of [-3.9, -1.3, 1.3, 3.9]) {
-      k.add(drum(0.8, 0.7, 'z', x, 3.35, front - 0.6 - k.noseZ, 14), [black, black, black], k.nose);
-      k.add(drum(0.66, 0.12, 'z', x, 3.35, front - 0.98 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
-    }
-    k.front(w + 0.2, 1, 1, 2.1, front - 0.3, k.all(black));
+    k.front(w + 0.2, 1, 1, 2.1, front - 0.3, k.all(k.trim));
+    k.front(w + 0.2, 0.3, 0.12, 2.25, front - 0.84, k.all(red));
+    k.front(w + 0.2, 0.1, 0.12, 2.48, front - 0.84, k.all(white));
     // the tail: a black panel with red lamps at its ends, the number plate
     k.box(w - 1.2, 1.3, 0.12, 4.4, back + 0.03, k.all(black));
     for (const x of [-(w / 2 - 1.6), w / 2 - 1.6]) k.box(2.4, 1.1, 0.15, 4.4, back + 0.06, k.all(red), undefined, x);
@@ -1027,7 +1024,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const z of [-5.3, 12]) for (const x of [-(w / 2 - 0.9), w / 2 - 0.9]) k.box(1.8, 1.6, 0.2, 1.3, z, k.all(black), undefined, x);
     return {
       axles: [-9.2, 8.2],
-      wheel: { radius: 2.25, width: 2.7, half: w / 2 - 0.85, rim: '#c4c8ce' },
+      wheel: { radius: 2.25, width: 2.7, half: w / 2 - 0.85, rim: '#f0f0ee' },
       tail: { z: back + 0.1, y: 4.4, x: w / 2 - 1.6, w: 2.2, h: 1 },
     };
   },
