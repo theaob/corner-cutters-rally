@@ -2118,9 +2118,9 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
   },
 
   /**
-   * TYPHOON GT, late 1990s: the compact four-door turbo four-wheel-drive saloon of the World Rally Car's first years
-   * (the Impreza's kind of car). A short nose, a scoop on the bonnet, a tall upright cabin, a short boot carrying a big
-   * wing on tall stays, and broad squared flares over all four wheels. Deep blue with yellow, gold wheels.
+   * TYPHOON GT, 1990s: the compact four-door turbo four-wheel-drive saloon (the Impreza's kind of car). A short nose,
+   * a scoop on the bonnet, a vent on the roof, a tall upright cabin, a short boot with a spoiler across it, squared
+   * flares over all four wheels. Deep blue with yellow crescents, gold wheels.
    */
   typhoon(k) {
     const w = 12.8;
@@ -2189,16 +2189,18 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(-5, bonnet(-5) - 0.1);
     }, 3.4, 0.15, 2), [k.body, k.body]);
     k.box(2.8, 0.45, 0.1, bonnet(-7.2) + 0.32, -7.27, k.all(black));
-    // the big wing over the boot on tall stays, its lip in the driver's colour (yours gold)
+    // a spoiler across the boot lid on short stays, its lip in the driver's colour (yours gold)
     k.add(profile((s) => {
-      s.moveTo(back - 2.8, 8.35);
-      s.lineTo(back + 0.1, 8.65);
-      s.lineTo(back + 0.1, 8.3);
-      s.lineTo(back - 2.6, 8.1);
-    }, w - 0.8, 0.08, 3), [k.body, k.body]);
-    k.box(w - 1, 0.18, 0.25, 8.7, back, k.all(k.scoop));
-    for (const x of [-(w / 2 - 0.45), w / 2 - 0.45]) k.box(0.15, 0.9, 2.7, 8.4, back - 1.3, k.all(yellow), undefined, x);
-    for (const x of [-(w / 2 - 2), w / 2 - 2]) k.box(0.35, 2.2, 0.8, 7.1, back - 1.6, k.all(k.body), undefined, x);
+      s.moveTo(back - 2.6, 7.05);
+      s.lineTo(back - 0.1, 7.3);
+      s.lineTo(back - 0.1, 7.0);
+      s.lineTo(back - 2.4, 6.85);
+    }, w - 1.6, 0.08, 3), [k.body, k.body]);
+    k.box(w - 1.8, 0.16, 0.22, 7.32, back - 0.15, k.all(k.scoop));
+    for (const x of [-(w / 2 - 1.6), w / 2 - 1.6]) k.box(0.35, 0.9, 0.8, 6.5, back - 1.4, k.all(k.body), undefined, x);
+    // a small vent on the front of the roof, open at the front
+    k.box(2.2, 0.4, 1.6, 9.35, -0.4, k.all(k.body));
+    k.box(1.8, 0.25, 0.08, 9.35, -1.22, k.all(black));
     // broad squared flares over all four wheels
     const R = 2.85;
     const hubY = 2.25;
@@ -2218,8 +2220,9 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.absarc(z, hubY, R, -a, Math.PI + a, false);
       }, 1.2, 0.25, 6).translate(x, 0, 0), [k.body, k.body]);
     }
-    // the colours: deep blue, a yellow swoosh sweeping up each side from low on the front door to the rear pillar, a
-    // yellow line along the sills, yellow stripes along the roof's edges and down the bonnet
+    // the colours: deep blue with yellow crescents (no lettering): a big one at the front of each door, a smaller one
+    // on each rear quarter, one sweeping across the bonnet; a yellow banner along the top of the screen, yellow strips
+    // low on the front bumper
     /** a flat piece in the (z, y) plane on a side at `x` */
     const side2d = (pts: [number, number][], x: number, m: THREE.Material) => {
       k.add(profile((s) => {
@@ -2227,31 +2230,35 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         for (const [z, y] of pts.slice(1)) s.lineTo(z, y);
       }, 0.08).translate(x, 0, 0), [m, m]);
     };
-    /** the swoosh's leading edge at `t` (0 low on the front door, 1 at the waist by the rear pillar) */
-    const sweep = (t: number): [number, number] => {
-      const u = 1 - t;
-      return [u * u * -4 + 2 * u * t * 1.2 + t * t * 3.9, u * u * 2.1 + 2 * u * t * 2.3 + t * t * 5.75];
-    };
-    const band = (d0: number, d1: number): [number, number][] => {
+    /** a crescent round (`u`, `v`), `r` across, `thick` at its widest, its horns pointing to +u (backward on a side) */
+    const crescent = (u: number, v: number, r: number, thick: number): [number, number][] => {
       const pts: [number, number][] = [];
-      for (let n = 0; n <= 12; n++) {
-        const [z, y] = sweep(n / 12);
-        pts.push([z + d0 * (1 - n / 24), y]);
+      const n = 20;
+      const a0 = Math.PI * 0.6;
+      const a1 = Math.PI * 1.4;
+      for (let i = 0; i <= n; i++) {
+        const a = a0 + ((a1 - a0) * i) / n;
+        pts.push([u + r * Math.cos(a), v + r * Math.sin(a)]);
       }
-      for (let n = 12; n >= 0; n--) {
-        const [z, y] = sweep(n / 12);
-        pts.push([z + d1 * (1 - n / 24), y]);
+      for (let i = n; i >= 0; i--) {
+        const a = a0 + ((a1 - a0) * i) / n;
+        const rr = r - thick * Math.sin((Math.PI * i) / n);
+        pts.push([u + rr * Math.cos(a), v + rr * Math.sin(a)]);
       }
       return pts;
     };
-    const f0 = axles[0] + reaches[0];
-    const r0 = axles[1] - reaches[1];
     for (const side of [-1, 1]) {
-      const bx = side * (w / 2 + 0.04);
-      side2d(band(0, 2.2), bx, yellow);
-      side2d([[f0, 1.8], [r0, 1.8], [r0, 2.05], [f0, 2.05]], bx, yellow);
+      side2d(crescent(-1.9, 3.75, 1.8, 0.85), side * (w / 2 + 0.04), yellow);
+      side2d(crescent(2.6, 4.45, 0.8, 0.34), side * (w / 2 + 0.04), yellow);
     }
-    for (const x of [-(w / 2 - 1.4), w / 2 - 1.4]) k.box(0.6, 0.06, 5.6, 9.2, 1.5, k.all(yellow), undefined, x);
+    // (the banner along the top of the screen)
+    const sc = (t: number): [number, number] => [-4.7 + 3.4 * t + 0.06, 5.7 + 3.1 * t + 0.06];
+    k.add(profile((s) => {
+      s.moveTo(...sc(0.8));
+      s.lineTo(...sc(0.97));
+      s.lineTo(sc(0.97)[0] - 0.05, sc(0.97)[1] + 0.05);
+      s.lineTo(sc(0.8)[0] - 0.05, sc(0.8)[1] + 0.05);
+    }, w - 2.4), [yellow, yellow]);
     const onBonnet = (pts: [number, number][], m: THREE.Material) => {
       const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
       const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
@@ -2260,18 +2267,23 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       g.computeVertexNormals();
       k.add(g, [m, m]);
     };
-    for (const side of [-1, 1]) onBonnet([[side * 2.4, front + 0.8], [side * 3, front + 0.8], [side * 3, -4.8], [side * 2.4, -4.8]], yellow);
-    // the nose: a black band with a wide headlamp at each corner and a small grille between them, the bumper below
-    // with a broad black intake, a round fog lamp either side of it, amber indicators at its corners, a black splitter
-    k.front(w - 0.6, 1.1, 0.1, 4.05, front - 0.04, k.all(black));
-    for (const x of [-(w / 2 - 2), w / 2 - 2]) k.front(2.8, 0.75, 0.1, 4.05, front - 0.1, k.all(k.lamp), x);
-    k.front(3.4, 0.5, 0.1, 4.05, front - 0.1, k.all(k.body));
+    onBonnet(crescent(0.6, -8.8, 3.1, 1), yellow);
+    // the nose: a wide sloping headlamp at each corner, a black mesh grille between them, the bumper below with a broad
+    // black intake, a round fog lamp in a black ring at each corner over a yellow strip, amber indicators above them,
+    // a black splitter
+    for (const x of [-(w / 2 - 2), w / 2 - 2]) {
+      k.front(3, 0.9, 0.1, 4.05, front - 0.06, k.all(black), x);
+      k.front(2.8, 0.7, 0.1, 4.05, front - 0.1, k.all(k.lamp), x);
+    }
+    k.front(3.6, 0.75, 0.1, 4.0, front - 0.06, k.all(black));
+    for (let i = 0; i < 2; i++) k.front(3.4, 0.08, 0.1, 3.85 + i * 0.3, front - 0.1, k.all(k.body));
     k.front(w + 0.2, 1.7, 0.8, 2.5, front - 0.2, k.all(k.body));
     k.front(5, 1, 0.1, 2.45, front - 0.62, k.all(black));
     for (const side of [-1, 1]) {
-      k.front(1.5, 1.1, 0.1, 2.45, front - 0.62, k.all(black), side * 3.9);
-      k.add(drum(0.48, 0.15, 'z', side * 3.9, 2.45, front - 0.7 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
-      k.front(1, 0.4, 0.1, 3.05, front - 0.62, k.all(amber), side * (w / 2 - 0.8));
+      k.add(drum(0.72, 0.12, 'z', side * 4.4, 2.5, front - 0.64 - k.noseZ, 16), [black, black, black], k.nose);
+      k.add(drum(0.5, 0.12, 'z', side * 4.4, 2.5, front - 0.7 - k.noseZ, 16), [k.lamp, k.lamp, k.lamp], k.nose);
+      k.front(2.4, 0.3, 0.1, 1.85, front - 0.62, k.all(yellow), side * 4.4);
+      k.front(1, 0.35, 0.1, 3.15, front - 0.62, k.all(amber), side * (w / 2 - 0.8));
     }
     k.front(w, 0.15, 1.2, 1.5, front - 0.4, k.all(black));
     // at night or in the evening, a black pod of four big round lamps on the front of the bonnet
