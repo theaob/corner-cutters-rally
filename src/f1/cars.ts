@@ -34,6 +34,7 @@ export const CARS: CarSpec[] = [
   { id: 'brisk', name: 'BRISK 1800', era: '1970s', drive: 'rear', unlock: 40, speed: 0.96, pickup: 1.2, turn: 1, grip: 0.82, tough: 1, paint: { body: '#efede6', stripe: '#1d3f9a' } },
   { id: 'stiletto', name: 'STILETTO', era: '1970s', drive: 'rear', unlock: 110, speed: 0.98, pickup: 1.1, turn: 1.12, grip: 0.92, tough: 0.85, paint: { body: '#f3f2ec', stripe: '#0f8a4a' } },
   { id: 'volta', name: 'VOLTA 2000', era: '1970s', drive: 'rear', unlock: 160, speed: 0.99, pickup: 1.1, turn: 1.04, grip: 0.9, tough: 1.05, paint: { body: '#f3f2ec', stripe: '#13977a' } },
+  { id: 'raia', name: 'RAIA 400', era: '1980s', drive: 'rear', unlock: 190, speed: 0.995, pickup: 1.1, turn: 1.04, grip: 0.94, tough: 1.05, paint: { body: '#f3f2ec', stripe: '#1b2a5c' } },
   { id: 'quadra', name: 'QUADRA', era: '1980s', drive: 'all', unlock: 220, speed: 1, pickup: 1.1, turn: 0.94, grip: 1.12, tough: 1.1 },
   { id: 'typhoon', name: 'TYPHOON', era: '1990s', drive: 'all', unlock: 380, speed: 1.02, pickup: 1.05, turn: 1.02, grip: 1.08, tough: 1.05 },
   { id: 'apex', name: 'APEX R1', era: 'TODAY', drive: 'all', unlock: 560, speed: 1.04, pickup: 1, turn: 1.06, grip: 1.15, tough: 1 },

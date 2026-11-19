@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 
-export type CarModel = 'mini' | 'fulvia' | 'alpine' | 'brisk' | 'stiletto' | 'volta' | 'quadra' | 'typhoon' | 'apex';
+export type CarModel = 'mini' | 'fulvia' | 'alpine' | 'brisk' | 'stiletto' | 'volta' | 'raia' | 'quadra' | 'typhoon' | 'apex';
 
 type Faces = THREE.Material[];
 
@@ -890,6 +890,145 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       axles: [-8.9, 8.3],
       wheel: { radius: 2.2, width: 2.6, half: w / 2 - 0.85, rim: '#d8a628' },
       tail: { z: back + 0.12, y: 4.2, x: w / 2 - 1.5, w: 2.2, h: 1.1 },
+    };
+  },
+
+  /**
+   * RAIA 400, after the Opel Manta 400, the last rear-driven car to win in the four-wheel-drive Group B years: a long
+   * low coupe, a sloping nose with a black slatted grille and square headlamps, a bulge on the long bonnet, a short
+   * cabin, a sloping back window to a short boot with a lip spoiler, big square flares, a deep air dam, four
+   * spotlights. Its own paint: white, a navy roof, a navy band along the sides with a gold line over it, a navy stripe
+   * up the bonnet; the boot's spoiler in the driver's colour (yours gold).
+   */
+  raia(k) {
+    const w = 11.6;
+    const front = -15.1;
+    const back = 15.1;
+    const black = k.paint(0x16171b);
+    const white = k.paint(0xf4f4f0);
+    const gold = k.paint(0xc9a24a);
+    const red = k.paint(0xc8202a);
+    /** the bonnet's height at `z`, falling from the screen to the nose */
+    const bonnet = (z: number) => 4.5 + ((z - front - 0.6) * 1) / (-4.4 - front - 0.6);
+    // the body: the nose low and sloping, the long bonnet rising to the screen, the waist rising a little to a short
+    // high boot
+    k.add(profile((s) => {
+      s.moveTo(front + 0.6, 1.6);
+      s.lineTo(back - 0.5, 1.6);
+      s.lineTo(back, 2.3);
+      s.lineTo(back, 5.4);
+      s.lineTo(back - 0.4, 5.9);
+      s.lineTo(8.6, 5.95);
+      s.lineTo(-4.4, 5.5);
+      s.lineTo(front + 0.6, 4.5);
+      s.quadraticCurveTo(front, 4.4, front, 3.8);
+      s.lineTo(front, 2.2);
+    }, w, 0.45, 2), [k.pods, k.body]);
+    // the bonnet's bulge
+    k.add(profile((s) => {
+      s.moveTo(-12.6, bonnet(-12.6) - 0.2);
+      s.lineTo(-4.6, bonnet(-4.6) - 0.2);
+      s.lineTo(-4.6, bonnet(-4.6) + 0.45);
+      s.lineTo(-10.6, bonnet(-10.6) + 0.45);
+    }, 4.2, 0.2, 2), [k.body, k.body]);
+    // the glasshouse: a raked screen, a short roof, the back window sloping to the boot
+    k.add(profile((s) => {
+      s.moveTo(-4.5, 5.45);
+      s.lineTo(-1.3, 8.9);
+      s.lineTo(3.6, 8.9);
+      s.lineTo(8.9, 5.9);
+      s.lineTo(4, 5.6);
+    }, w - 1.6), [k.glass, k.glass]);
+    // the roof (navy) and the pillars: the screen's, and the broad rear one sloping with the back window
+    k.add(profile((s) => {
+      s.moveTo(-1.5, 8.8);
+      s.lineTo(3.8, 8.8);
+      s.lineTo(3.8, 9.35);
+      s.lineTo(-1.2, 9.35);
+    }, w - 1.3, 0.25, 2), [k.trim, k.trim]);
+    for (const x of [-(w - 1.6) / 2, (w - 1.6) / 2]) {
+      k.add(profile((s) => {
+        s.moveTo(-4.7, 5.45);
+        s.lineTo(-1.5, 8.9);
+        s.lineTo(-1, 8.9);
+        s.lineTo(-4.2, 5.45);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+      k.add(profile((s) => {
+        s.moveTo(2.4, 8.9);
+        s.lineTo(3.8, 8.9);
+        s.lineTo(9.2, 5.9);
+        s.lineTo(6.2, 5.7);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // the lip spoiler across the boot's tail (in the driver's colour)
+    k.add(profile((s) => {
+      s.moveTo(back - 1.8, 5.95);
+      s.lineTo(back - 0.1, 5.85);
+      s.lineTo(back + 0.2, 6.7);
+      s.lineTo(back - 0.5, 6.75);
+    }, w - 0.8, 0.15, 2), [k.scoop, k.scoop]);
+    // big square flares over all four wheels
+    for (const z of [-9.2, 8.2]) for (const x of [-(w / 2 + 0.1), w / 2 + 0.1]) {
+      k.add(profile((s) => {
+        s.moveTo(z - 3.6, 1.8);
+        s.lineTo(z - 3.6, 4.2);
+        s.quadraticCurveTo(z - 3.5, 5.75, z - 2, 5.8);
+        s.lineTo(z + 2, 5.8);
+        s.quadraticCurveTo(z + 3.5, 5.75, z + 3.6, 4.2);
+        s.lineTo(z + 3.6, 1.8);
+        s.lineTo(z + 3, 1.8);
+        s.lineTo(z + 3, 4);
+        s.quadraticCurveTo(z + 2.9, 5.25, z + 1.8, 5.3);
+        s.lineTo(z - 1.8, 5.3);
+        s.quadraticCurveTo(z - 2.9, 5.25, z - 3, 4);
+        s.lineTo(z - 3, 1.8);
+      }, 1, 0.25, 4).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // the colours: a navy band along each side with a gold line over it (over the flares too), a navy stripe up the
+    // middle of the bonnet and its bulge
+    const bands = (x: number, z0: number, z1: number) => {
+      k.box(0.1, 1.3, z1 - z0, 3.35, (z0 + z1) / 2, k.all(k.trim), undefined, x);
+      k.box(0.1, 0.22, z1 - z0, 4.3, (z0 + z1) / 2, k.all(gold), undefined, x);
+    };
+    for (const side of [-1, 1]) {
+      bands(side * (w / 2 + 0.03), front + 0.6, back - 0.5);
+      for (const z of [-9.2, 8.2]) {
+        bands(side * (w / 2 + 0.63), z - 3.6, z - 2.95);
+        bands(side * (w / 2 + 0.63), z + 2.95, z + 3.6);
+      }
+    }
+    k.add(profile((s) => {
+      s.moveTo(-12.4, bonnet(-12.4) + 0.2);
+      s.lineTo(-4.6, bonnet(-4.6) + 0.22);
+      s.lineTo(-4.6, bonnet(-4.6) + 0.5);
+      s.lineTo(-10.6, bonnet(-10.6) + 0.5);
+    }, 2.2, 0.05, 2), [k.trim, k.trim]);
+    // a white roundel on each door, for the rally number
+    for (const x of [-(w / 2 + 0.06), w / 2 + 0.06]) k.add(drum(1.25, 0.1, 'x', x, 3.6, -1.4, 14), [white, white, white]);
+    // the nose: a black slatted grille with a square headlamp at each end, four spotlights in a row before it, a deep
+    // black air dam
+    k.front(w - 1, 1.7, 0.2, 3.4, front - 0.05, k.all(black));
+    for (let i = 0; i < 3; i++) k.front(3.2, 0.14, 0.1, 2.9 + i * 0.45, front - 0.17, k.all(k.carbon));
+    for (const x of [-(w / 2 - 1.6), w / 2 - 1.6]) {
+      k.front(2.2, 1.3, 0.25, 3.45, front - 0.15, k.all(k.chrome), x);
+      k.front(1.9, 1, 0.12, 3.45, front - 0.3, k.all(k.lamp), x);
+    }
+    for (const x of [-3.9, -1.3, 1.3, 3.9]) {
+      k.add(drum(0.8, 0.7, 'z', x, 3.35, front - 0.6 - k.noseZ, 14), [black, black, black], k.nose);
+      k.add(drum(0.66, 0.12, 'z', x, 3.35, front - 0.98 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    }
+    k.front(w + 0.2, 1, 1, 2.1, front - 0.3, k.all(black));
+    // the tail: a black panel with red lamps at its ends, the number plate
+    k.box(w - 1.2, 1.3, 0.12, 4.4, back + 0.03, k.all(black));
+    for (const x of [-(w / 2 - 1.6), w / 2 - 1.6]) k.box(2.4, 1.1, 0.15, 4.4, back + 0.06, k.all(red), undefined, x);
+    k.box(w + 0.2, 0.7, 0.6, 2.3, back + 0.2, k.all(black));
+    k.box(3, 0.9, 0.12, 3.3, back + 0.1, k.all(white));
+    // mud flaps behind the wheels
+    for (const z of [-5.3, 12]) for (const x of [-(w / 2 - 0.9), w / 2 - 0.9]) k.box(1.8, 1.6, 0.2, 1.3, z, k.all(black), undefined, x);
+    return {
+      axles: [-9.2, 8.2],
+      wheel: { radius: 2.25, width: 2.7, half: w / 2 - 0.85, rim: '#c4c8ce' },
+      tail: { z: back + 0.1, y: 4.4, x: w / 2 - 1.6, w: 2.2, h: 1 },
     };
   },
 
