@@ -2131,6 +2131,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const red = k.paint(0xc8202a);
     const amber = k.paint(0xf29a1a);
     const white = k.paint(0xf4f4f0);
+    const sky = k.paint(0x5fb4ea);
     const waist = 5.8;
     /** the bonnet's height at `z`, from the nose up to the screen */
     const bonnet = (z: number) => 4.85 + ((z - front - 0.6) * 0.9) / (-4.6 - front - 0.6);
@@ -2220,8 +2221,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.absarc(z, hubY, R, -a, Math.PI + a, false);
       }, 1.2, 0.25, 6).translate(x, 0, 0), [k.body, k.body]);
     }
-    // the colours: deep blue with a yellow crescent and 333 on each door and across the bonnet (no lettering); a yellow
-    // banner along the top of the screen, yellow strips low on the front bumper
+    // the colours: deep blue with a yellow crescent and stars on each door and on the bonnet, swept lines over them (no
+    // lettering); a yellow banner along the top of the screen, yellow strips low on the front bumper
     /** a flat piece in the (z, y) plane on a side at `x` */
     const side2d = (pts: [number, number][], x: number, m: THREE.Material) => {
       k.add(profile((s) => {
@@ -2246,34 +2247,47 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       }
       return pts;
     };
-    /**
-     * a crescent and "333" after it, in yellow, laid out in reading order (u to the right, v up) from u = 0, glyphs `h`
-     * tall, leaning forward; returns the pieces and how long the whole is
-     */
-    const number = (h: number): { pieces: [number, number][][]; len: number } => {
-      const r = h / 2 + 0.15;
-      const pieces = [crescent(r, h / 2, r, r * 0.45)];
-      const wd = h * 0.56;
-      const t = h * 0.19;
-      const lean = 0.2;
-      const gap = h * 0.14;
-      let u = r * 1.31 + gap;
-      const rect = (u0: number, v0: number, u1: number, v1: number): [number, number][] =>
-        [[u0 + lean * v0, v0], [u1 + lean * v0, v0], [u1 + lean * v1, v1], [u0 + lean * v1, v1]];
-      for (let n = 0; n < 3; n++) {
-        // (a 3: top, middle and bottom bars, joined down the right)
-        pieces.push(rect(u, h - t, u + wd, h), rect(u + wd * 0.25, (h - t) / 2, u + wd, (h + t) / 2), rect(u, 0, u + wd, t), rect(u + wd - t, 0, u + wd, h));
-        u += wd + gap;
+    /** a four-pointed star round (`u`, `v`), `r` to its points */
+    const star = (u: number, v: number, r: number): [number, number][] => {
+      const pts: [number, number][] = [];
+      for (let n = 0; n < 8; n++) {
+        const a = (n * Math.PI) / 4 + Math.PI / 2;
+        const rr = n % 2 ? r * 0.32 : r;
+        pts.push([u + rr * Math.cos(a), v + rr * Math.sin(a)]);
       }
-      return { pieces, len: u - gap + lean * h };
+      return pts;
     };
-    // (on each door, centred, reading from the front on the left side and from the back on the right, so it never
-    // reads mirrored)
-    const door = number(2.2);
-    const dz = (axles[0] + reaches[0] + axles[1] - reaches[1]) / 2;
+    /** a band `thick` wide along the curve from `p0` past `p1` to `p2` */
+    const sweepBand = (p0: [number, number], p1: [number, number], p2: [number, number], thick: number): [number, number][] => {
+      const at = (t: number): [number, number] => {
+        const q = 1 - t;
+        return [q * q * p0[0] + 2 * q * t * p1[0] + t * t * p2[0], q * q * p0[1] + 2 * q * t * p1[1] + t * t * p2[1]];
+      };
+      const top: [number, number][] = [];
+      const bottom: [number, number][] = [];
+      for (let n = 0; n <= 12; n++) {
+        const [u, v] = at(n / 12);
+        const taper = thick * (0.35 + 0.65 * (1 - n / 12));
+        top.push([u, v + taper / 2]);
+        bottom.push([u, v - taper / 2]);
+      }
+      return [...top, ...bottom.reverse()];
+    };
+    /**
+     * the emblem, round (0, 0): a big crescent opening forward (to −u), a big star and three small ones in its hollow,
+     * and a yellow and a light blue line sweeping forward from its top
+     */
+    const emblem = (): { m: THREE.Material; pts: [number, number][] }[] => [
+      { m: yellow, pts: crescent(0, 0, 1.9, 0.8).map(([u, v]) => [-u, v]) },
+      { m: yellow, pts: star(0.05, 0, 0.7) },
+      { m: yellow, pts: star(-0.8, 0.75, 0.34) },
+      { m: yellow, pts: star(-0.55, -0.8, 0.3) },
+      { m: yellow, pts: star(-1.25, -0.05, 0.27) },
+      { m: yellow, pts: sweepBand([0.55, 1.75], [-2.5, 2.05], [-5.3, 1.15], 0.24) },
+      { m: sky, pts: sweepBand([0.15, 1.35], [-2.6, 1.6], [-5.2, 0.75], 0.2) },
+    ];
     for (const side of [-1, 1]) {
-      const at = (u: number) => (side < 0 ? dz - door.len / 2 + u : dz + door.len / 2 - u);
-      for (const piece of door.pieces) side2d(piece.map(([u, v]) => [at(u), 2.55 + v]), side * (w / 2 + 0.04), yellow);
+      for (const { m, pts } of emblem()) side2d(pts.map(([u, v]) => [1.7 + u, 3.65 + v]), side * (w / 2 + 0.04), m);
     }
     // (the banner along the top of the screen)
     const sc = (t: number): [number, number] => [-4.7 + 3.4 * t + 0.06, 5.7 + 3.1 * t + 0.06];
@@ -2291,9 +2305,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       g.computeVertexNormals();
       k.add(g, [m, m]);
     };
-    // (across the bonnet, ahead of the scoop, reading from in front of the car)
-    const hood = number(1.8);
-    for (const piece of hood.pieces) onBonnet(piece.map(([u, v]) => [hood.len / 2 - u, -10.9 + v]), yellow);
+    // (on the bonnet, ahead of the scoop at one side, opening across the car)
+    for (const { m, pts } of emblem()) onBonnet(pts.map(([u, v]) => [2.4 + u * 0.8, -9.9 + v * 0.8]), m);
     // the nose: a wide sloping headlamp at each corner, a black mesh grille between them, the bumper below with a broad
     // black intake, a round fog lamp in a black ring at each corner over a yellow strip, amber indicators above them,
     // a black splitter
@@ -2340,8 +2353,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
 
   /**
    * FALCO VI, late 1990s: the boxy four-door turbo four-wheel-drive saloon that won four titles in a row (the Lancer
-   * Evolution's kind of car). A blunt nose with a huge intake and big round fog lamps, a vented bonnet, a tall upright
-   * cabin, a high two-plane wing over the boot, squared flares over all four wheels. White, red below a slanting line.
+   * Evolution's kind of car). A blunt nose with a big mesh intake, a vented bonnet, a tall upright cabin, a big wing
+   * with tall end plates over the boot, squared flares over all four wheels. Red, a black and white waist stripe.
    */
   falco(k) {
     const w = 12.8;
@@ -2350,6 +2363,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const black = k.paint(0x16171b);
     const red = k.paint(0xd0242a);
     const amber = k.paint(0xf29a1a);
+    const white = k.paint(0xf4f4f0);
+    const mesh = k.paint(0x6b6e75);
     const waist = 5.9;
     /** the bonnet's height at `z`, from the nose up to the screen */
     const bonnet = (z: number) => 5.0 + ((z - front - 0.4) * 0.8) / (-4.6 - front - 0.4);
@@ -2405,18 +2420,16 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const x of [-4.4, 4.4]) for (let i = 0; i < 3; i++) k.box(1.6, 0.08, 0.25, bonnet(-6.6 + i * 0.5) + 0.05, -6.6 + i * 0.5, k.all(black), undefined, x);
     k.box(2.2, 0.4, 1.6, 9.5, -0.6, k.all(k.body));
     k.box(1.8, 0.25, 0.08, 9.5, -1.42, k.all(black));
-    // the high two-plane wing over the boot on two tall stays, its lip in the driver's colour (yours gold), black ends
-    for (const [y, dz] of [[8.3, 0], [7.5, -0.4]] as const) {
-      k.add(profile((s) => {
-        s.moveTo(back - 2.7 + dz, y);
-        s.lineTo(back + 0.1 + dz, y + 0.3);
-        s.lineTo(back + 0.1 + dz, y - 0.05);
-        s.lineTo(back - 2.5 + dz, y - 0.25);
-      }, w - 1.2, 0.06, 3), [k.body, k.body]);
-    }
-    k.box(w - 1.4, 0.16, 0.22, 8.66, back + 0.05, k.all(k.scoop));
-    for (const x of [-(w / 2 - 0.55), w / 2 - 0.55]) k.box(0.15, 1.6, 3, 7.9, back - 1.2, k.all(black), undefined, x);
-    for (const x of [-(w / 2 - 2.2), w / 2 - 2.2]) k.box(0.35, 2.3, 0.8, 7.05, back - 1.5, k.all(k.body), undefined, x);
+    // the big wing over the boot on two tall stays, tall red end plates, its lip in the driver's colour (yours gold)
+    k.add(profile((s) => {
+      s.moveTo(back - 2.9, 8.15);
+      s.lineTo(back + 0.1, 8.5);
+      s.lineTo(back + 0.1, 8.1);
+      s.lineTo(back - 2.7, 7.9);
+    }, w - 1.2, 0.08, 3), [k.body, k.body]);
+    k.box(w - 1.4, 0.16, 0.22, 8.56, back + 0.05, k.all(k.scoop));
+    for (const x of [-(w / 2 - 0.55), w / 2 - 0.55]) k.box(0.15, 1.9, 3.2, 8.0, back - 1.3, k.all(k.body), undefined, x);
+    for (const x of [-(w / 2 - 2.2), w / 2 - 2.2]) k.box(0.35, 2.0, 0.8, 7.0, back - 1.5, k.all(k.body), undefined, x);
     // squared flares over all four wheels
     const R = 2.85;
     const hubY = 2.25;
@@ -2436,8 +2449,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.absarc(z, hubY, R, -a, Math.PI + a, false);
       }, 1.2, 0.2, 6).translate(x, 0, 0), [k.body, k.body]);
     }
-    // the colours: white above, red below a line that slants up from low on the front wing to the boot, a black
-    // pinstripe along it; red along the bonnet's front edge and across the tail
+    // the colours: red all over, a black and a white stripe along the waist from the front door to the tail, kinked
+    // down at the front door; white wheels
     /** a flat piece in the (z, y) plane on a side at `x` */
     const side2d = (pts: [number, number][], x: number, m: THREE.Material) => {
       k.add(profile((s) => {
@@ -2445,74 +2458,59 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         for (const [z, y] of pts.slice(1)) s.lineTo(z, y);
       }, 0.08).translate(x, 0, 0), [m, m]);
     };
-    const line = (z: number) => 2.6 + ((z - front) * 2.6) / (back - front);
-    const lo = () => 1.8;
-    const hi = (z: number) => line(z);
-    const pin = (z: number) => line(z) + 0.22;
-    /**
-     * the piece of the band between `bottom` and `top` on the flare round axle `i`, ahead of the wheel (`dir` −1) or
-     * behind it (1): from the flare's edge to the wheel opening
-     */
-    const flarePiece = (i: number, dir: -1 | 1, bottom: (z: number) => number, top: (z: number) => number): [number, number][] => {
-      const az = axles[i];
-      const edge = az + dir * reaches[i];
-      const zb = (y: number) => az + dir * Math.sqrt(Math.max(0, R * R - (y - hubY) ** 2));
-      const arc: [number, number][] = [];
-      for (let y = 1.6; y <= hubY + R; y += 0.05) {
-        const z = zb(y);
-        if (y >= bottom(z) && y <= top(z)) arc.push([z, y]);
-      }
-      return [[edge, bottom(edge)], ...arc, [edge, top(edge)]];
+    /** the stripes' top at `z`: under the body's top edge, a step down at the front of the door */
+    const top = (z: number) => (z < 7.2 ? waist + ((z + 4.6) * 0.25) / 11.8 : 6.15) - 0.3 - (z < -2.6 ? 0.45 * Math.min(1, (-2.6 - z) / 1.2) : 0);
+    const flareTop = 5.5;
+    /** a stripe `d0` to `d1` under the top from `z0` to `z1`, cut to between `lo` and `hi` */
+    const stripe = (z0: number, z1: number, d0: number, d1: number, lo: number, hi: number): [number, number][] => {
+      const zs: number[] = [];
+      for (let z = z0; z < z1; z += 0.4) zs.push(z);
+      zs.push(z1);
+      const clamp = (y: number) => Math.min(hi, Math.max(lo, y));
+      return [...zs.map((z): [number, number] => [z, clamp(top(z) - d0)]), ...[...zs].reverse().map((z): [number, number] => [z, clamp(top(z) - d1)])];
     };
-    const z0 = front + 0.4;
-    const f1 = axles[0] - reaches[0];
-    const f2 = axles[0] + reaches[0];
     const r1 = axles[1] - reaches[1];
     const r2 = axles[1] + reaches[1];
-    const z9 = back - 0.3;
     for (const side of [-1, 1]) {
-      // (on the body ahead of, between and behind the flares, and on the flares round the wheel openings)
-      for (const [a, b] of [[z0, f1], [f2, r1], [r2, z9]] as const) {
-        const bx = side * (w / 2 + 0.04);
-        side2d([[a, 1.8], [b, 1.8], [b, hi(b)], [a, hi(a)]], bx, red);
-        side2d([[a, hi(a)], [b, hi(b)], [b, pin(b)], [a, pin(a)]], bx, black);
-      }
-      for (let i = 0; i < 2; i++) for (const dir of [-1, 1] as const) {
-        const bx = side * (w / 2 + 0.3);
-        side2d(flarePiece(i, dir, lo, hi), bx, red);
-        side2d(flarePiece(i, dir, hi, pin), bx, black);
+      for (const [d0, d1, m] of [[0, 0.3, white], [0.35, 0.57, black]] as const) {
+        // (on the body along the doors and behind the rear flare; along the rear flare, on the flare's face up to its
+        // top, on the body above it)
+        side2d(stripe(axles[0] + reaches[0], r1, d0, d1, 0, 9), side * (w / 2 + 0.04), m);
+        side2d(stripe(r2, back - 0.3, d0, d1, 0, 9), side * (w / 2 + 0.04), m);
+        side2d(stripe(r1, r2, d0, d1, 0, flareTop), side * (w / 2 + 0.3), m);
+        side2d(stripe(r1, r2, d0, d1, flareTop, 9), side * (w / 2 + 0.04), m);
       }
     }
-    // the nose: sloping headlamps either side of a small grille, the bumper below with a huge black intake in the
-    // middle, a big round fog lamp in a black ring at each corner, amber indicators above them, a black splitter
+    // the nose: slim headlamps either side of a slim black grille, a red bumper below with a big grey mesh intake in
+    // the middle, black slots at its corners, amber indicators over them, a black splitter
     for (const x of [-(w / 2 - 2), w / 2 - 2]) {
-      k.front(3, 0.9, 0.1, 4.45, front - 0.06, k.all(black), x);
-      k.front(2.8, 0.7, 0.1, 4.45, front - 0.1, k.all(k.lamp), x);
+      k.front(3, 0.75, 0.1, 4.55, front - 0.06, k.all(black), x);
+      k.front(2.8, 0.55, 0.1, 4.55, front - 0.1, k.all(k.lamp), x);
     }
-    k.front(3.4, 0.7, 0.1, 4.45, front - 0.06, k.all(black));
-    k.front(w + 0.2, 2.3, 0.8, 2.6, front - 0.2, k.all(red));
-    k.front(5.6, 1.6, 0.1, 2.5, front - 0.62, k.all(black));
-    for (let i = 0; i < 3; i++) k.front(5.4, 0.08, 0.1, 2.0 + i * 0.5, front - 0.66, k.all(k.dark));
+    k.front(3.4, 0.55, 0.1, 4.55, front - 0.06, k.all(black));
+    k.front(w + 0.2, 2.4, 0.8, 2.65, front - 0.2, k.all(k.body));
+    k.front(6, 1.5, 0.1, 2.5, front - 0.62, k.all(black));
+    k.front(5.6, 1.2, 0.1, 2.5, front - 0.66, k.all(mesh));
+    for (let i = 0; i < 4; i++) k.front(5.6, 0.06, 0.1, 2.05 + i * 0.3, front - 0.7, k.all(black));
     for (const side of [-1, 1]) {
-      k.add(drum(0.8, 0.12, 'z', side * 4.55, 2.45, front - 0.64 - k.noseZ, 16), [black, black, black], k.nose);
-      k.add(drum(0.6, 0.12, 'z', side * 4.55, 2.45, front - 0.7 - k.noseZ, 16), [k.lamp, k.lamp, k.lamp], k.nose);
-      k.front(1, 0.35, 0.1, 3.5, front - 0.62, k.all(amber), side * (w / 2 - 0.8));
+      k.front(1.6, 0.9, 0.1, 2.3, front - 0.62, k.all(black), side * 4.6);
+      k.front(1, 0.35, 0.1, 3.4, front - 0.62, k.all(amber), side * (w / 2 - 0.8));
     }
     k.front(w, 0.15, 1.2, 1.45, front - 0.4, k.all(black));
-    // at night or in the evening, four big round lamps on a black bar across the top of the bumper
+    // at night or in the evening, four big round lamps on a black bar across the front of the bonnet, the outer two lower
     if (k.floodlights) {
-      k.front(7.6, 0.3, 1.3, 3.65, front - 0.6, k.all(black));
-      for (const x of [-2.75, -0.92, 0.92, 2.75]) {
-        k.add(drum(0.85, 0.5, 'z', x, 4.6, front - 0.75 - k.noseZ, 14), [black, black, black], k.nose);
-        k.add(drum(0.72, 0.1, 'z', x, 4.6, front - 1.02 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+      k.front(7.8, 0.3, 1.4, 4.95, front - 0.5, k.all(black));
+      for (const [x, y] of [[-2.85, 5.25], [-0.95, 5.75], [0.95, 5.75], [2.85, 5.25]] as const) {
+        k.add(drum(0.85, 0.5, 'z', x, y, front - 0.75 - k.noseZ, 14), [black, black, black], k.nose);
+        k.add(drum(0.72, 0.1, 'z', x, y, front - 1.02 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       }
     }
     // the tail: red lamps at the corners on a black panel, a red bumper
     k.box(w - 1, 1.2, 0.12, 4.9, back + 0.03, k.all(black));
     for (const x of [-(w / 2 - 1.7), w / 2 - 1.7]) k.box(3, 1.1, 0.15, 4.9, back + 0.06, k.all(red), undefined, x);
-    k.box(w + 0.2, 1.3, 0.6, 2.4, back + 0.2, k.all(red));
-    // black mud flaps behind the wheels
-    for (const z of [-3.8, 11.3]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(black), undefined, x);
+    k.box(w + 0.2, 1.3, 0.6, 2.4, back + 0.2, k.all(k.body));
+    // red mud flaps behind the wheels
+    for (const z of [-3.8, 11.3]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(red), undefined, x);
     return {
       axles: [axles[0], axles[1]],
       wheel: { radius: 2.25, width: 2.7, half: w / 2 - 1.3, rim: '#f4f4f0' },
