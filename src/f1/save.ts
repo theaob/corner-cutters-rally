@@ -2,8 +2,8 @@
 // how an older save is brought up to date. Sections:
 //   settings  sound (0…1), vibration (on/off),
 //             largeText and colourSafe (on/off: off unless set; access.ts)
-//   choices   the difficulty (by id), and your car's paint scheme (crews.ts)
-//   progress  onboarded: the controls lap done or skipped
+//   choices   the difficulty (by id), your car's paint scheme from before the garage (crews.ts), and your car (career.ts)
+//   progress  onboarded: the controls lap done or skipped; career: your career points, and what's been paid (career.ts)
 //   rally     current: the rally under way (or just over); best: your best finish in each rally; stages: your best time on each stage (rally.ts);
 //             season: the season under way, its rival crews and the rounds driven (season.ts)
 // Each value is checked where it's read, so a missing or odd one falls back to its default.

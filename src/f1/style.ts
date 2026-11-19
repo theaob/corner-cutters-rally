@@ -146,9 +146,26 @@ export function sightAhead(dx: number, dy: number, screen: SightScreen, zoom: nu
   return ahead(dx / len, dy / len, screen, zoom, lead);
 }
 
-/** The player's car (and the reference run's). */
-export function rallyCar(): CarClass {
-  return { ...carClass('f1', { ...REFERENCE, topSpeed: REFERENCE.topSpeed * TOP_DOWN.speed, zeroToTop: TOP_DOWN.zeroToTop }), offRoad: TOP_DOWN.offRoad };
+/** How a performance class drives against today's top class (cars.ts: CLASSES); today's class is all 1s. */
+export interface ClassTuning {
+  speed: number;
+  pickup: number;
+  turn: number;
+  grip: number;
+  tough: number;
+}
+const TODAY: ClassTuning = { speed: 1, pickup: 1, turn: 1, grip: 1, tough: 1 };
+
+/** The player's car in performance class `cls` (and the reference run's, so the rival crews drive the same class). */
+export function rallyCar(cls: ClassTuning = TODAY): CarClass {
+  const car = carClass('f1', {
+    ...REFERENCE,
+    topSpeed: REFERENCE.topSpeed * TOP_DOWN.speed * cls.speed,
+    zeroToTop: TOP_DOWN.zeroToTop * cls.pickup,
+    turnRate: REFERENCE.turnRate * cls.turn,
+    grip: REFERENCE.grip * cls.grip,
+  });
+  return { ...car, health: car.health * cls.tough, offRoad: TOP_DOWN.offRoad };
 }
 
 /** The stage's driving rules: the roadside forgives, and doesn't roll the car. */

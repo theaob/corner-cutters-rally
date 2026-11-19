@@ -1,20 +1,39 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { CARS, carById, nextCar, unlockedCars } from '../src/f1/cars';
+import { CARS, CLASSES, carById, carsIn, classById, classOf, nextCar, unlockedCars } from '../src/f1/cars';
+import { rallyCar } from '../src/f1/style';
 import { BODIES } from '../src/engine/render/carBodies';
 import { createCarMesh } from '../src/engine/render/vehicles3d';
 import { carClass } from '../src/engine/driving';
 
 describe('the garage lineup', () => {
-  it('has a body for every car, the first free and each next one dearer and quicker', () => {
+  it('has a body for every car, the first free and each next one dearer', () => {
     expect(CARS.map((c) => c.id).sort()).toEqual(Object.keys(BODIES).sort());
     expect(CARS[0].unlock).toBe(0);
-    for (let i = 1; i < CARS.length; i++) {
-      expect(CARS[i].unlock).toBeGreaterThan(CARS[i - 1].unlock);
-      expect(CARS[i].speed).toBeGreaterThan(CARS[i - 1].speed);
+    for (let i = 1; i < CARS.length; i++) expect(CARS[i].unlock).toBeGreaterThan(CARS[i - 1].unlock);
+  });
+
+  it("puts every car in a class, the classes a ladder: each quicker than the last, today's top class as the game drove before", () => {
+    expect(CLASSES.map((c) => c.id)).toEqual(['historic', 'classic', 'groupb', 'groupa', 'wrc']);
+    // (the cars in class order: a class's cars all unlock after the last class's)
+    expect(CARS.map((c) => CLASSES.indexOf(classOf(c)))).toEqual([...CARS.map((c) => CLASSES.indexOf(classOf(c)))].sort((a, b) => a - b));
+    for (const c of CLASSES) expect(carsIn(c.id).length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < CLASSES.length; i++) {
+      expect(CLASSES[i].speed).toBeGreaterThan(CLASSES[i - 1].speed);
+      expect(CLASSES[i].pickup).toBeLessThan(CLASSES[i - 1].pickup);
+      expect(CLASSES[i].grip).toBeGreaterThan(CLASSES[i - 1].grip);
     }
-    // (today's car is the middle of the field: QUADRA's numbers)
-    expect(carById('quadra')?.speed).toBe(1);
+    expect(classById('wrc')).toEqual({ id: 'wrc', name: 'WRC', speed: 1, pickup: 1, turn: 1, grip: 1, tough: 1 });
+    expect(carsIn('wrc').map((c) => c.id)).toEqual(['leone', 'zefiro', 'apex']);
+  });
+
+  it("drives a car as its class does: a class's cars alike, a slower class slower", () => {
+    expect(rallyCar(classOf(carById('mini')!))).toEqual(rallyCar(classOf(carById('alpine')!)));
+    expect(rallyCar(classOf(carById('apex')!))).toEqual(rallyCar());
+    const historic = rallyCar(classById('historic'));
+    expect(historic.topSpeed).toBeCloseTo(rallyCar().topSpeed * 0.9);
+    expect(historic.grip).toBeLessThan(rallyCar().grip);
+    expect(historic.health).toBeLessThan(rallyCar().health);
   });
 
   it('unlocks by career points', () => {
@@ -50,7 +69,7 @@ describe('each car body', () => {
 
 describe('the rebuilt cars', () => {
   // (the cars rebuilt one by one after real ones; the rest are the first sketches, still to be replaced)
-  for (const id of ['mini', 'fulvia', 'alpine', 'brisk', 'stiletto', 'volta', 'raia', 'saetta', 'quadra', 'kestrel', 'merlin', 'vortice'] as const) {
+  for (const id of ['mini', 'fulvia', 'alpine', 'brisk', 'stiletto', 'volta', 'raia', 'saetta', 'quadra', 'kestrel', 'merlin', 'vortice', 'corsaro', 'typhoon', 'falco', 'leone', 'zefiro', 'apex'] as const) {
     it(`${id}: its gravel tyres stay inside its bodywork, seen from above`, () => {
       const car = createCarMesh('f1', { body: '#d8323c', stripe: '#f4f4f8', model: id }, true);
       const wheels = car.userData.parts.wheels as THREE.Group[];

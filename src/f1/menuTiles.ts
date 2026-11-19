@@ -4,7 +4,7 @@
 
 const SVG = 'http://www.w3.org/2000/svg';
 
-export type TileIcon = 'GRAVEL' | 'SNOW' | 'SAND' | 'TARMAC' | 'settings' | 'season' | 'free';
+export type TileIcon = 'GRAVEL' | 'SNOW' | 'SAND' | 'TARMAC' | 'settings' | 'season' | 'free' | 'garage';
 
 const ICONS: Record<TileIcon, string> = {
   // two pines (the gravel rallies run through the forests)
@@ -19,6 +19,8 @@ const ICONS: Record<TileIcon, string> = {
   season: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M10 19v-6.5h5.5l-1.2 1.6 1.2 1.6H10"/>',
   // free play: a steering wheel
   free: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.2"/><path d="M3.3 10.5c3-1.3 14.4-1.3 17.4 0M12 14.2V21"/>',
+  // the garage: its roof, and its door rolled half up
+  garage: '<path d="M2.5 10 12 4l9.5 6v11h-19z"/><path d="M6 21v-9h12v9M6 15h12M6 18h12"/>',
   // sliders
   settings: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2.2" fill="#111118"/><circle cx="15.5" cy="12" r="2.2" fill="#111118"/><circle cx="8" cy="17" r="2.2" fill="#111118"/>',
 };

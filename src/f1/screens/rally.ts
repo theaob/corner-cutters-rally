@@ -17,7 +17,9 @@ import { menuPick, menuTick } from '../sounds';
 import { formatTime as fmt } from '../time';
 import { layoutById } from '../layouts';
 import { weatherById } from '../weather';
-import { SCHEMES, type Scheme } from '../crews';
+import type { Scheme } from '../crews';
+import { CARS, classOf, unlockedCars } from '../cars';
+import { pickCar, yourCar } from '../career';
 import {
   RALLIES, crewName, crewScheme, gapText, loadBests, nextStage, rallyEvent, rallyOver, serviceAfter, standings, yourPlace, type Rally, type RallyEvent,
 } from '../rally';
@@ -28,12 +30,12 @@ import { COLOR, SURFACE_COLOR } from '../theme';
 import { backLabel, language, t, upper } from '../../engine/i18n';
 import { ROUNDS, YOU, opensAt, roundOf, roundOpen, seasonOver, seasonPlace, seasonStandings, type Season } from '../season';
 
-export type RallyAction = 'stage' | 'abandon' | 'retire' | 'settings' | 'new-season' | 'back' | { open: PlayPage } | { start: RallyEvent; scheme: Scheme };
+export type RallyAction = 'stage' | 'abandon' | 'retire' | 'settings' | 'new-season' | 'back' | { open: PlayPage | 'garage' } | { start: RallyEvent; scheme: Scheme };
 
 /** A kind of play's page: the season's, or free play's. */
 export type PlayPage = 'season' | 'free';
-/** Which of home's screens: home itself (the kinds of play), or a kind of play's page. */
-export type HomePage = 'home' | PlayPage;
+/** Which of home's screens: home itself (the kinds of play), a kind of play's page, or the garage. */
+export type HomePage = 'home' | PlayPage | 'garage';
 
 /** The season home shows (season.ts), and the time its calendar goes by. */
 export interface SeasonView {
@@ -211,6 +213,8 @@ export interface RallyScreen {
   freeRally?: Rally;
   scheme: Scheme;
   view: SeasonView;
+  /** your career points (career.ts) */
+  career: number;
 }
 
 /** Show home's screen `o.page` in `host` until the player picks. */
@@ -276,7 +280,10 @@ export function showRally(host: HTMLElement, services: Services, o: RallyScreen,
       screen.append(panel(line(view
         ? t('A SEASON OF {n} ROUNDS, A NEW ONE EACH WEEK: POINTS FOR THE TOP 10, BONUS POINTS ON EACH POWER STAGE', { n: ROUNDS.length })
         : t('ANY RALLY, ANY TIME · NO SEASON POINTS'), 'var(--accent-b)')));
-      const car = optionRow('CAR', SCHEMES, scheme, (s) => ({ name: s.name, about: 'your paint · #1 on the roof', colors: [s.body, s.trim, ...(s.accent ? [s.accent] : [])] }));
+      // (your car: one of those unlocked, its class under its name; the rest of them in the garage)
+      const car = optionRow('CAR', unlockedCars(o.career), yourCar(o.career), (c) => ({
+        name: c.name, about: `${t(classOf(c).name)} · ${c.era}`, colors: [c.paint?.body ?? '#888', c.paint?.stripe ?? '#444'],
+      }), (c) => pickCar(c, o.career));
       places.push({ el: car.el, step: car.step });
       screen.append(car.el);
       // (the rallies a grid of square tiles, as Corner Cutters' modes are)
@@ -292,7 +299,7 @@ export function showRally(host: HTMLElement, services: Services, o: RallyScreen,
           const state = done
             ? { n: k + 1, state: `${done.place ? ordinal(done.place) : t('RETIRED')} · ${done.points[YOU] ?? 0} ${t('PTS')}`, color: done.place === 1 ? 'var(--gold)' : undefined }
             : open ? { n: k + 1, state: t('OPEN NOW'), color: 'var(--accent-b)' } : { n: k + 1, state: t('OPENS {date}', { date: shortDate(opensAt(k)) }) };
-          const b = button('', () => !done && open && finish({ start: e, scheme: car.value() }));
+          const b = button('', () => !done && open && finish({ start: e, scheme }));
           grid.append(rallyTile(e, bests[e.id]?.place, b, state));
           places[places.length - 1].tile = k;
           // (one driven, or not open yet: moved over, not picked, and not where the highlight starts)
@@ -315,12 +322,12 @@ export function showRally(host: HTMLElement, services: Services, o: RallyScreen,
           if (over) screen.append(button(`${t('NEW SEASON')} ▶`, () => finish('new-season'), true));
           screen.append(panel(
             line(over ? (place === 1 ? t('YOU ARE THE CHAMPION!') : t('YOU FINISHED THE SEASON {place}', { place: ordinal(place) })) : t('SEASON STANDINGS'), over && place === 1 ? 'var(--gold)' : 'var(--text)'),
-            seasonTable(season, car.value()),
+            seasonTable(season, scheme),
           ));
         }
       } else {
         RALLIES.forEach((e, k) => {
-          grid.append(rallyTile(e, bests[e.id]?.place, button('', () => finish({ start: e, scheme: car.value() }))));
+          grid.append(rallyTile(e, bests[e.id]?.place, button('', () => finish({ start: e, scheme }))));
           places[places.length - 1].tile = k;
         });
         screen.append(grid);
@@ -346,8 +353,12 @@ export function showRally(host: HTMLElement, services: Services, o: RallyScreen,
         const result = rally.season && view ? view.season.results[rally.event] : undefined;
         if (result) {
           const bonus = result.power[YOU];
-          side.push(panel(line(t('+{n} SEASON POINTS', { n: result.points[YOU] ?? 0 }), 'var(--gold)'),
-            ...(bonus ? [line(`${t('POWER STAGE')} +${bonus}`, 'var(--accent-b)')] : [])));
+          const pts = result.points[YOU] ?? 0;
+          // (the cars this round's points unlocked: the career's total now, less them, was short of them)
+          const news = CARS.filter((c) => c.unlock > o.career - pts && c.unlock <= o.career);
+          side.push(panel(line(t('+{n} SEASON POINTS', { n: pts }), 'var(--gold)'),
+            ...(bonus ? [line(`${t('POWER STAGE')} +${bonus}`, 'var(--accent-b)')] : []),
+            ...news.map((c) => line(t('NEW CAR UNLOCKED: {car}', { car: c.name }), 'var(--accent-b)'))));
         }
         side.push(button(`${rally.season ? t('BACK TO THE SEASON') : t('NEW RALLY')} ▶`, () => finish('abandon'), true));
         screen.append(columns(cardSide(...side), panel(line(t('FINAL STANDINGS')), standingsTable(rally))));
@@ -388,6 +399,11 @@ export function showRally(host: HTMLElement, services: Services, o: RallyScreen,
     // (SETTINGS in a row of its own, set apart under the rest: not a rally itself)
     const utility = document.createElement('div');
     utility.className = 'menu-utility';
+    if (page === 'home') {
+      const garage = button('', () => finish({ open: 'garage' }));
+      makeTile(garage, 'garage', t('GARAGE'), t('your cars, and the ones still to unlock'));
+      utility.append(garage);
+    }
     const settings = button('', () => finish('settings'));
     makeTile(settings, 'settings', t('SETTINGS'), t('controls, the game, sound and accessibility'));
     utility.append(settings);
