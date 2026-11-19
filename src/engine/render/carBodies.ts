@@ -2690,16 +2690,20 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (let i = 0; i < 3; i++) k.front(9.2, 0.06, 0.1, 1.95 + i * 0.35, front - 0.72, k.all(black));
     for (const side of [-1, 1]) k.front(1, 0.35, 0.1, 3.1, front - 0.62, k.all(amber), side * (w / 2 - 0.8));
     k.front(w, 0.15, 1.2, 1.45, front - 0.4, k.all(black));
-    // at night or in the evening, a black pod of four big round lamps on the front of the bonnet
+    // at night or in the evening, a white pod across the nose between the headlamps, sloping back onto the bonnet,
+    // four round lamps in a row in its face, each in a chrome ring
     if (k.floodlights) {
+      const y0 = bonnet(front + 0.8);
       k.add(profile((s) => {
-        s.moveTo(front + 0.5, bonnet(front + 0.8) - 0.3);
-        s.lineTo(front + 0.5, bonnet(front + 0.8) + 1.6);
-        s.lineTo(front + 1.7, bonnet(front + 1.7) + 1.4);
-        s.lineTo(front + 2.5, bonnet(front + 2.5));
-      }, 7.4, 0.15, 2), [black, black]);
-      for (const x of [-2.7, -0.9, 0.9, 2.7]) {
-        k.add(drum(0.74, 0.1, 'z', x, bonnet(front + 0.8) + 0.65, front + 0.42 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+        s.moveTo(front - 0.7, 3.9);
+        s.lineTo(front - 0.7, y0 + 0.9);
+        s.lineTo(front + 2.6, bonnet(front + 2.6) + 0.15);
+        s.lineTo(front + 2.6, bonnet(front + 2.6) - 0.2);
+        s.lineTo(front + 0.2, 3.9);
+      }, 8.2, 0.25, 3), [k.body, k.body]);
+      for (const x of [-2.85, -0.95, 0.95, 2.85]) {
+        k.add(drum(0.82, 0.1, 'z', x, (3.9 + y0 + 0.9) / 2, front - 0.74 - k.noseZ, 16), [k.chrome, k.chrome, k.chrome], k.nose);
+        k.add(drum(0.68, 0.1, 'z', x, (3.9 + y0 + 0.9) / 2, front - 0.8 - k.noseZ, 16), [k.lamp, k.lamp, k.lamp], k.nose);
       }
     }
     // the tail: tall red lamps up the corners on a black panel, a white bumper
