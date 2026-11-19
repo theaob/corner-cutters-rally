@@ -1042,8 +1042,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
   },
 
   /**
-   * SAETTA 037, 1980s: the last rear-drive car to win the title. Low and wide, a short sloping nose with round
-   * headlamps and four spotlights in a row, a screen curving into a short roof, a long louvred engine deck ending in a
+   * SAETTA 037, 1980s: the last rear-drive car to win the title. Low and wide, a short sloping nose with twin round
+   * headlamps each side of a split grille, a screen curving into a short roof, a long louvred engine deck ending in a
    * wide spoiler grown out of the rear wings; white, with dark blue, light blue and red stripes down the bonnet and along the sides.
    */
   saetta(k) {
@@ -1055,7 +1055,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const light = k.paint(0x3a9ad9);
     const amber = k.paint(0xf29a1a);
     /** the bonnet's height at `z`, from the nose up to the screen */
-    const nose = (z: number) => 3.4 + ((z - front - 0.6) * 1.6) / (-4.2 - front - 0.6);
+    const nose = (z: number) => 3.9 + ((z - front - 0.6) * 1.1) / (-4.2 - front - 0.6);
     /** the engine deck's height at `z`, from the roof down to the tail */
     const deck = (z: number) => 7.2 - ((z - 3.4) * 1.5) / (back - 0.6 - 3.4);
     // the body: the low nose rising to the screen, the waist level past the doors, the long deck falling to the tail
@@ -1068,21 +1068,11 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(4.2, deck(4.2));
       s.quadraticCurveTo(3, 7.2, 2.4, 5.1);
       s.lineTo(-4.2, 5);
-      s.lineTo(front + 0.6, 3.4);
-      s.quadraticCurveTo(front, 3.35, front, 2.8);
+      s.lineTo(front + 0.6, 3.9);
+      s.quadraticCurveTo(front, 3.85, front, 3.3);
       s.lineTo(front, 2.1);
       s.quadraticCurveTo(front, 1.6, front + 0.6, 1.5);
     }, w, 0.6), [k.pods, k.body]);
-    // the front wings, rising over the wheels a little above the bonnet
-    for (const x of [-(w / 2 - 1.3), w / 2 - 1.3]) {
-      k.add(profile((s) => {
-        s.moveTo(front + 1, nose(front + 1) - 0.5);
-        s.quadraticCurveTo(-11.2, 5.0, -8.2, 5.05);
-        s.quadraticCurveTo(-5.4, 5.05, -4.4, 5.0);
-        s.lineTo(-4.4, 3.6);
-        s.lineTo(front + 1, 2.4);
-      }, 2.6, 0.5).translate(x, 0, 0), [k.body, k.body]);
-    }
     // the screen curving up into the roof; the side windows behind it
     k.add(profile((s) => {
       s.moveTo(-4.4, 4.95);
@@ -1153,7 +1143,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         }
       }
     }
-    // and down each side of the bonnet from the nose to the screen
+    // and back along the outer edges of the bonnet from behind the headlamps to the screen
     const flat = (pts: [number, number][], m: THREE.Material) => {
       const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
       const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
@@ -1163,24 +1153,25 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       k.add(g, [m, m]);
     };
     for (const side of [-1, 1]) {
-      for (const [a, b, m] of [[1.1, 1.7, red], [1.9, 2.4, k.trim], [2.55, 2.9, light]] as const) {
-        flat([[side * a, front + 1.1], [side * b, front + 1.1], [side * b, -4.6], [side * a, -4.6]], m);
+      for (const [a, b, m] of [[3.1, 3.45, light], [3.6, 3.95, k.trim], [4.1, 4.85, red]] as const) {
+        flat([[side * a, front + 2.2], [side * b, front + 2.2], [side * b, -4.6], [side * a, -4.6]], m);
       }
     }
-    // the nose: a round headlamp at each corner, four round spotlights in a row between them, amber indicators
-    // under the headlamps, and the black grille low between them over a black splitter
+    // three black vents across the bonnet in front of the screen
+    for (const x of [-2.6, 0, 2.6]) k.box(1.9, 0.12, 0.35, nose(-5.4) + 0.08, -5.4, k.all(black), undefined, x);
+    // the nose: twin round headlamps in chrome rings at each end, a grille of two black openings between them,
+    // a wide black intake under it, amber indicators and small vents under the headlamps
     for (const side of [-1, 1]) {
-      const x = side * (w / 2 - 1.3);
-      k.add(drum(0.72, 0.2, 'z', x, 2.65, front - 0.05 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
-      k.add(drum(0.6, 0.1, 'z', x, 2.65, front - 0.18 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
-      for (const sx of [0.85, 2.55]) {
-        k.add(drum(0.66, 0.45, 'z', side * sx, 2.85, front - 0.3 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
-        k.add(drum(0.54, 0.12, 'z', side * sx, 2.85, front - 0.55 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+      for (const x of [w / 2 - 1.25, w / 2 - 2.7]) {
+        k.add(drum(0.7, 0.2, 'z', side * x, 3.05, front - 0.05 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+        k.add(drum(0.58, 0.1, 'z', side * x, 3.05, front - 0.18 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       }
-      k.front(1.1, 0.32, 0.1, 1.85, front - 0.05, k.all(amber), x);
+      k.front(1.65, 0.75, 0.1, 3.05, front - 0.04, k.all(black), side * 1);
+      k.front(0.9, 0.4, 0.1, 2.0, front - 0.04, k.all(amber), side * (w / 2 - 1.3));
+      k.front(0.8, 0.3, 0.1, 2.0, front - 0.04, k.all(black), side * (w / 2 - 2.5));
     }
-    k.front(6.6, 0.5, 0.12, 1.95, front - 0.05, k.all(black));
-    k.front(w - 0.4, 0.3, 0.8, 1.45, front - 0.1, k.all(black));
+    k.front(5.4, 0.7, 0.1, 2.15, front - 0.04, k.all(black));
+    k.front(w - 0.6, 0.18, 0.4, 1.5, front + 0.1, k.all(black));
     // the tail: a wide black panel with a big round lamp at each end; under it the white bumper with rows of
     // black vent slots either side of a black number plate, twin exhausts below; pale mud flaps
     const lamp = k.paint(0xe2481e);
