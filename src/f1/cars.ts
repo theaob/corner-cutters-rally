@@ -42,6 +42,7 @@ export const CARS: CarSpec[] = [
   { id: 'vortice', name: 'VORTICE EVO', era: '1990s', drive: 'all', unlock: 330, speed: 1.014, pickup: 1.1, turn: 1.04, grip: 1.12, tough: 1.05, paint: { body: '#f4f4f0', stripe: '#16306e' } },
   { id: 'corsaro', name: 'CORSARO GT4', era: '1990s', drive: 'all', unlock: 355, speed: 1.016, pickup: 1.08, turn: 1.03, grip: 1.12, tough: 1.05, paint: { body: '#f4f4f0', stripe: '#d0242a' } },
   { id: 'typhoon', name: 'TYPHOON GT', era: '1990s', drive: 'all', unlock: 380, speed: 1.02, pickup: 1.08, turn: 1.05, grip: 1.12, tough: 1.05, paint: { body: '#1d3c9a', stripe: '#f3c81a' } },
+  { id: 'falco', name: 'FALCO VI', era: '1990s', drive: 'all', unlock: 410, speed: 1.022, pickup: 1.1, turn: 1.05, grip: 1.12, tough: 1.05, paint: { body: '#f4f4f0', stripe: '#d0242a' } },
   { id: 'apex', name: 'APEX R1', era: 'TODAY', drive: 'all', unlock: 560, speed: 1.04, pickup: 1, turn: 1.06, grip: 1.15, tough: 1 },
 ];
 
