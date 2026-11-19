@@ -2220,9 +2220,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.absarc(z, hubY, R, -a, Math.PI + a, false);
       }, 1.2, 0.25, 6).translate(x, 0, 0), [k.body, k.body]);
     }
-    // the colours: deep blue with yellow crescents (no lettering): a big one at the front of each door, a smaller one
-    // on each rear quarter, one sweeping across the bonnet; a yellow banner along the top of the screen, yellow strips
-    // low on the front bumper
+    // the colours: deep blue with a yellow crescent and 333 on each door and across the bonnet (no lettering); a yellow
+    // banner along the top of the screen, yellow strips low on the front bumper
     /** a flat piece in the (z, y) plane on a side at `x` */
     const side2d = (pts: [number, number][], x: number, m: THREE.Material) => {
       k.add(profile((s) => {
@@ -2247,9 +2246,34 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       }
       return pts;
     };
+    /**
+     * a crescent and "333" after it, in yellow, laid out in reading order (u to the right, v up) from u = 0, glyphs `h`
+     * tall, leaning forward; returns the pieces and how long the whole is
+     */
+    const number = (h: number): { pieces: [number, number][][]; len: number } => {
+      const r = h / 2 + 0.15;
+      const pieces = [crescent(r, h / 2, r, r * 0.45)];
+      const wd = h * 0.56;
+      const t = h * 0.19;
+      const lean = 0.2;
+      const gap = h * 0.14;
+      let u = r * 1.31 + gap;
+      const rect = (u0: number, v0: number, u1: number, v1: number): [number, number][] =>
+        [[u0 + lean * v0, v0], [u1 + lean * v0, v0], [u1 + lean * v1, v1], [u0 + lean * v1, v1]];
+      for (let n = 0; n < 3; n++) {
+        // (a 3: top, middle and bottom bars, joined down the right)
+        pieces.push(rect(u, h - t, u + wd, h), rect(u + wd * 0.25, (h - t) / 2, u + wd, (h + t) / 2), rect(u, 0, u + wd, t), rect(u + wd - t, 0, u + wd, h));
+        u += wd + gap;
+      }
+      return { pieces, len: u - gap + lean * h };
+    };
+    // (on each door, centred, reading from the front on the left side and from the back on the right, so it never
+    // reads mirrored)
+    const door = number(2.2);
+    const dz = (axles[0] + reaches[0] + axles[1] - reaches[1]) / 2;
     for (const side of [-1, 1]) {
-      side2d(crescent(-1.9, 3.75, 1.8, 0.85), side * (w / 2 + 0.04), yellow);
-      side2d(crescent(2.6, 4.45, 0.8, 0.34), side * (w / 2 + 0.04), yellow);
+      const at = (u: number) => (side < 0 ? dz - door.len / 2 + u : dz + door.len / 2 - u);
+      for (const piece of door.pieces) side2d(piece.map(([u, v]) => [at(u), 2.55 + v]), side * (w / 2 + 0.04), yellow);
     }
     // (the banner along the top of the screen)
     const sc = (t: number): [number, number] => [-4.7 + 3.4 * t + 0.06, 5.7 + 3.1 * t + 0.06];
@@ -2267,7 +2291,9 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       g.computeVertexNormals();
       k.add(g, [m, m]);
     };
-    onBonnet(crescent(0.6, -8.8, 3.1, 1), yellow);
+    // (across the bonnet, ahead of the scoop, reading from in front of the car)
+    const hood = number(1.8);
+    for (const piece of hood.pieces) onBonnet(piece.map(([u, v]) => [hood.len / 2 - u, -10.9 + v]), yellow);
     // the nose: a wide sloping headlamp at each corner, a black mesh grille between them, the bumper below with a broad
     // black intake, a round fog lamp in a black ring at each corner over a yellow strip, amber indicators above them,
     // a black splitter
