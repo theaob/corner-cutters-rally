@@ -2771,12 +2771,14 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     };
     // the front corners rounded right round seen from above, `NR` in radius: anything out past the curve is pulled in
     const NR = 2.6;
+    /** the nose's half width: a little wider than the body behind, its wings smooth over the front wheels */
+    const HW = w / 2 + 0.2;
     const round = (g: THREE.BufferGeometry, grow = 0) => {
       const pos = g.getAttribute('position');
       for (let n = 0; n < pos.count; n++) {
         const d = Math.max(0, pos.getZ(n) - front);
         if (d >= NR) continue;
-        const m = w / 2 - NR + Math.sqrt(Math.max(0, NR * NR - (NR - d) ** 2)) + grow;
+        const m = HW - NR + Math.sqrt(Math.max(0, NR * NR - (NR - d) ** 2)) + grow;
         if (Math.abs(pos.getX(n)) > m) pos.setX(n, Math.sign(pos.getX(n)) * m);
       }
       g.computeVertexNormals();
@@ -2787,15 +2789,22 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.moveTo(curve[0].x, curve[0].y);
       for (const p of curve.slice(1)) s.lineTo(p.x, p.y);
       for (let n = 1; n <= 10; n++) {
-        const zz = top0 + ((-3.9 - top0) * n) / 10;
+        const zz = top0 + ((-4.25 - top0) * n) / 10;
         s.lineTo(zz, bonnetLine(zz));
       }
-      s.lineTo(-3.9, 1.5);
-      for (let n = 1; n <= 12; n++) {
-        const zz = -3.9 + ((front + 0.6 + 3.9) * n) / 12;
+      s.lineTo(-4.25, 1.5);
+      // (the front wheel's opening, cut clean through)
+      const a = Math.asin((2.25 - 1.5) / 2.85);
+      for (let n = 0; n <= 20; n++) {
+        const t = -a + ((Math.PI + 2 * a) * n) / 20;
+        s.lineTo(-7.4 + 2.85 * Math.cos(t), 2.25 + 2.85 * Math.sin(t));
+      }
+      const z0 = -7.4 - 2.85 * Math.cos(a);
+      for (let n = 1; n <= 8; n++) {
+        const zz = z0 + ((front + 0.6 - z0) * n) / 8;
         s.lineTo(zz, zz > front + 3 ? 1.5 : 1.2 + (0.3 * (zz - front - 0.6)) / 2.4);
       }
-    }, w, 0.75, 8)), [lime, lime]);
+    }, HW * 2, 0.75, 8)), [lime, lime]);
     // the body behind it: level sides, an upright tail
     k.add(profile((s) => {
       s.moveTo(-4.4, 1.5);
@@ -2881,7 +2890,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const hubY = 2.25;
     const axles = [-7.4, 7];
     const reaches = [3.1, 3.4];
-    for (let i = 0; i < 2; i++) for (const x of [-(w / 2 - 0.35), w / 2 - 0.35]) {
+    for (let i = 1; i < 2; i++) for (const x of [-(w / 2 - 0.35), w / 2 - 0.35]) {
       const z = axles[i];
       const reach = reaches[i];
       const m = i === 0 ? lime : blue;
