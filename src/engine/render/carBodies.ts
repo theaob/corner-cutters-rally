@@ -1006,19 +1006,27 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     }
     // a white roundel on each door, for the rally number
     for (const x of [-(w / 2 + 0.06), w / 2 + 0.06]) k.add(drum(1.25, 0.1, 'x', x, 3.6, -1.4, 14), [white, white, white]);
-    // the nose: a black slatted grille with twin round headlamps in chrome rings at each end, a deep blue air dam
-    // with a red and white stripe across it
-    k.front(w - 1, 1.7, 0.2, 3.4, front - 0.05, k.all(black));
-    for (let i = 0; i < 3; i++) k.front(3.2, 0.14, 0.1, 2.9 + i * 0.45, front - 0.17, k.all(k.carbon));
+    // black vent slats on the bonnet's bulge
+    for (const z of [-8.4, -7.7, -7]) k.box(3.4, 0.12, 0.3, bonnet(z) + 0.48, z, k.all(black));
+    // the nose, all its lamps in a row high up: twin round headlamps set into the nose at each end, four round
+    // spotlights between them, amber indicators under the headlamps; the grille a low black slot in the blue air
+    // dam beneath, with a red and white stripe across the dam
+    const amber = k.paint(0xf29a1a);
     for (const side of [-1, 1]) {
-      for (const x of [w / 2 - 1.35, w / 2 - 2.95]) {
-        k.add(drum(0.75, 0.25, 'z', side * x, 3.45, front - 0.2 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
-        k.add(drum(0.62, 0.12, 'z', side * x, 3.45, front - 0.36 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+      for (const x of [w / 2 - 1.15, w / 2 - 2.6]) {
+        k.add(drum(0.72, 0.14, 'z', side * x, 3.5, front - 0.03 - k.noseZ, 14), [black, black, black], k.nose);
+        k.add(drum(0.56, 0.1, 'z', side * x, 3.5, front - 0.1 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       }
+      for (const x of [0.72, 2.0]) {
+        k.add(drum(0.6, 0.4, 'z', side * x, 3.5, front - 0.3 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+        k.add(drum(0.48, 0.12, 'z', side * x, 3.5, front - 0.52 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+      }
+      k.front(1.2, 0.36, 0.1, 2.78, front - 0.05, k.all(amber), side * (w / 2 - 1.5));
     }
     k.front(w + 0.2, 1, 1, 2.1, front - 0.3, k.all(k.trim));
-    k.front(w + 0.2, 0.3, 0.12, 2.25, front - 0.84, k.all(red));
-    k.front(w + 0.2, 0.1, 0.12, 2.48, front - 0.84, k.all(white));
+    k.front(w + 0.2, 0.12, 0.12, 2.52, front - 0.84, k.all(white));
+    k.front(w + 0.2, 0.22, 0.12, 2.34, front - 0.84, k.all(red));
+    k.front(6.4, 0.38, 0.12, 1.86, front - 0.84, k.all(black));
     // the tail: a black panel with red lamps at its ends, the number plate
     k.box(w - 1.2, 1.3, 0.12, 4.4, back + 0.03, k.all(black));
     for (const x of [-(w / 2 - 1.6), w / 2 - 1.6]) k.box(2.4, 1.1, 0.15, 4.4, back + 0.06, k.all(red), undefined, x);
