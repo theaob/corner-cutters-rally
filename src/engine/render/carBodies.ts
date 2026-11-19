@@ -1604,24 +1604,12 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const axles = [-8.2, 7.8];
     const R = 2.8;
     const a = Math.asin((hubY - 1.5) / R);
-    /** the angle on wheel opening `i` where it meets the height-wise cut at `z` (upper half) */
-    const at = (i: number, z: number) => Math.acos((z - axles[i]) / R);
-    const nz = axles[0] - R - 0.05;
-    // the body: a low rounded nose, the bonnet rising to the screen, high hips over the engine, a square tail
-    // (the nose its own piece, its corners rounded off in plan as well as in profile)
+    // the body in one piece: a low rounded nose, the bonnet rising to the screen, high hips over the engine, a
+    // square tail
     k.add(profile((s) => {
       s.moveTo(front + 0.6, 1.5);
-      s.lineTo(nz, 1.5);
-      s.lineTo(nz, bonnet(nz));
-      s.lineTo(front + 1.4, bonnet(front + 1.4));
-      s.quadraticCurveTo(front, 4.85, front, 3.5);
-      s.lineTo(front, 2.2);
-      s.quadraticCurveTo(front, 1.6, front + 0.6, 1.5);
-    }, w, 0.8, 8), [k.pods, k.body]);
-    const mz = nz + 0.3;
-    k.add(profile((s) => {
-      s.moveTo(mz, hubY + R * Math.sin(at(0, mz)));
-      s.absarc(axles[0], hubY, R, at(0, mz), -a, true);
+      s.lineTo(axles[0] - R * Math.cos(a), 1.5);
+      s.absarc(axles[0], hubY, R, Math.PI + a, -a, true);
       s.lineTo(axles[1] - R * Math.cos(a), 1.5);
       s.absarc(axles[1], hubY, R, Math.PI + a, -a, true);
       s.lineTo(back - 0.4, 1.5);
@@ -1630,7 +1618,10 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(back - 0.4, 6.7);
       s.lineTo(4.4, 7.1);
       s.lineTo(-4.6, 5.4);
-      s.lineTo(mz, bonnet(mz));
+      s.lineTo(front + 1.4, bonnet(front + 1.4));
+      s.quadraticCurveTo(front, 5.15, front, 3.5);
+      s.lineTo(front, 2.2);
+      s.quadraticCurveTo(front, 1.6, front + 0.6, 1.5);
     }, w, 0.5, 8), [k.pods, k.body]);
     // the glasshouse: a big raked screen, a short roof, a near-upright small back window
     k.add(profile((s) => {
