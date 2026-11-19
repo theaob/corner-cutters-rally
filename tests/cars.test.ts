@@ -50,7 +50,7 @@ describe('each car body', () => {
 
 describe('the rebuilt cars', () => {
   // (the cars rebuilt one by one after real ones; the rest are the first sketches, still to be replaced)
-  for (const id of ['mini', 'fulvia', 'alpine', 'brisk', 'stiletto', 'volta', 'raia', 'saetta', 'quadra', 'kestrel', 'merlin'] as const) {
+  for (const id of ['mini', 'fulvia', 'alpine', 'brisk', 'stiletto', 'volta', 'raia', 'saetta', 'quadra', 'kestrel', 'merlin', 'vortice'] as const) {
     it(`${id}: its gravel tyres stay inside its bodywork, seen from above`, () => {
       const car = createCarMesh('f1', { body: '#d8323c', stripe: '#f4f4f8', model: id }, true);
       const wheels = car.userData.parts.wheels as THREE.Group[];

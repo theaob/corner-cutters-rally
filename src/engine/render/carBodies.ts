@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 
-export type CarModel = 'mini' | 'fulvia' | 'alpine' | 'brisk' | 'stiletto' | 'volta' | 'raia' | 'saetta' | 'quadra' | 'kestrel' | 'merlin' | 'typhoon' | 'apex';
+export type CarModel = 'mini' | 'fulvia' | 'alpine' | 'brisk' | 'stiletto' | 'volta' | 'raia' | 'saetta' | 'quadra' | 'kestrel' | 'merlin' | 'vortice' | 'typhoon' | 'apex';
 
 type Faces = THREE.Material[];
 
@@ -1752,6 +1752,171 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       wheel: { radius: 2.25, width: 2.7, half: w / 2 - 1.55, rim: '#c9ccd1' },
       tail: { z: back + 0.1, y: 5.3, x: w / 2 - 1.5, w: 2.2, h: 1 },
       exhaust: { x: 1.3, y: 1.75, z: back + 0.7 },
+    };
+  },
+
+  /**
+   * VORTICE EVO, 1990s: the boxy five-door four-wheel-drive hatch that ruled Group A (the Delta Integrale's kind of
+   * car). Square lines, a tall glasshouse, squared-off flares, twin round headlamps either side of a slatted grille,
+   * a wing over the hatch.
+   */
+  vortice(k) {
+    const w = 12.8;
+    const front = -12.4;
+    const back = 11.8;
+    const black = k.paint(0x16171b);
+    const navy = k.paint(0x16306e);
+    const sky = k.paint(0x3fa0dc);
+    const red = k.paint(0xd0242a);
+    const amber = k.paint(0xf29a1a);
+    const waist = 5.7;
+    /** the bonnet's height at `z`, from the nose up to the screen */
+    const bonnet = (z: number) => 5 + ((z - front - 0.4) * 0.7) / (-4.6 - front - 0.4);
+    // the body: a square nose, a short flat bonnet, level sides, a near-upright tail
+    k.add(profile((s) => {
+      s.moveTo(front + 0.4, 1.5);
+      s.lineTo(back - 0.4, 1.5);
+      s.lineTo(back, 2.1);
+      s.lineTo(back, 6.1);
+      s.lineTo(back - 0.4, 6.4);
+      s.lineTo(-4.6, waist);
+      s.lineTo(front + 0.4, 5);
+      s.quadraticCurveTo(front, 5, front, 4.6);
+      s.lineTo(front, 2);
+      s.quadraticCurveTo(front, 1.5, front + 0.4, 1.5);
+    }, w, 0.4, 3), [k.pods, k.body]);
+    // the glasshouse: a raked screen, a long flat roof, a steep hatch
+    k.add(profile((s) => {
+      s.moveTo(-4.7, 5.6);
+      s.lineTo(-1.6, 8.95);
+      s.lineTo(7.3, 8.95);
+      s.lineTo(back - 0.7, 6.35);
+      s.lineTo(back - 0.7, 5.6);
+    }, w - 1.8), [k.glass, k.glass]);
+    k.add(profile((s) => {
+      s.moveTo(-1.8, 8.85);
+      s.lineTo(7.5, 8.85);
+      s.lineTo(7.4, 9.3);
+      s.lineTo(-1.5, 9.3);
+    }, w - 1.5, 0.25, 2), [k.body, k.body]);
+    // the roof wing over the hatch, its lip in the driver's colour (yours gold)
+    k.add(profile((s) => {
+      s.moveTo(6.6, 9.3);
+      s.lineTo(8.2, 9.55);
+      s.lineTo(9.2, 9.5);
+      s.lineTo(9.2, 9.2);
+      s.lineTo(7.6, 8.9);
+    }, w - 1.6, 0.06, 2), [k.body, k.body]);
+    k.box(w - 1.8, 0.16, 0.25, 9.55, 9.15, k.all(k.scoop));
+    // the pillars: screen, door, and a broad rear pillar the stripes run up
+    const px = (w - 1.8) / 2;
+    for (const side of [-1, 1]) {
+      const x = side * px;
+      k.add(profile((s) => {
+        s.moveTo(-4.95, 5.6);
+        s.lineTo(-1.85, 8.95);
+        s.lineTo(-1.35, 8.95);
+        s.lineTo(-4.45, 5.6);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+      k.box(0.3, 3.35, 0.45, 7.27, 1.3, k.all(k.body), undefined, x);
+      k.add(profile((s) => {
+        s.moveTo(4.6, 8.95);
+        s.lineTo(7.3, 8.95);
+        s.lineTo(back - 0.6, 6.35);
+        s.lineTo(back - 0.6, 5.6);
+        s.lineTo(4.6, 5.6);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // squared-off flares over all four wheels, barely proud of the sides
+    const R = 2.85;
+    const hubY = 2.25;
+    const reach = 3.9;
+    const axles = [-7.8, 7.4];
+    for (const z of axles) for (const x of [-(w / 2 - 0.35), w / 2 - 0.35]) {
+      k.add(profile((s) => {
+        const a = Math.asin((hubY - 1.8) / R);
+        s.moveTo(z - reach, 1.8);
+        s.lineTo(z - reach, 5.0);
+        s.lineTo(z - reach + 0.5, 5.45);
+        s.lineTo(z + reach - 0.5, 5.45);
+        s.lineTo(z + reach, 5.0);
+        s.lineTo(z + reach, 1.8);
+        s.absarc(z, hubY, R, -a, Math.PI + a, false);
+      }, 1.2, 0.2, 6).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // the colours: white, a red band low along the doors, and stripes (navy, light blue, red) sweeping up across the
+    // doors, up the rear pillar and over the back of the roof; the same stripes along the bonnet's edges
+    /** a flat piece in the (z, y) plane on a side at `x` */
+    const side2d = (pts: [number, number][], x: number, m: THREE.Material) => {
+      k.add(profile((s) => {
+        s.moveTo(pts[0][0], pts[0][1]);
+        for (const [z, y] of pts.slice(1)) s.lineTo(z, y);
+      }, 0.08).translate(x, 0, 0), [m, m]);
+    };
+    const f0 = axles[0] + reach;
+    const r0 = axles[1] - reach;
+    const stripes = [[0, 0.7, navy], [0.7, 0.98, sky], [0.98, 1.45, red]] as const;
+    const rise = (z: number) => 2.85 + (z - f0) * 0.19;
+    for (const side of [-1, 1]) {
+      const bx = side * (w / 2 + 0.04);
+      side2d([[f0, 1.8], [r0, 1.8], [r0, 2.7], [f0, 2.7]], bx, red);
+      for (const [d0, d1, m] of stripes) {
+        side2d([[f0, rise(f0) + d0], [r0, rise(r0) + d0], [r0, Math.min(waist - 0.05, rise(r0) + d1)], [f0, rise(f0) + d1]], bx, m);
+        // (up the rear pillar)
+        const z0 = 4.8 + d0 * 1.2;
+        const z1 = 4.8 + d1 * 1.2;
+        side2d([[z0, 5.6], [z1, 5.6], [z1 + 2.3, 8.9], [z0 + 2.3, 8.9]], side * (px + 0.18), m);
+      }
+    }
+    // (over the back of the roof)
+    for (const [d0, d1, m] of stripes) k.box(w - 1.5, 0.06, (d1 - d0) * 1.2, 9.33, 4.8 + ((d0 + d1) / 2) * 1.2, k.all(m));
+    const onBonnet = (pts: [number, number][], m: THREE.Material) => {
+      const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
+      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
+      const pos = g.getAttribute('position');
+      for (let n = 0; n < pos.count; n++) pos.setY(n, pos.getY(n) + bonnet(pos.getZ(n)) + 0.08);
+      g.computeVertexNormals();
+      k.add(g, [m, m]);
+    };
+    for (const side of [-1, 1]) {
+      let x0 = 3.4;
+      for (const [d0, d1, m] of stripes) {
+        const dx = (d1 - d0) * 1.2;
+        const a0 = side * x0;
+        const a1 = side * (x0 + dx);
+        onBonnet([[a0, front + 0.6], [a1, front + 0.6], [a1, -4.8], [a0, -4.8]], m);
+        x0 += dx;
+      }
+    }
+    // the nose: a black band with twin round headlamps either side of a slatted grille, a white bumper below with
+    // black intakes, amber indicators at its corners, a black splitter
+    k.front(w - 0.6, 1.3, 0.1, 4.0, front - 0.04, k.all(black));
+    for (const x of [-4.75, -3.35, 3.35, 4.75]) {
+      k.add(drum(0.6, 0.2, 'z', x, 4.0, front - 0.12 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    }
+    for (let i = 0; i < 3; i++) k.front(4.2, 0.12, 0.1, 3.6 + i * 0.4, front - 0.1, k.all(k.body));
+    k.front(w + 0.2, 1.6, 0.8, 2.5, front - 0.2, k.all(k.body));
+    k.front(5.4, 0.7, 0.1, 2.6, front - 0.62, k.all(black));
+    for (const x of [-4.2, 4.2]) {
+      k.front(1.8, 0.6, 0.1, 2.1, front - 0.62, k.all(black), x);
+      k.front(1.1, 0.4, 0.1, 3.0, front - 0.62, k.all(amber), Math.sign(x) * (w / 2 - 0.8));
+    }
+    k.front(w, 0.15, 1.2, 1.5, front - 0.4, k.all(black));
+    // at night or in the evening, four big round lamps across the top of the nose
+    if (k.floodlights) for (const x of [-4.5, -1.5, 1.5, 4.5]) {
+      k.add(drum(0.85, 0.5, 'z', x, 5.15, front - 0.45 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+      k.add(drum(0.72, 0.1, 'z', x, 5.15, front - 0.72 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    }
+    // the tail: red lamps at the corners on a black panel, a white bumper
+    k.box(w - 1, 1.2, 0.12, 4.8, back + 0.03, k.all(black));
+    for (const x of [-(w / 2 - 1.5), w / 2 - 1.5]) k.box(2.6, 1.2, 0.15, 4.8, back + 0.06, k.all(red), undefined, x);
+    k.box(w + 0.2, 1.1, 0.6, 2.3, back + 0.2, k.all(k.body));
+    // red mud flaps behind the wheels
+    for (const z of [-3.7, 11.5]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(red), undefined, x);
+    return {
+      axles: [axles[0], axles[1]],
+      wheel: { radius: 2.25, width: 2.7, half: w / 2 - 1.3, rim: '#f4f4f0' },
+      tail: { z: back + 0.1, y: 4.8, x: w / 2 - 1.5, w: 2.4, h: 1.1 },
     };
   },
 
