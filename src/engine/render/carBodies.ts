@@ -1055,7 +1055,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const light = k.paint(0x3a9ad9);
     const amber = k.paint(0xf29a1a);
     /** the bonnet's height at `z`, from the nose up to the screen */
-    const nose = (z: number) => 4.5 + ((z - front - 0.6) * 0.6) / (-4.2 - front - 0.6);
+    const nose = (z: number) => 4.8 + ((z - front - 0.6) * 0.3) / (-4.2 - front - 0.6);
     /** the engine deck's height at `z`, from the roof down to the tail */
     const deck = (z: number) => 7.2 - ((z - 3.4) * 1.5) / (back - 0.6 - 3.4);
     // the body: the low nose rising to the screen, the waist level past the doors, the long deck falling to the tail
@@ -1067,15 +1067,15 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(back - 0.6, deck(back - 0.6));
       s.lineTo(4.2, deck(4.2));
       s.quadraticCurveTo(3, 7.2, 2.4, 5.1);
-      s.lineTo(-4.2, 5);
-      s.lineTo(front + 0.6, 4.5);
-      s.quadraticCurveTo(front, 4.45, front, 3.9);
+      s.lineTo(-4.2, 5.1);
+      s.lineTo(front + 0.6, 4.8);
+      s.quadraticCurveTo(front, 4.75, front, 4.2);
       s.lineTo(front, 2.1);
       s.quadraticCurveTo(front, 1.6, front + 0.6, 1.5);
     }, w, 0.6), [k.pods, k.body]);
     // the screen curving up into the roof; the side windows behind it
     k.add(profile((s) => {
-      s.moveTo(-4.4, 4.95);
+      s.moveTo(-4.4, 5.05);
       s.quadraticCurveTo(-2.6, 7.3, -0.6, 7.5);
       s.lineTo(3, 7.5);
       s.lineTo(3.8, 6.9);
@@ -1101,23 +1101,23 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(back + 0.3, 8.15);
       s.lineTo(back - 1.2, 8.1);
       s.lineTo(back - 4.2, deck(back - 4.2) + 0.45);
-    }, w + 0.6, 0.1, 2), [k.body, k.body]);
-    for (const x of [-(w / 2 + 0.05), w / 2 + 0.05]) {
+    }, w + 0.4, 0.1, 2), [k.body, k.body]);
+    for (const x of [-(w / 2 - 0.05), w / 2 - 0.05]) {
       k.add(profile((s) => {
         s.moveTo(back - 5.4, deck(back - 5.4) - 0.6);
         s.lineTo(back - 0.4, 5.2);
         s.lineTo(back + 0.3, 5.6);
         s.lineTo(back + 0.3, 8.15);
         s.lineTo(back - 1.4, 8.1);
-      }, 0.9, 0.25, 4).translate(x, 0, 0), [k.body, k.body]);
+      }, 0.6, 0.2, 4).translate(x, 0, 0), [k.body, k.body]);
     }
-    k.box(w + 0.6, 0.18, 0.25, 8.2, back + 0.2, k.all(k.scoop));
+    k.box(w + 0.4, 0.18, 0.25, 8.2, back + 0.2, k.all(k.scoop));
     // blistered arches over all four wheels, each a solid bulge with the wheel's opening
     const R = 2.85;
     const hubY = 2.2;
     const reach = 4.1;
     const axles = [-8.2, 8.4];
-    for (const z of axles) for (const x of [-(w / 2 + 0.05), w / 2 + 0.05]) {
+    for (const z of axles) for (const x of [-(w / 2 - 0.35), w / 2 - 0.35]) {
       const top = z < 0 ? 5.15 : 5.55;
       k.add(profile((s) => {
         const a = Math.asin((hubY - 1.8) / R);
@@ -1128,7 +1128,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.quadraticCurveTo(z + reach - 0.2, top - 0.05, z + reach, 4.4);
         s.lineTo(z + reach, 1.8);
         s.absarc(z, hubY, R, -a, Math.PI + a, false);
-      }, 1.1, 0.3, 10).translate(x, 0, 0), [k.body, k.body]);
+      }, 1.2, 0.2, 8).translate(x, 0, 0), [k.body, k.body]);
     }
     // the stripes along each side: red over dark blue over light blue, on the body and over the arches
     const stripes = [[3.95, 0.6, red], [3.3, 0.4, k.trim], [2.85, 0.3, light]] as const;
@@ -1136,7 +1136,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       const bx = side * (w / 2 + 0.03);
       for (const [y, h, m] of stripes) k.box(0.1, h, axles[1] - axles[0] - 2 * reach, y, (axles[0] + axles[1]) / 2, k.all(m), undefined, bx);
       for (const z of axles) {
-        const x = side * (w / 2 + 0.63);
+        const x = side * (w / 2 + 0.29);
         for (const [y, h, m] of stripes) {
           const open = Math.sqrt(Math.max(0, R * R - (y - h / 2 - hubY) ** 2));
           k.box(0.1, h, reach - open, y, z - (reach + open) / 2, k.all(m), undefined, x);
@@ -1187,7 +1187,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const z of [-3.8, 12.7]) for (const x of [-(w / 2 - 0.9), w / 2 - 0.9]) k.box(1.8, 1.5, 0.2, 1.2, z, k.all(flap), undefined, x);
     return {
       axles: [axles[0], axles[1]],
-      wheel: { radius: 2.2, width: 2.7, half: w / 2 - 0.85, rim: '#c9ccd1' },
+      wheel: { radius: 2.2, width: 2.7, half: w / 2 - 1.2, rim: '#c9ccd1' },
       tail: { z: back + 0.1, y: 4.5, x: w / 2 - 1.3, w: 1.5, h: 1.5 },
     };
   },
