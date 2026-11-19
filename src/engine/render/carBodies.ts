@@ -1055,7 +1055,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const light = k.paint(0x3a9ad9);
     const amber = k.paint(0xf29a1a);
     /** the bonnet's height at `z`, from the nose up to the screen */
-    const nose = (z: number) => 3.9 + ((z - front - 0.6) * 1.1) / (-4.2 - front - 0.6);
+    const nose = (z: number) => 4.5 + ((z - front - 0.6) * 0.6) / (-4.2 - front - 0.6);
     /** the engine deck's height at `z`, from the roof down to the tail */
     const deck = (z: number) => 7.2 - ((z - 3.4) * 1.5) / (back - 0.6 - 3.4);
     // the body: the low nose rising to the screen, the waist level past the doors, the long deck falling to the tail
@@ -1068,8 +1068,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(4.2, deck(4.2));
       s.quadraticCurveTo(3, 7.2, 2.4, 5.1);
       s.lineTo(-4.2, 5);
-      s.lineTo(front + 0.6, 3.9);
-      s.quadraticCurveTo(front, 3.85, front, 3.3);
+      s.lineTo(front + 0.6, 4.5);
+      s.quadraticCurveTo(front, 4.45, front, 3.9);
       s.lineTo(front, 2.1);
       s.quadraticCurveTo(front, 1.6, front + 0.6, 1.5);
     }, w, 0.6), [k.pods, k.body]);
@@ -1118,13 +1118,14 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const reach = 4.1;
     const axles = [-8.2, 8.4];
     for (const z of axles) for (const x of [-(w / 2 + 0.05), w / 2 + 0.05]) {
+      const top = z < 0 ? 5.15 : 5.55;
       k.add(profile((s) => {
         const a = Math.asin((hubY - 1.8) / R);
         s.moveTo(z - reach, 1.8);
         s.lineTo(z - reach, 4.4);
-        s.quadraticCurveTo(z - reach + 0.2, 5.5, z - 2.2, 5.55);
-        s.lineTo(z + 2.2, 5.55);
-        s.quadraticCurveTo(z + reach - 0.2, 5.5, z + reach, 4.4);
+        s.quadraticCurveTo(z - reach + 0.2, top - 0.05, z - 2.2, top);
+        s.lineTo(z + 2.2, top);
+        s.quadraticCurveTo(z + reach - 0.2, top - 0.05, z + reach, 4.4);
         s.lineTo(z + reach, 1.8);
         s.absarc(z, hubY, R, -a, Math.PI + a, false);
       }, 1.1, 0.3, 10).translate(x, 0, 0), [k.body, k.body]);
@@ -1163,14 +1164,14 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     // a wide black intake under it, amber indicators and small vents under the headlamps
     for (const side of [-1, 1]) {
       for (const x of [w / 2 - 1.25, w / 2 - 2.7]) {
-        k.add(drum(0.7, 0.2, 'z', side * x, 3.05, front - 0.05 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
-        k.add(drum(0.58, 0.1, 'z', side * x, 3.05, front - 0.18 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+        k.add(drum(0.7, 0.2, 'z', side * x, 3.4, front - 0.05 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+        k.add(drum(0.58, 0.1, 'z', side * x, 3.4, front - 0.18 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       }
-      k.front(1.65, 0.75, 0.1, 3.05, front - 0.04, k.all(black), side * 1);
-      k.front(0.9, 0.4, 0.1, 2.0, front - 0.04, k.all(amber), side * (w / 2 - 1.3));
-      k.front(0.8, 0.3, 0.1, 2.0, front - 0.04, k.all(black), side * (w / 2 - 2.5));
+      k.front(1.65, 0.8, 0.1, 3.4, front - 0.04, k.all(black), side * 1);
+      k.front(0.9, 0.4, 0.1, 2.3, front - 0.04, k.all(amber), side * (w / 2 - 1.3));
+      k.front(0.8, 0.3, 0.1, 2.3, front - 0.04, k.all(black), side * (w / 2 - 2.5));
     }
-    k.front(5.4, 0.7, 0.1, 2.15, front - 0.04, k.all(black));
+    k.front(5.4, 0.8, 0.1, 2.4, front - 0.04, k.all(black));
     k.front(w - 0.6, 0.18, 0.4, 1.5, front + 0.1, k.all(black));
     // the tail: a wide black panel with a big round lamp at each end; under it the white bumper with rows of
     // black vent slots either side of a black number plate, twin exhausts below; pale mud flaps
