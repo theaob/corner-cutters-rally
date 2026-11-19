@@ -2736,14 +2736,41 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const sky = k.paint(0x7cc8e8);
     const red = k.paint(0xd0242a);
     const waist = 5.8;
-    /** the bonnet's height at `z`, from the nose up to the screen */
-    const bonnet = (z: number) => 4.35 + ((z - front - 1.2) * 1.4) / (-4 - front - 1.2);
-    /** the nose's face below its rounded tip: its z at height `y`, rolling back under toward the bottom */
-    const faceZ = (y: number) => front + 0.7 * ((3.5 - Math.min(3.5, y)) / 2) ** 2;
-    // the nose and bonnet's front corners rounded right round seen from above, `R` in radius: anything out past the
-    // curve is pulled in onto it
+    // the front, seen from the side, is one arch from the bottom of the bumper up into the bonnet: nearly upright low
+    // down, curving back ever flatter over the lamps into a long bonnet rising gently to the screen
+    const top0 = front + 4.5;
+    const curve = new THREE.SplineCurve([
+      new THREE.Vector2(front + 0.6, 1.2), new THREE.Vector2(front + 0.08, 1.7), new THREE.Vector2(front, 2.6),
+      new THREE.Vector2(front + 0.25, 3.7), new THREE.Vector2(front + 1.1, 4.75), new THREE.Vector2(front + 2.5, 5.42),
+      new THREE.Vector2(top0, 5.62),
+    ]).getPoints(48);
+    const bonnetLine = (z: number) => 5.62 + ((z - top0) * 0.18) / (-4 - top0);
+    const tip = curve.reduce((a, p, n) => (p.x < curve[a].x ? n : a), 0);
+    /** the top of the nose and bonnet at `z` */
+    const bonnet = (z: number) => {
+      if (z >= top0) return bonnetLine(z);
+      for (let n = tip + 1; n < curve.length; n++) {
+        const [a, b] = [curve[n - 1], curve[n]];
+        if (z <= b.x) return a.y + ((b.y - a.y) * (z - a.x)) / (b.x - a.x || 1);
+      }
+      return curve[curve.length - 1].y;
+    };
+    /** a band on the arch from height `y0` to `y1`, standing `out` proud of it and `inn` into it, as a side shape */
+    const band = (y0: number, y1: number, out: number, inn: number) => (s: THREE.Shape) => {
+      const pts = curve.filter((p) => p.y >= y0 && p.y <= y1);
+      const normal = (n: number) => {
+        const a = pts[Math.max(0, n - 1)];
+        const b = pts[Math.min(pts.length - 1, n + 1)];
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        return new THREE.Vector2(-(b.y - a.y) / len, (b.x - a.x) / len);
+      };
+      const outer = pts.map((p, n) => p.clone().addScaledVector(normal(n), out));
+      const inner = pts.map((p, n) => p.clone().addScaledVector(normal(n), -inn)).reverse();
+      s.moveTo(outer[0].x, outer[0].y);
+      for (const p of [...outer.slice(1), ...inner]) s.lineTo(p.x, p.y);
+    };
+    // the front corners rounded right round seen from above, `NR` in radius: anything out past the curve is pulled in
     const NR = 2.6;
-    const nz = front + NR + 0.2;
     const round = (g: THREE.BufferGeometry, grow = 0) => {
       const pos = g.getAttribute('position');
       for (let n = 0; n < pos.count; n++) {
@@ -2755,30 +2782,30 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       g.computeVertexNormals();
       return g;
     };
-    // the nose, in lime: sloping down from the bonnet and rounding over to the front, its corners rounded
+    // the nose and bonnet, in lime, back to the screen
     k.add(round(profile((s) => {
-      s.moveTo(front + 0.7, 1.5);
-      for (let n = 1; n <= 12; n++) s.lineTo(front + 0.7 + ((nz - front - 0.7) * n) / 12, 1.5);
-      for (let n = 0; n <= 12; n++) {
-        const zz = nz - ((nz - front - 1.2) * n) / 12;
-        s.lineTo(zz, bonnet(zz));
+      s.moveTo(curve[0].x, curve[0].y);
+      for (const p of curve.slice(1)) s.lineTo(p.x, p.y);
+      for (let n = 1; n <= 10; n++) {
+        const zz = top0 + ((-3.9 - top0) * n) / 10;
+        s.lineTo(zz, bonnetLine(zz));
       }
-      s.quadraticCurveTo(front, 4.35, front, 3.5);
-      for (let n = 1; n <= 8; n++) {
-        const y = 3.5 - (2 * n) / 8;
-        s.lineTo(faceZ(y), y);
+      s.lineTo(-3.9, 1.5);
+      for (let n = 1; n <= 12; n++) {
+        const zz = -3.9 + ((front + 0.6 + 3.9) * n) / 12;
+        s.lineTo(zz, zz > front + 3 ? 1.5 : 1.2 + (0.3 * (zz - front - 0.6)) / 2.4);
       }
     }, w, 0.75, 8)), [lime, lime]);
-    // the body behind it: the bonnet rising to the screen, level sides, an upright tail
+    // the body behind it: level sides, an upright tail
     k.add(profile((s) => {
-      s.moveTo(nz - 0.3, 1.5);
+      s.moveTo(-4.4, 1.5);
       s.lineTo(back - 0.4, 1.5);
       s.lineTo(back, 2.1);
       s.lineTo(back, 5.3);
       s.quadraticCurveTo(back, 6.1, back - 0.8, 6.1);
       s.lineTo(8.6, 6.1);
       s.lineTo(-4, waist);
-      s.lineTo(nz - 0.3, bonnet(nz - 0.3));
+      s.lineTo(-4.4, waist);
     }, w, 0.75, 8), [k.pods, k.body]);
     // the glasshouse: one smooth arc from the raked screen over the domed roof down the sloping hatch, its shoulders
     // rounded in
@@ -2906,7 +2933,6 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const side of [-1, 1]) {
       const bx = side * (w / 2 + 0.04);
       // (lime ahead of the front flare, above it)
-      side2d([[nz - 0.4, 3.2], [axles[0] - 1.1, 4.9], [axles[0], 5.5], [d0, 5.5], [d0, top(d0)], [nz - 0.4, bonnet(nz - 0.4)]], bx, lime);
       side2d([[d0, 1.8], [d0 + 0.45, 1.8], [d0 + 0.45, top(d0 + 0.45)], [d0, top(d0)]], bx, blue);
       side2d([[d0 + 0.45, 1.8], [d0 + 0.75, 1.8], [d0 + 0.75, top(d0 + 0.75)], [d0 + 0.45, top(d0 + 0.45)]], bx, sky);
       // (green low on the door, its top rising toward the front)
@@ -2914,60 +2940,32 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       side2d([[slant(1.8), 1.8], [slant(1.8) + 0.5, 1.8], [slant(top(5)) + 0.5, top(5)], [slant(top(5)), top(5)]], bx, sky);
       side2d([[slant(1.8) + 0.5, 1.8], [d1, 1.8], [d1, 5.5], [back - 0.3, 5.5], [back - 0.3, top(back)], [slant(top(5)) + 0.5, top(5)]], bx, blue);
     }
-    const onBonnet = (pts: [number, number][], m: THREE.Material, lift = 0.08) => {
-      const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
-      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
-      const pos = g.getAttribute('position');
-      for (let n = 0; n < pos.count; n++) pos.setY(n, pos.getY(n) + bonnet(pos.getZ(n)) + lift);
-      g.computeVertexNormals();
-      k.add(g, [m, m]);
-    };
-    const ex = w / 2 - 0.3;
-    onBonnet([[-ex, nz - 0.4], [ex, nz - 0.4], [ex, -4.2], [-ex, -4.2]], lime);
-    onBonnet([[-1.6, front + 1.3], [1.6, front + 1.3], [2.3, -4.2], [-2.3, -4.2]], blue, 0.12);
-    // the nose: big headlamps swept back from the corners, a blue-rimmed black grille between them, the lime bumper
-    // below with a big black trapezoid intake, amber indicators at its corners, a black splitter
+    // a blue band up the middle of the bonnet from over the lamps to the screen
+    k.add(profile((s) => {
+      const zs = Array.from({ length: 16 }, (_, n) => front + 2.3 + ((-4.2 - front - 2.3) * n) / 15);
+      s.moveTo(zs[0], bonnet(zs[0]) + 0.12);
+      for (const zz of zs.slice(1)) s.lineTo(zz, bonnet(zz) + 0.12);
+      for (const zz of zs.reverse()) s.lineTo(zz, bonnet(zz) + 0.02);
+    }, 3.6), [blue, blue]);
+    // the face on the arch: big lamps wrapping round the upper corners into the wings, a dark mesh grille between them,
+    // a lime bar below, then a huge black mesh intake right across, a black splitter under it
     for (const side of [-1, 1]) {
-      // (a big lamp at each corner, its top along the bonnet's edge, swept far back and up into the wing, its
-      // inner end black with a round projector in it, wrapping a little round onto the side)
-      const x = side * (w / 2 - 1.75);
-      const lampG = profile((s) => {
-        s.moveTo(front - 0.04, 3.2);
-        s.lineTo(front - 0.04, 3.65);
-        s.lineTo(front + 0.35, 4.24);
-        s.lineTo(front + 1.2, 4.43);
-        s.lineTo(front + 3.8, bonnet(front + 3.8) + 0.05);
-        s.lineTo(front + 3.8, bonnet(front + 3.8) - 0.3);
-        s.lineTo(front + 0.6, 3.2);
-      }, 3.1).translate(x, 0, 0);
-      k.add(round(lampG, 0.06), [k.lamp, k.lamp]);
-      k.box(1.0, 0.36, 0.08, 3.43, front - 0.1, k.all(black), undefined, side * (w / 2 - 3.2));
-      k.add(drum(0.15, 0.08, 'z', side * (w / 2 - 3.2), 3.43, front - 0.15 - k.noseZ, 12), [k.lamp, k.lamp, k.lamp], k.nose);
+      k.add(round(profile(band(4.0, 5.2, 0.07, 0.15), w / 2 - 2.4).translate(side * (w / 4 + 1.2), 0, 0), 0.07), [k.lamp, k.lamp]);
     }
-    // (the upper grille at the tip, between the lamps)
-    k.front(3.4, 0.5, 0.1, 3.55, front - 0.04, k.all(blue));
-    k.front(3.0, 0.3, 0.1, 3.55, front - 0.08, k.all(black));
-    // (the big black intake in the face below, following its roll under)
-    {
-      k.add(profile((s) => {
-        const ys = Array.from({ length: 9 }, (_, n) => 1.75 + (1.3 * n) / 8);
-        s.moveTo(faceZ(ys[0]) - 0.06, ys[0]);
-        for (const y of ys.slice(1)) s.lineTo(faceZ(y) - 0.06, y);
-        for (const y of ys.reverse()) s.lineTo(faceZ(y) + 0.05, y);
-      }, 7.4), [black, black]);
-    }
-    for (const side of [-1, 1]) k.front(0.9, 0.3, 0.1, 3.15, faceZ(3.15) - 0.03, k.all(k.paint(0xf29a1a)), side * 3.5);
-    slab(-(w / 2 - 0.3), w / 2 - 0.3, front + 0.35, front + 2.6, 2.6, 1.5, 0.45, black);
+    k.add(profile(band(4.05, 5.0, 0.05, 0.1), 4.6), [k.paint(0x2b2e33), k.paint(0x2b2e33)]);
+    k.add(round(profile(band(1.75, 3.45, 0.05, 0.1), 8.6), 0.05), [black, black]);
+    slab(-(w / 2 - 0.4), w / 2 - 0.4, front + 0.35, front + 2.8, 2.6, 1.2, 0.3, black);
     // at night or in the evening, a black pod of four big round lamps on the front of the bonnet
     if (k.floodlights) {
+      const zp = front + 2.4;
       k.add(profile((s) => {
-        s.moveTo(front + 0.5, bonnet(front + 0.8) - 0.3);
-        s.lineTo(front + 0.5, bonnet(front + 0.8) + 1.6);
-        s.lineTo(front + 1.7, bonnet(front + 1.7) + 1.4);
-        s.lineTo(front + 2.5, bonnet(front + 2.5));
+        s.moveTo(zp, bonnet(zp) - 0.3);
+        s.lineTo(zp, bonnet(zp) + 1.5);
+        s.lineTo(zp + 1.2, bonnet(zp + 1.2) + 1.3);
+        s.lineTo(zp + 2, bonnet(zp + 2));
       }, 7.4, 0.15, 2), [black, black]);
       for (const x of [-2.7, -0.9, 0.9, 2.7]) {
-        k.add(drum(0.74, 0.1, 'z', x, bonnet(front + 0.8) + 0.65, front + 0.42 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+        k.add(drum(0.74, 0.1, 'z', x, bonnet(zp) + 0.6, zp - 0.08 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       }
     }
     // the tail: blue, red lamps high at the corners, a blue bumper
