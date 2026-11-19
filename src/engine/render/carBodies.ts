@@ -1598,28 +1598,40 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const red = k.paint(0xd42a2a);
     const amber = k.paint(0xf29a1a);
     /** the bonnet's height at `z`, from the nose up to the screen */
-    const bonnet = (z: number) => 4.85 + ((z - front - 0.8) * 0.55) / (-4.6 - front - 0.8);
+    const bonnet = (z: number) => 5.15 + ((z - front - 0.8) * 0.25) / (-4.6 - front - 0.8);
+    // the wheels sit in openings cut straight into the body: no arches stand out from the sides
+    const hubY = 2.25;
+    const axles = [-8.2, 7.8];
+    const R = 2.8;
+    const a = Math.asin((hubY - 1.5) / R);
+    /** the angle on wheel opening `i` where it meets the height-wise cut at `z` (upper half) */
+    const at = (i: number, z: number) => Math.acos((z - axles[i]) / R);
+    const nz = axles[0] - R - 0.05;
     // the body: a low rounded nose, the bonnet rising to the screen, high hips over the engine, a square tail
     // (the nose its own piece, its corners rounded off in plan as well as in profile)
     k.add(profile((s) => {
       s.moveTo(front + 0.6, 1.5);
-      s.lineTo(front + 3.6, 1.5);
-      s.lineTo(front + 3.6, bonnet(front + 3.6));
+      s.lineTo(nz, 1.5);
+      s.lineTo(nz, bonnet(nz));
       s.lineTo(front + 1.4, bonnet(front + 1.4));
       s.quadraticCurveTo(front, 4.85, front, 3.5);
       s.lineTo(front, 2.2);
       s.quadraticCurveTo(front, 1.6, front + 0.6, 1.5);
-    }, w, 1.4, 8), [k.pods, k.body]);
+    }, w, 0.8, 8), [k.pods, k.body]);
+    const mz = nz + 0.3;
     k.add(profile((s) => {
-      s.moveTo(front + 2.4, 1.5);
+      s.moveTo(mz, hubY + R * Math.sin(at(0, mz)));
+      s.absarc(axles[0], hubY, R, at(0, mz), -a, true);
+      s.lineTo(axles[1] - R * Math.cos(a), 1.5);
+      s.absarc(axles[1], hubY, R, Math.PI + a, -a, true);
       s.lineTo(back - 0.4, 1.5);
       s.lineTo(back, 2.1);
       s.lineTo(back, 6.4);
       s.lineTo(back - 0.4, 6.7);
       s.lineTo(4.4, 7.1);
       s.lineTo(-4.6, 5.4);
-      s.lineTo(front + 2.4, bonnet(front + 2.4));
-    }, w, 0.5, 3), [k.pods, k.body]);
+      s.lineTo(mz, bonnet(mz));
+    }, w, 0.5, 8), [k.pods, k.body]);
     // the glasshouse: a big raked screen, a short roof, a near-upright small back window
     k.add(profile((s) => {
       s.moveTo(-4.7, 5.35);
@@ -1669,26 +1681,6 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     k.box(w - 0.4, 0.2, 0.25, 8.15, back + 0.4, k.all(k.scoop));
     // engine cover louvres
     for (let i = 0; i < 4; i++) k.box(5, 0.1, 0.35, 7.05 - i * 0.03, 5.6 + i * 1.05, k.all(black));
-    // flared arches over all four wheels, barely proud of the body, the rear ones broader
-    const R = 2.9;
-    const hubY = 2.25;
-    const axles = [-8.2, 7.8];
-    const reach = [3.8, 4.2];
-    for (let i = 0; i < 2; i++) for (const x of [-(w / 2 - 0.35), w / 2 - 0.35]) {
-      const z = axles[i];
-      const r = reach[i];
-      const top = i ? 6 : 5.2;
-      k.add(profile((s) => {
-        const a = Math.asin((hubY - 1.8) / R);
-        s.moveTo(z - r, 1.8);
-        s.lineTo(z - r, top - 0.7);
-        s.quadraticCurveTo(z - r, top, z - r + 0.9, top);
-        s.lineTo(z + r - 0.9, top);
-        s.quadraticCurveTo(z + r, top, z + r, top - 0.7);
-        s.lineTo(z + r, 1.8);
-        s.absarc(z, hubY, R, -a, Math.PI + a, false);
-      }, 1.2, 0.2, 4).translate(x, 0, 0), i ? [blue, blue] : [k.body, k.body]);
-    }
     // the colours: white, the back half of the car blue from the doors on, a white notch in the doors, white stripes
     // slanting down and back across the blue ahead of the rear wheels
     /** a flat piece in the (z, y) plane on a side at `x` */
@@ -1700,14 +1692,22 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     };
     /** the top of the body side (under the windows) at `z` */
     const waist = (z: number) => (z < 4.4 ? 5.4 + ((z + 4.6) * 1.7) / 9 : 7.1 - ((z - 4.4) * 0.4) / (back - 0.4 - 4.4)) - 0.15;
-    const r0 = axles[1] - reach[1];
     for (const side of [-1, 1]) {
       const bx = side * (w / 2 + 0.04);
-      side2d([[-3.4, 1.6], [r0, 1.6], [r0, waist(r0)], [-0.6, waist(-0.6)], [-3.4, 3.9]], bx, blue);
-      side2d([[axles[1] + reach[1], 1.6], [back - 0.4, 1.6], [back - 0.4, waist(back - 0.4)], [axles[1] + reach[1], waist(axles[1] + reach[1])]], bx, blue);
+      // (the blue from the doors back, round the rear wheel's opening)
+      k.add(profile((s) => {
+        s.moveTo(-3.4, 1.6);
+        s.lineTo(axles[1] - (R + 0.02) * Math.cos(a), 1.6);
+        s.absarc(axles[1], hubY, R + 0.02, Math.PI + a, -a, true);
+        s.lineTo(back - 0.4, 1.6);
+        s.lineTo(back - 0.4, waist(back - 0.4));
+        s.lineTo(4.4, waist(4.4));
+        s.lineTo(-0.6, waist(-0.6));
+        s.lineTo(-3.4, 3.9);
+      }, 0.08, 0, 12).translate(bx, 0, 0), [blue, blue]);
       // (the white notch cut into the doors)
       side2d([[-2.4, 1.9], [-0.6, 1.9], [-0.6, 3.9], [-2.4, 3.9]], side * (w / 2 + 0.07), white);
-      for (const z0 of [0.3, 1.1, 1.9, 2.7]) {
+      for (const z0 of [-0.4, 0.4, 1.2, 2]) {
         side2d([[z0, waist(z0)], [z0 + 0.4, waist(z0 + 0.4)], [z0 + 2.6, 1.6], [z0 + 2.2, 1.6]], side * (w / 2 + 0.07), white);
       }
       // the black intake in the hip, high ahead of the rear wheel
@@ -1744,7 +1744,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const z of [-4.2, 12.1]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(blue), undefined, x);
     return {
       axles: [axles[0], axles[1]],
-      wheel: { radius: 2.25, width: 2.7, half: w / 2 - 1.3, rim: '#c9ccd1' },
+      wheel: { radius: 2.25, width: 2.7, half: w / 2 - 1.55, rim: '#c9ccd1' },
       tail: { z: back + 0.1, y: 5.3, x: w / 2 - 1.5, w: 2.2, h: 1 },
       exhaust: { x: 1.3, y: 1.75, z: back + 0.7 },
     };
