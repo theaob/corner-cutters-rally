@@ -851,9 +851,9 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     flat([[-rw, -1.3], [rw, -1.3], [rw, 5], [-rw, 5]], roof, orange);
     for (const x of [-0.45, 0.45]) flat([[x - 0.18, -1.3], [x + 0.18, -1.3], [x + 0.18, 5], [x - 0.18, 5]], () => 9.62, k.trim);
     const bw = w / 2 - 0.5;
-    flat([[-bw, -7.6], [bw, -7.6], [bw, -4.5], [-bw, -4.5]], bonnet, k.trim);
+    flat([[-bw, -11.8], [bw, -11.8], [bw, -4.5], [-bw, -4.5]], bonnet, k.trim);
     for (const side of [-1, 1]) {
-      flat([[side * bw, -7.3], [side * bw, -4.7], [side * 1.7, -4.7]], (z) => bonnet(z) + 0.04, orange);
+      flat([[side * bw, -11.4], [side * bw, -4.7], [side * 1.4, -4.7]], (z) => bonnet(z) + 0.04, orange);
     }
     // the same on the boot, the wedges mirrored toward the back window
     flat([[-bw, 8], [bw, 8], [bw, back - 2.1], [-bw, back - 2.1]], () => 5.68, k.trim);
