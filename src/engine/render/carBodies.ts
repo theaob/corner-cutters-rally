@@ -2056,33 +2056,50 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       arc(0, R + 0.1, R + 0.6, 0.3, 0.94, bx, green);
       side2d([[front + 0.7, 2.6], [axles[0] - R - 0.1, 2.6], [axles[0] - R - 0.1, 3.5], [front + 0.9, 3.7]], bx, red);
     }
-    const onBonnet = (pts: [number, number][], m: THREE.Material) => {
+    const onBonnet = (pts: [number, number][], m: THREE.Material, lift = 0.08, depth = 0.08) => {
       const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
-      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
+      const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false }).rotateX(Math.PI / 2);
       const pos = g.getAttribute('position');
-      for (let n = 0; n < pos.count; n++) pos.setY(n, pos.getY(n) + bonnet(pos.getZ(n)) + 0.08);
+      for (let n = 0; n < pos.count; n++) pos.setY(n, pos.getY(n) + bonnet(pos.getZ(n)) + lift);
       g.computeVertexNormals();
       k.add(g, [m, m]);
     };
     for (const side of [-1, 1]) {
-      onBonnet([[side * 4.4, front + 1.5], [side * 5.9, front + 1.5], [side * 5.9, -6.2], [side * 5.3, -5.6]], green);
-      onBonnet([[side * 2.4, front + 1.5], [side * 4.2, front + 1.5], [side * 4.2, front + 3.4], [side * 2.9, front + 2.6]], red);
+      onBonnet([[side * 5.55, front + 1.5], [side * 5.9, front + 1.5], [side * 5.9, -6.2], [side * 5.3, -5.6], [side * 5.3, front + 3.4], [side * 5.55, front + 3.4]], green);
+      onBonnet([[side * 0.7, front + 1.5], [side * 2.4, front + 1.5], [side * 2.4, front + 3.4], [side * 1.1, front + 2.6]], red);
+    }
+    // pop-up headlamps at the bonnet's front corners: folded flush by day (a white lid in a black seam), raised at night
+    // or in the evening, a square lamp facing forward in each, the open well black behind it
+    const pop = { x0: 2.7, x1: 5.2, z0: front + 1.5, z1: front + 3.2 };
+    for (const side of [-1, 1]) {
+      const rect = (x0: number, x1: number, z0: number, z1: number): [number, number][] =>
+        [[side * x0, z0], [side * x1, z0], [side * x1, z1], [side * x0, z1]];
+      if (!k.floodlights) {
+        onBonnet(rect(pop.x0 - 0.12, pop.x1 + 0.12, pop.z0 - 0.12, pop.z1 + 0.12), black, 0.06, 0.06);
+        onBonnet(rect(pop.x0, pop.x1, pop.z0, pop.z1), k.body, 0.1, 0.1);
+      } else {
+        const x = (side * (pop.x0 + pop.x1)) / 2;
+        const wide = pop.x1 - pop.x0;
+        onBonnet(rect(pop.x0, pop.x1, pop.z0 + 0.9, pop.z1), black, 0.06, 0.06);
+        const z = pop.z0 + 0.45;
+        const y = bonnet(z);
+        k.box(wide, 1.35, 0.9, y + 0.62, z, k.all(k.body), undefined, x);
+        k.box(wide - 0.2, 1.05, 0.08, y + 0.62, z - 0.47, k.all(black), undefined, x);
+        k.box(wide - 0.5, 0.75, 0.08, y + 0.62, z - 0.52, k.all(k.lamp), undefined, x);
+      }
     }
     for (const [z, m] of [[-0.55, green], [-0.2, red], [2.6, red], [2.95, green]] as const) k.box(w - 2.6, 0.06, 0.32, 8.6, z, k.all(m));
-    // the nose: a square headlamp set back in a black pod at each corner of the bonnet, black between them, a white
-    // bumper below with two wide black mesh intakes, amber indicators and small slots at its corners, a black splitter
+    // the nose: a slim black grille across its top (the headlamps pop up from the bonnet), a white bumper below with
+    // two wide black mesh intakes, amber indicators and small slots at its corners, a black splitter
+    k.front(w - 3, 0.45, 0.1, 4.0, front - 0.03, k.all(black));
     for (const side of [-1, 1]) {
-      const x = side * (w / 2 - 2.1);
-      k.front(2.7, 1.15, 0.12, 3.95, front - 0.02, k.all(black), x);
-      k.front(1.9, 0.8, 0.1, 3.95, front - 0.08, k.all(k.lamp), x);
       k.front(1.1, 0.4, 0.1, 2.95, front - 0.06, k.all(amber), side * (w / 2 - 1));
       k.front(1.1, 0.4, 0.1, 2.05, front - 0.06, k.all(black), side * (w / 2 - 1));
     }
-    k.front(3.6, 0.55, 0.1, 3.95, front - 0.03, k.all(black));
     k.front(6.6, 0.5, 0.1, 2.95, front - 0.06, k.all(black));
     k.front(6.6, 0.65, 0.1, 2.05, front - 0.06, k.all(black));
     k.front(w - 0.8, 0.15, 1.2, 1.45, front - 0.3, k.all(black));
-    // at night or in the evening, four big round lamps on a bar between the headlamps
+    // at night or in the evening, four big round lamps on a bar across the nose
     if (k.floodlights) {
       k.front(7, 0.3, 1.2, 3.45, front - 0.5, k.all(black));
       for (const x of [-2.55, -0.85, 0.85, 2.55]) {
