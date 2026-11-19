@@ -1771,68 +1771,70 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const amber = k.paint(0xf29a1a);
     const waist = 5.7;
     /** the bonnet's height at `z`, from the nose up to the screen */
-    const bonnet = (z: number) => 5 + ((z - front - 0.4) * 0.7) / (-4.6 - front - 0.4);
+    const bonnet = (z: number) => 4.75 + ((z - front - 0.4) * 0.95) / (-4.7 - front - 0.4);
     // the body: a square nose, a short flat bonnet, level sides, a near-upright tail
     k.add(profile((s) => {
       s.moveTo(front + 0.4, 1.5);
       s.lineTo(back - 0.4, 1.5);
       s.lineTo(back, 2.1);
-      s.lineTo(back, 6.1);
-      s.lineTo(back - 0.4, 6.4);
-      s.lineTo(-4.6, waist);
-      s.lineTo(front + 0.4, 5);
-      s.quadraticCurveTo(front, 5, front, 4.6);
+      s.lineTo(back, 5.55);
+      s.lineTo(back - 0.4, 5.85);
+      s.lineTo(-4.7, waist);
+      s.lineTo(front + 0.4, 4.75);
+      s.quadraticCurveTo(front, 4.75, front, 4.35);
       s.lineTo(front, 2);
       s.quadraticCurveTo(front, 1.5, front + 0.4, 1.5);
     }, w, 0.4, 3), [k.pods, k.body]);
     // the glasshouse: a raked screen, a long flat roof, a steep hatch
     k.add(profile((s) => {
-      s.moveTo(-4.7, 5.6);
-      s.lineTo(-1.6, 8.95);
-      s.lineTo(7.3, 8.95);
-      s.lineTo(back - 0.7, 6.35);
-      s.lineTo(back - 0.7, 5.6);
+      s.moveTo(-4.8, 5.6);
+      s.lineTo(-1.5, 8.75);
+      s.lineTo(7.6, 8.75);
+      s.lineTo(back - 0.5, 5.8);
+      s.lineTo(back - 0.5, 5.6);
     }, w - 1.8), [k.glass, k.glass]);
     k.add(profile((s) => {
-      s.moveTo(-1.8, 8.85);
-      s.lineTo(7.5, 8.85);
-      s.lineTo(7.4, 9.3);
-      s.lineTo(-1.5, 9.3);
+      s.moveTo(-1.7, 8.65);
+      s.lineTo(7.8, 8.65);
+      s.lineTo(7.7, 9.1);
+      s.lineTo(-1.4, 9.1);
     }, w - 1.5, 0.25, 2), [k.body, k.body]);
     // the roof wing over the hatch, its lip in the driver's colour (yours gold)
     k.add(profile((s) => {
-      s.moveTo(6.6, 9.3);
-      s.lineTo(8.2, 9.55);
-      s.lineTo(9.2, 9.5);
-      s.lineTo(9.2, 9.2);
-      s.lineTo(7.6, 8.9);
+      s.moveTo(6.6, 9.1);
+      s.lineTo(8, 9.45);
+      s.lineTo(9, 9.4);
+      s.lineTo(9, 9.1);
+      s.lineTo(7.8, 8.7);
     }, w - 1.6, 0.06, 2), [k.body, k.body]);
-    k.box(w - 1.8, 0.16, 0.25, 9.55, 9.15, k.all(k.scoop));
+    k.box(w - 1.8, 0.16, 0.25, 9.45, 8.95, k.all(k.scoop));
     // the pillars: screen, door, and a broad rear pillar the stripes run up
     const px = (w - 1.8) / 2;
     for (const side of [-1, 1]) {
       const x = side * px;
       k.add(profile((s) => {
-        s.moveTo(-4.95, 5.6);
-        s.lineTo(-1.85, 8.95);
-        s.lineTo(-1.35, 8.95);
-        s.lineTo(-4.45, 5.6);
+        s.moveTo(-5.05, 5.6);
+        s.lineTo(-1.75, 8.75);
+        s.lineTo(-1.25, 8.75);
+        s.lineTo(-4.55, 5.6);
       }, 0.3).translate(x, 0, 0), [k.body, k.body]);
-      k.box(0.3, 3.35, 0.45, 7.27, 1.3, k.all(k.body), undefined, x);
+      k.box(0.3, 3.15, 0.45, 7.17, 2.2, k.all(k.body), undefined, x);
       k.add(profile((s) => {
-        s.moveTo(4.6, 8.95);
-        s.lineTo(7.3, 8.95);
-        s.lineTo(back - 0.6, 6.35);
-        s.lineTo(back - 0.6, 5.6);
-        s.lineTo(4.6, 5.6);
+        s.moveTo(6.9, 8.75);
+        s.lineTo(7.6, 8.75);
+        s.lineTo(back - 0.4, 5.8);
+        s.lineTo(back - 0.4, 5.6);
+        s.lineTo(6.9, 5.6);
       }, 0.3).translate(x, 0, 0), [k.body, k.body]);
     }
     // squared-off flares over all four wheels, barely proud of the sides
     const R = 2.85;
     const hubY = 2.25;
-    const reach = 3.9;
-    const axles = [-7.8, 7.4];
-    for (const z of axles) for (const x of [-(w / 2 - 0.35), w / 2 - 0.35]) {
+    const axles = [-7.6, 8.4];
+    const reaches = [3.7, 3.2];
+    for (let i = 0; i < 2; i++) for (const x of [-(w / 2 - 0.35), w / 2 - 0.35]) {
+      const z = axles[i];
+      const reach = reaches[i];
       k.add(profile((s) => {
         const a = Math.asin((hubY - 1.8) / R);
         s.moveTo(z - reach, 1.8);
@@ -1853,23 +1855,21 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         for (const [z, y] of pts.slice(1)) s.lineTo(z, y);
       }, 0.08).translate(x, 0, 0), [m, m]);
     };
-    const f0 = axles[0] + reach;
-    const r0 = axles[1] - reach;
+    const f0 = axles[0] + reaches[0];
+    const r0 = axles[1] - reaches[1];
     const stripes = [[0, 0.7, navy], [0.7, 0.98, sky], [0.98, 1.45, red]] as const;
-    const rise = (z: number) => 2.85 + (z - f0) * 0.19;
+    const rise = (z: number) => 2.85 + (z - f0) * 0.15;
     for (const side of [-1, 1]) {
       const bx = side * (w / 2 + 0.04);
       side2d([[f0, 1.8], [r0, 1.8], [r0, 2.7], [f0, 2.7]], bx, red);
       for (const [d0, d1, m] of stripes) {
         side2d([[f0, rise(f0) + d0], [r0, rise(r0) + d0], [r0, Math.min(waist - 0.05, rise(r0) + d1)], [f0, rise(f0) + d1]], bx, m);
         // (up the rear pillar)
-        const z0 = 4.8 + d0 * 1.2;
-        const z1 = 4.8 + d1 * 1.2;
-        side2d([[z0, 5.6], [z1, 5.6], [z1 + 2.3, 8.9], [z0 + 2.3, 8.9]], side * (px + 0.18), m);
+        side2d([[7 + d0 * 1.6, 5.6], [7 + d1 * 1.6, 5.6], [6.95 + d1 * 0.45, 8.7], [6.95 + d0 * 0.45, 8.7]], side * (px + 0.18), m);
       }
     }
     // (over the back of the roof)
-    for (const [d0, d1, m] of stripes) k.box(w - 1.5, 0.06, (d1 - d0) * 1.2, 9.33, 4.8 + ((d0 + d1) / 2) * 1.2, k.all(m));
+    for (const [d0, d1, m] of stripes) k.box(w - 1.5, 0.06, (d1 - d0) * 1.2, 9.13, 4.6 + ((d0 + d1) / 2) * 1.2, k.all(m));
     const onBonnet = (pts: [number, number][], m: THREE.Material) => {
       const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
       const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
@@ -1915,7 +1915,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const x of [-(w / 2 - 1.5), w / 2 - 1.5]) k.box(2.6, 1.2, 0.15, 4.8, back + 0.06, k.all(red), undefined, x);
     k.box(w + 0.2, 1.1, 0.6, 2.3, back + 0.2, k.all(k.body));
     // red mud flaps behind the wheels
-    for (const z of [-3.7, 11.5]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(red), undefined, x);
+    for (const z of [-3.6, 11.65]) for (const x of [-(w / 2 - 1.1), w / 2 - 1.1]) k.box(1.8, 1.6, 0.2, 1.2, z, k.all(red), undefined, x);
     return {
       axles: [axles[0], axles[1]],
       wheel: { radius: 2.25, width: 2.7, half: w / 2 - 1.3, rim: '#f4f4f0' },
