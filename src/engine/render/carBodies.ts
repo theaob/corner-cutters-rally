@@ -1647,15 +1647,16 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(2.7, 8.7);
       s.lineTo(-1.5, 8.7);
     }, w - 1.7, 0.25, 2), [k.body, k.body]);
-    // the roof intake at the back of the roof, reaching out over the back window
+    // the roof intake at the back of the roof, its mouth facing forward, its back sloping down over the back window
     k.add(profile((s) => {
-      s.moveTo(1.6, 8.6);
-      s.lineTo(2.4, 9.15);
-      s.lineTo(5.6, 9.15);
-      s.lineTo(5.6, 7.6);
+      s.moveTo(1.4, 8.6);
+      s.lineTo(1.4, 9.3);
+      s.lineTo(4.4, 9.3);
+      s.lineTo(5.8, 7.6);
       s.lineTo(2.6, 8.3);
+      s.lineTo(2.6, 8.6);
     }, 4.2, 0.12, 2), [blue, blue]);
-    k.box(3.6, 0.9, 0.1, 8.35, 5.65, k.all(black));
+    k.box(3.6, 0.5, 0.1, 8.95, 1.33, k.all(black));
     for (const side of [-1, 1]) {
       const x = side * (w - 2) / 2;
       // (the screen pillars; the broad rear quarter, solid from the doors back, a small window high in it)
