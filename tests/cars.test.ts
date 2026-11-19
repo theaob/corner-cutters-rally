@@ -20,7 +20,7 @@ describe('the garage lineup', () => {
   it('unlocks by career points', () => {
     expect(unlockedCars(0).map((c) => c.id)).toEqual(['mini']);
     expect(unlockedCars(110).map((c) => c.id)).toEqual(['mini', 'fulvia', 'alpine', 'brisk', 'stiletto']);
-    expect(nextCar(110)?.id).toBe('quadra');
+    expect(nextCar(110)?.id).toBe('volta');
     expect(nextCar(10_000)).toBeUndefined();
   });
 });
@@ -48,7 +48,7 @@ describe('each car body', () => {
 
 describe('the rebuilt cars', () => {
   // (the cars rebuilt one by one after real ones; the rest are the first sketches, still to be replaced)
-  for (const id of ['mini', 'fulvia', 'alpine', 'brisk', 'stiletto'] as const) {
+  for (const id of ['mini', 'fulvia', 'alpine', 'brisk', 'stiletto', 'volta'] as const) {
     it(`${id}: its gravel tyres stay inside its bodywork, seen from above`, () => {
       const car = createCarMesh('f1', { body: '#d8323c', stripe: '#f4f4f8', model: id }, true);
       const wheels = car.userData.parts.wheels as THREE.Group[];

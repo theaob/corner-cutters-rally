@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 
-export type CarModel = 'mini' | 'fulvia' | 'alpine' | 'brisk' | 'stiletto' | 'quadra' | 'typhoon' | 'apex';
+export type CarModel = 'mini' | 'fulvia' | 'alpine' | 'brisk' | 'stiletto' | 'volta' | 'quadra' | 'typhoon' | 'apex';
 
 type Faces = THREE.Material[];
 
@@ -726,6 +726,140 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       axles: [-7.6, 7.4],
       wheel: { radius: 2.15, width: 2.6, half: w / 2 - 0.85, rim: '#e8b21a' },
       tail: { z: back + 0.1, y: 4.5, x: w / 2 - 1.5, w: 1.5, h: 1.1 },
+    };
+  },
+
+  /**
+   * VOLTA 2000, after the Fiat 131 Abarth that won the world championship three times (1977, 1978, 1980): a plain
+   * three-box saloon made fierce, square and upright with a flat bonnet and boot, big blistered flares, a spoiler on
+   * the roof's edge and one on the boot, four round headlamps in a black grille and four spotlights in white covers on
+   * the bumper. Its own paint, after its famous works colours: white, the sills and the bumpers' feet green, a green
+   * stripe with an orange one inside it slanting up behind each door, gold wheels; the roof's spoiler in the driver's
+   * colour (yours gold).
+   */
+  volta(k) {
+    const w = 11.4;
+    const front = -14.6;
+    const back = 14.6;
+    const black = k.paint(0x16171b);
+    const white = k.paint(0xf4f4f0);
+    const orange = k.paint(0xf2662a);
+    const red = k.paint(0xd8322a);
+    // the body: a square nose, the bonnet flat, the waist level to a flat boot and a square tail
+    k.add(profile((s) => {
+      s.moveTo(front + 0.5, 1.7);
+      s.lineTo(back - 0.5, 1.7);
+      s.lineTo(back, 2.3);
+      s.lineTo(back, 5.2);
+      s.lineTo(back - 0.4, 5.6);
+      s.lineTo(-4.2, 5.6);
+      s.lineTo(front + 0.4, 5.35);
+      s.lineTo(front, 5);
+      s.lineTo(front, 2.2);
+    }, w, 0.4, 2), [k.pods, k.body]);
+    // the glasshouse: an upright screen, a long flat roof, a raked back window
+    k.add(profile((s) => {
+      s.moveTo(-4.3, 5.55);
+      s.lineTo(-1.6, 9);
+      s.lineTo(5, 9);
+      s.lineTo(7.6, 5.55);
+    }, w - 1.6), [k.glass, k.glass]);
+    // the roof in the body colour, and the pillars: the screen's, the door's, the thick rear one
+    k.add(profile((s) => {
+      s.moveTo(-1.8, 8.9);
+      s.lineTo(5.2, 8.9);
+      s.lineTo(5.2, 9.5);
+      s.lineTo(-1.5, 9.5);
+    }, w - 1.3, 0.25, 2), [k.body, k.body]);
+    for (const x of [-(w - 1.6) / 2, (w - 1.6) / 2]) {
+      k.add(profile((s) => {
+        s.moveTo(-4.5, 5.55);
+        s.lineTo(-1.8, 9);
+        s.lineTo(-1.3, 9);
+        s.lineTo(-4, 5.55);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+      k.add(profile((s) => {
+        s.moveTo(1.9, 5.55);
+        s.lineTo(1.9, 9);
+        s.lineTo(2.3, 9);
+        s.lineTo(2.3, 5.55);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+      k.add(profile((s) => {
+        s.moveTo(4.6, 9);
+        s.lineTo(5.1, 9);
+        s.lineTo(8.1, 5.55);
+        s.lineTo(6.2, 5.55);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // the spoiler on the roof's back edge (in the driver's colour), and the one along the boot's tail
+    k.add(profile((s) => {
+      s.moveTo(4, 9.45);
+      s.lineTo(5.6, 9.4);
+      s.lineTo(5.9, 9.9);
+      s.lineTo(4.4, 9.85);
+    }, w - 1.6, 0.1, 2), [k.scoop, k.scoop]);
+    k.add(profile((s) => {
+      s.moveTo(back - 2, 5.6);
+      s.lineTo(back - 0.2, 5.6);
+      s.lineTo(back, 6.5);
+      s.lineTo(back - 0.6, 6.5);
+    }, w - 0.8, 0.15, 2), [k.body, k.body]);
+    // big blistered flares over all four wheels
+    for (const z of [-8.9, 8.3]) for (const x of [-(w / 2 + 0.1), w / 2 + 0.1]) {
+      k.add(profile((s) => {
+        s.moveTo(z - 3.5, 1.8);
+        s.lineTo(z - 3.5, 3.6);
+        s.quadraticCurveTo(z - 3.4, 5.7, z - 1.6, 5.75);
+        s.lineTo(z + 1.6, 5.75);
+        s.quadraticCurveTo(z + 3.4, 5.7, z + 3.5, 3.6);
+        s.lineTo(z + 3.5, 1.8);
+        s.lineTo(z + 2.9, 1.8);
+        s.lineTo(z + 2.9, 3.6);
+        s.quadraticCurveTo(z + 2.8, 5.2, z + 1.4, 5.25);
+        s.lineTo(z - 1.4, 5.25);
+        s.quadraticCurveTo(z - 2.8, 5.2, z - 2.9, 3.6);
+        s.lineTo(z - 2.9, 1.8);
+      }, 1, 0.25, 4).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // the works colours: the sills green, and a green stripe slanting up behind each door with an orange one inside it
+    for (const side of [-1, 1]) {
+      const x = side * (w / 2 + 0.03);
+      k.box(0.1, 1, back - front - 1.4, 2.3, 0, k.all(k.trim), undefined, x);
+      for (const [z0, z1, m] of [[0.4, 2.6, k.trim], [-0.3, 0.3, orange]] as const) {
+        k.add(profile((s) => {
+          s.moveTo(z0, 2.8);
+          s.lineTo(z1, 2.8);
+          s.lineTo(z1 + 2.8, 5.5);
+          s.lineTo(z0 + 2.8, 5.5);
+        }, 0.1).translate(side * (w / 2 + 0.05), 0, 0), [m, m]);
+      }
+    }
+    // a white roundel on each front door, for the rally number
+    for (const x of [-(w / 2 + 0.06), w / 2 + 0.06]) k.add(drum(1.2, 0.1, 'x', x, 3.8, -2.6, 14), [white, white, white]);
+    // the nose: a black grille across it with two round headlamps in chrome rings at each end, a bumper with a green
+    // foot, four spotlights in white covers standing on it
+    k.front(w - 1.2, 1.9, 0.2, 4.25, front - 0.05, k.all(black));
+    const lamp = (x: number, y: number, z: number, r: number, depth: number, shell: THREE.Material, lens: THREE.Material) => {
+      k.add(drum(r, depth, 'z', x, y, z + depth / 2 - k.noseZ, 14), [shell, shell, shell], k.nose);
+      k.add(drum(r - 0.12, 0.12, 'z', x, y, z - 0.04 - k.noseZ, 14), [lens, lens, lens], k.nose);
+    };
+    for (const side of [-1, 1]) {
+      for (const x of [w / 2 - 1.4, w / 2 - 3.05]) lamp(side * x, 4.3, front - 0.2, 0.7, 0.2, k.chrome, k.lamp);
+      for (const x of [1.25, 3.7]) lamp(side * x, 3.05, front - 1.1, 0.8, 0.6, black, white);
+    }
+    k.front(w + 0.2, 0.5, 0.8, 2.45, front - 0.3, k.all(black));
+    k.front(w, 0.8, 0.7, 1.8, front - 0.25, k.all(k.trim));
+    // the tail: big tail-lamp clusters either side of a black panel, a black bumper, the number plate
+    k.box(w - 1.4, 1.3, 0.12, 4.2, back + 0.03, k.all(black));
+    k.box(w + 0.2, 0.6, 0.6, 2.2, back + 0.2, k.all(black));
+    k.box(3, 0.9, 0.12, 3.1, back + 0.1, k.all(white));
+    for (const x of [-(w / 2 - 1.5), w / 2 - 1.5]) k.box(2.4, 1.3, 0.15, 4.2, back + 0.06, k.all(red), undefined, x);
+    // mud flaps behind the wheels
+    for (const z of [-5.1, 11.9]) for (const x of [-(w / 2 - 0.9), w / 2 - 0.9]) k.box(1.8, 1.6, 0.2, 1.3, z, k.all(black), undefined, x);
+    return {
+      axles: [-8.9, 8.3],
+      wheel: { radius: 2.2, width: 2.6, half: w / 2 - 0.85, rim: '#d8a628' },
+      tail: { z: back + 0.12, y: 4.2, x: w / 2 - 1.5, w: 2.2, h: 1.1 },
     };
   },
 
