@@ -2426,7 +2426,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(back + 0.1, 8.5);
       s.lineTo(back + 0.1, 8.1);
       s.lineTo(back - 2.7, 7.9);
-    }, w - 1.2, 0.08, 3), [k.body, k.body]);
+    }, w - 1.2, 0.08, 3), [white, white]);
     k.box(w - 1.4, 0.16, 0.22, 8.56, back + 0.05, k.all(k.scoop));
     for (const x of [-(w / 2 - 0.55), w / 2 - 0.55]) k.box(0.15, 1.9, 3.2, 8.0, back - 1.3, k.all(k.body), undefined, x);
     for (const x of [-(w / 2 - 2.2), w / 2 - 2.2]) k.box(0.35, 2.0, 0.8, 7.0, back - 1.5, k.all(k.body), undefined, x);
@@ -2480,6 +2480,24 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         side2d(stripe(r1, r2, d0, d1, 0, flareTop), side * (w / 2 + 0.3), m);
         side2d(stripe(r1, r2, d0, d1, flareTop, 9), side * (w / 2 + 0.04), m);
       }
+    }
+    // the white front: the bonnet ahead of the vents, the tops of the front flares, the nose above the headlamps; the
+    // dark stripe starts on the front flare behind the white
+    const onBonnet = (pts: [number, number][], m: THREE.Material) => {
+      const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
+      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2);
+      const pos = g.getAttribute('position');
+      for (let n = 0; n < pos.count; n++) pos.setY(n, pos.getY(n) + bonnet(pos.getZ(n)) + 0.08);
+      g.computeVertexNormals();
+      k.add(g, [m, m]);
+    };
+    const ex = w / 2 - 0.3;
+    onBonnet([[-ex, front + 0.3], [ex, front + 0.3], [ex, -8.9], [ex - 1, -8.5], [-(ex - 1), -8.5], [-ex, -8.9]], white);
+    k.front(w - 0.8, 0.35, 0.1, 4.97, front - 0.03, k.all(white));
+    for (const side of [-1, 1]) {
+      const fx = side * (w / 2 + 0.3);
+      side2d([[axles[0] - reaches[0] + 0.2, 5.15], [-8.6, 5.15], [-8.6, 5.5], [axles[0] - reaches[0] + 0.2, 5.5]], fx, white);
+      side2d([[-8.4, 5.2], [axles[0] + reaches[0], 5.15], [axles[0] + reaches[0], 5.5], [-8.4, 5.5]], fx, black);
     }
     // the nose: slim headlamps either side of a slim black grille, a red bumper below with a big grey mesh intake in
     // the middle, black slots at its corners, amber indicators over them, a black splitter
