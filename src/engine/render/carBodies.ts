@@ -2952,8 +2952,9 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const side of [-1, 1]) {
       k.add(round(profile(band(4.0, 5.2, 0.07, 0.15), w / 2 - 2.4).translate(side * (w / 4 + 1.2), 0, 0), 0.07), [k.lamp, k.lamp]);
     }
-    k.add(profile(band(4.05, 5.0, 0.05, 0.1), 4.6), [k.paint(0x2b2e33), k.paint(0x2b2e33)]);
-    k.add(round(profile(band(1.75, 3.45, 0.05, 0.1), 8.6), 0.05), [black, black]);
+    // (the grille and intake on the nose, which tears off in a big hit)
+    k.add(profile(band(4.05, 5.0, 0.05, 0.1), 4.6).translate(0, 0, -k.noseZ), [k.paint(0x2b2e33), k.paint(0x2b2e33)], k.nose);
+    k.add(round(profile(band(1.75, 3.45, 0.05, 0.1), 8.6), 0.05).translate(0, 0, -k.noseZ), [black, black], k.nose);
     slab(-(w / 2 - 0.4), w / 2 - 0.4, front + 0.35, front + 2.8, 2.6, 1.2, 0.3, black);
     // at night or in the evening, a black pod of four big round lamps on the front of the bonnet
     if (k.floodlights) {
