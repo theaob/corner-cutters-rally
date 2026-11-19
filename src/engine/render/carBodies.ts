@@ -1043,15 +1043,14 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
 
   /**
    * SAETTA 037, 1980s: the last rear-drive car to win the title. Low and wide, a short sloping nose with round
-   * headlamps and four spotlights in a row, a screen curving into a short roof, a long engine deck under a big wing
-   * on stalks; white, with dark blue, light blue and red stripes down the bonnet and along the sides.
+   * headlamps and four spotlights in a row, a screen curving into a short roof, a long louvred engine deck ending in a
+   * wide spoiler grown out of the rear wings; white, with dark blue, light blue and red stripes down the bonnet and along the sides.
    */
   saetta(k) {
     const w = 12;
     const front = -13.4;
     const back = 13.4;
     const black = k.paint(0x16171b);
-    const white = k.paint(0xf4f4f0);
     const red = k.paint(0xd42a2a);
     const light = k.paint(0x3a9ad9);
     const amber = k.paint(0xf29a1a);
@@ -1104,16 +1103,25 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       const z = 5.4 + i * 0.9;
       k.box(w - 4.4, 0.16, 0.4, deck(z) + 0.1, z, k.all(black));
     }
-    // the big wing on two stalks over the tail, its lip in the driver's colour (yours gold)
-    for (const x of [-3.4, 3.4]) k.box(0.4, 2.4, 0.9, deck(back - 1.2) + 1, back - 1.2, k.all(white), undefined, x);
+    // the spoiler: a wide blade across the tail, growing out of the rear wings on each side, its lip in the
+    // driver's colour (yours gold)
     k.add(profile((s) => {
-      s.moveTo(back - 2.8, 7.9);
-      s.quadraticCurveTo(back - 2.6, 8.45, back - 1.4, 8.45);
-      s.lineTo(back + 0.2, 8.2);
-      s.lineTo(back + 0.2, 7.9);
-    }, w - 0.4, 0.05, 4), [k.body, k.body]);
-    k.box(w - 0.4, 0.35, 0.2, 8.4, back + 0.15, k.all(k.scoop));
-    for (const x of [-(w / 2 - 0.25), w / 2 - 0.25]) k.box(0.2, 1.3, 3.4, 8, back - 1.2, k.all(white), undefined, x);
+      s.moveTo(back - 4.2, deck(back - 4.2) + 0.1);
+      s.lineTo(back + 0.3, 7.75);
+      s.lineTo(back + 0.3, 8.15);
+      s.lineTo(back - 1.2, 8.1);
+      s.lineTo(back - 4.2, deck(back - 4.2) + 0.45);
+    }, w + 0.6, 0.1, 2), [k.body, k.body]);
+    for (const x of [-(w / 2 + 0.05), w / 2 + 0.05]) {
+      k.add(profile((s) => {
+        s.moveTo(back - 5.4, deck(back - 5.4) - 0.6);
+        s.lineTo(back - 0.4, 5.2);
+        s.lineTo(back + 0.3, 5.6);
+        s.lineTo(back + 0.3, 8.15);
+        s.lineTo(back - 1.4, 8.1);
+      }, 0.9, 0.25, 4).translate(x, 0, 0), [k.body, k.body]);
+    }
+    k.box(w + 0.6, 0.18, 0.25, 8.2, back + 0.2, k.all(k.scoop));
     // blistered arches over all four wheels, each a solid bulge with the wheel's opening
     const R = 2.85;
     const hubY = 2.2;
@@ -1173,19 +1181,22 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     }
     k.front(6.6, 0.5, 0.12, 1.95, front - 0.05, k.all(black));
     k.front(w - 0.4, 0.3, 0.8, 1.45, front - 0.1, k.all(black));
-    // the tail: a black panel with two round red lamps each side, the number plate
-    k.box(w - 1.4, 1.5, 0.12, 4, back + 0.03, k.all(black));
-    for (const side of [-1, 1]) for (const x of [w / 2 - 1.5, w / 2 - 2.8]) {
-      k.add(drum(0.55, 0.15, 'z', side * x, 4, back + 0.1, 12), [red, red, red]);
+    // the tail: a wide black panel with a big round lamp at each end; under it the white bumper with rows of
+    // black vent slots either side of a black number plate, twin exhausts below; pale mud flaps
+    const lamp = k.paint(0xe2481e);
+    k.box(w - 1, 1.7, 0.12, 4.5, back + 0.03, k.all(black));
+    for (const x of [-(w / 2 - 1.3), w / 2 - 1.3]) k.add(drum(0.75, 0.25, 'z', x, 4.5, back + 0.12, 14), [lamp, lamp, lamp]);
+    for (const side of [-1, 1]) for (let i = 0; i < 7; i++) {
+      k.box(0.16, 1, 0.1, 2.85, back + 0.03, k.all(black), undefined, side * (1.9 + i * 0.5));
     }
-    k.box(3, 0.9, 0.12, 2.6, back + 0.06, k.all(white));
-    k.box(w + 0.2, 0.5, 0.5, 1.8, back + 0.1, k.all(black));
-    // mud flaps behind the wheels
-    for (const z of [-3.8, 12.7]) for (const x of [-(w / 2 - 0.9), w / 2 - 0.9]) k.box(1.8, 1.5, 0.2, 1.2, z, k.all(black), undefined, x);
+    k.box(2.8, 0.8, 0.1, 2.9, back + 0.05, k.all(black));
+    for (const x of [0.9, 1.5]) k.add(drum(0.25, 0.8, 'z', x, 1.75, back + 0.1, 8), [k.chrome, k.chrome, k.dark]);
+    const flap = k.paint(0xd8cfae);
+    for (const z of [-3.8, 12.7]) for (const x of [-(w / 2 - 0.9), w / 2 - 0.9]) k.box(1.8, 1.5, 0.2, 1.2, z, k.all(flap), undefined, x);
     return {
       axles: [axles[0], axles[1]],
       wheel: { radius: 2.2, width: 2.7, half: w / 2 - 0.85, rim: '#c9ccd1' },
-      tail: { z: back + 0.1, y: 4, x: w / 2 - 2.1, w: 2.4, h: 1 },
+      tail: { z: back + 0.1, y: 4.5, x: w / 2 - 1.3, w: 1.5, h: 1.5 },
     };
   },
 
