@@ -19,6 +19,7 @@ import { aiPaceFor, paceRanks, type Difficulty } from './difficulty';
 import { newRace, stepRace } from './raceControl';
 import { stageSplits, type Track } from './racing';
 import { CREWS, SCHEMES, crewById, schemeById, type Scheme } from './crews';
+import { carById } from './cars';
 import type { WeatherId } from './weather';
 import { driverName } from './profile';
 
@@ -96,8 +97,10 @@ export const rallyById = (id: string | null | undefined) => RALLIES.find((r) => 
 export interface RallyCrew {
   crew?: string;
   rank?: number;
-  /** yours: the paint scheme you picked */
+  /** yours: the paint scheme you picked (before the garage: now the car's own paint shows) */
   scheme?: string;
+  /** yours: the car you drive it in (cars.ts; a rally from before the garage has none) */
+  car?: string;
 }
 
 /** What happened to a crew on a stage, said in the stage's results. */
@@ -123,7 +126,7 @@ export interface Rally {
  * A new rally: you in your car's `scheme` against nine of the rival crews, drawn by `seed`; or, for a round of a
  * season (`season`: its id), against the season's `rivals`, at the pace they have all season.
  */
-export function newRally(o: { event: RallyEvent; seed: number; scheme: Scheme; difficulty: string; season?: { id: string; rivals: RallyCrew[] } }): Rally {
+export function newRally(o: { event: RallyEvent; seed: number; scheme: Scheme; car?: string; difficulty: string; season?: { id: string; rivals: RallyCrew[] } }): Rally {
   const rng = seededRandom(o.seed);
   let rivals: RallyCrew[];
   if (o.season) rivals = o.season.rivals.map((c) => ({ ...c }));
@@ -140,7 +143,7 @@ export function newRally(o: { event: RallyEvent; seed: number; scheme: Scheme; d
   }
   // (you start in the middle of the running order)
   const you = Math.floor(RALLY.crews / 2);
-  const crews = [...rivals.slice(0, you), { scheme: o.scheme.id }, ...rivals.slice(you)];
+  const crews = [...rivals.slice(0, you), { scheme: o.scheme.id, ...(o.car ? { car: o.car } : {}) }, ...rivals.slice(you)];
   return { v: 2, event: o.event.id, seed: o.seed, difficulty: o.difficulty, crews, you, stages: [], health: 1, ...(o.season ? { season: o.season.id } : {}) };
 }
 
@@ -153,8 +156,12 @@ export const stageSeed = (r: Rally, k: number) => ((r.seed * 31 + (k + 1) * 7919
 /** The service park comes after stage `k`. */
 export const serviceAfter = (r: Rally, k: number) => rallyEvent(r).service.includes(k);
 
-/** A crew's paint (yours too). */
-export const crewScheme = (c: RallyCrew): Scheme => schemeById(c.scheme ?? crewById(c.crew)?.scheme) ?? SCHEMES[0];
+/** A crew's paint (yours too: your car's own, once you drive one from the garage). */
+export function crewScheme(c: RallyCrew): Scheme {
+  const scheme = schemeById(c.scheme ?? crewById(c.crew)?.scheme) ?? SCHEMES[0];
+  const paint = carById(c.car)?.paint;
+  return paint ? { ...scheme, body: paint.body, trim: paint.stripe, accent: paint.accent } : scheme;
+}
 /** A crew's name, as the timing screens show it (yours: YOU). */
 export const crewName = (c: RallyCrew): string => crewById(c.crew)?.name ?? driverName();
 
@@ -265,7 +272,7 @@ export function parseRally(v: unknown): Rally | undefined {
   const r = v as Rally;
   const ok = r.v === 2 && !!rallyById(r.event) && Number.isInteger(r.seed) && Array.isArray(r.crews) && r.crews.length >= 2 && Number.isInteger(r.you)
     && r.you >= 0 && r.you < r.crews.length && Array.isArray(r.stages) && r.stages.every((s) => Array.isArray(s?.times) && s.times.length === r.crews.length && s.times.every(Number.isFinite))
-    && typeof r.health === 'number' && r.crews.every((c, i) => (i === r.you ? !!schemeById(c?.scheme) : !!crewById(c?.crew)));
+    && typeof r.health === 'number' && r.crews.every((c, i) => (i === r.you ? !!schemeById(c?.scheme) && (c.car === undefined || !!carById(c.car)) : !!crewById(c?.crew)));
   return ok ? { ...r, stages: r.stages.map((s) => ({ times: s.times, notes: Array.isArray(s.notes) ? s.notes : s.times.map(() => undefined) })) } : undefined;
 }
 

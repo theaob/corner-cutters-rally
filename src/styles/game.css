@@ -2109,3 +2109,121 @@ html.upright .turn-note::before {
 html.upright .turn-note {
   flex-direction: column;
 }
+/* the garage (src/f1/screens/garage.ts): the car on its stand and its class's bars beside a row of cars to each class */
+.circuit-menu.garage .card-columns > :first-child {
+  flex: 0.9 1 0;
+}
+.circuit-menu .garage-look {
+  align-items: stretch;
+}
+.circuit-menu .garage-stand {
+  width: 100%;
+  aspect-ratio: 1.7;
+  border-radius: 8px;
+  background: radial-gradient(ellipse at 50% 60%, #3a4150, #1a1d24 70%);
+}
+.circuit-menu .garage-look > strong {
+  text-align: center;
+  color: var(--gold);
+}
+.circuit-menu .garage-look p {
+  margin: 0;
+  font-size: calc(10px * var(--ts, 1));
+}
+.circuit-menu .garage-bars {
+  display: grid;
+  gap: 4px;
+}
+.circuit-menu .garage-bars > div {
+  display: grid;
+  grid-template-columns: 9em 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.circuit-menu .garage-bars span {
+  font-size: calc(9px * var(--ts, 1));
+  letter-spacing: 1px;
+}
+.circuit-menu .garage-bar,
+.circuit-menu .garage-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.circuit-menu .garage-bar i,
+.circuit-menu .garage-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent-b);
+}
+.circuit-menu .garage-progress i {
+  background: var(--gold);
+}
+.circuit-menu .garage-career p {
+  margin: 0;
+}
+.circuit-menu .garage-career .garage-small {
+  font-size: calc(9px * var(--ts, 1));
+}
+.circuit-menu .garage-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.circuit-menu .garage-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(14, 13, 22, 0.82);
+}
+.circuit-menu .garage-row > b {
+  flex: 0 0 100%;
+  font-weight: 400;
+  font-size: calc(10px * var(--ts, 1));
+  letter-spacing: 1px;
+  color: var(--gold);
+}
+.circuit-menu .garage-row > b.locked {
+  color: var(--muted);
+}
+.circuit-menu button.garage-car {
+  width: auto;
+  flex: 1 1 7.5em;
+  min-height: 36px;
+  padding: 4px 8px;
+  gap: 6px;
+  border-radius: 8px;
+}
+.circuit-menu .garage-car i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.circuit-menu .garage-car span {
+  flex: 1;
+  font-size: calc(9px * var(--ts, 1));
+  color: var(--text);
+}
+.circuit-menu .garage-car em {
+  font-style: normal;
+  font-size: calc(9px * var(--ts, 1));
+  color: var(--gold);
+}
+.circuit-menu .garage-car em::before {
+  content: '🔒 ';
+}
+.circuit-menu .garage-car.locked span {
+  color: var(--muted);
+}
+.circuit-menu .garage-car.mine {
+  border-color: var(--gold);
+}
+.circuit-menu .garage-car.focused {
+  border-color: var(--accent-b);
+  box-shadow: 0 0 0 1px var(--accent-b);
+}

@@ -63,12 +63,13 @@ import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
 import { loadSeason, recordRound, saveSeason } from './season';
+import { payCareer } from './career';
 import { aiStage, rallyEvent, recordBest, recordStage, recordStageBest, referenceStage, saveRally, stageOrder, type Rally } from './rally';
 import { newCaller, paceNotes, screenFacing, stepCaller, type Caller } from './paceNotes';
 import { createPaceCard, renderStageResults } from './race/rallyView';
 import { formatTime as fmt } from './time';
 import { SCHEMES, liveryOf, type Scheme } from './crews';
-import { carById } from './cars';
+import { carById, classOf, type CarSpec } from './cars';
 import { COLOR } from './theme';
 
 /** s of count (3, 2, 1) after RESUME before the stage goes on */
@@ -82,8 +83,10 @@ const DUST_DENSITY = [1, 1, 0.75, 0.5];
 
 /** How a stage is set up. */
 export interface StageOptions {
-  /** your car's paint */
+  /** your car's paint (shown when there's no `car`: the controls lap's) */
   scheme?: Scheme;
+  /** your car (cars.ts): its looks, its own paint, and its class's handling */
+  car?: CarSpec;
   difficulty?: Difficulty;
   weather?: Weather;
   /** a rally's stage, or the controls lap for a new player (on the shakedown) */
@@ -101,8 +104,11 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const rallyRun = mode === 'rally' ? options.rally : undefined;
   const { controls, hud } = services;
   loadVehicleEdits(); // (any saved stat edits apply to the car)
-  // the stage's car and its forgiving roadside (style.ts)
-  const f1 = rallyCar();
+  // (?debug&car=<id>: the stage in one of the garage's cars, to see how it looks and drives on the road)
+  const params = new URLSearchParams(window.location.search);
+  const yourCar = (params.has('debug') ? carById(params.get('car')) : undefined) ?? options.car;
+  // the stage's car, driving as its class does, and its forgiving roadside (style.ts)
+  const f1 = rallyCar(yourCar ? classOf(yourCar) : undefined);
   // the difficulty sets how much a crash costs and how quick the rival crews are
   const HANDLING = styleHandling(handlingFor(difficulty));
   // the racing line: flat out wherever the car can follow the bend
@@ -184,7 +190,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   const {
     readout, mainLines, tyreLine, cardSlot, banner, lesson, progress, setProgressMarks, setProgress, results, crewCard, weatherTag, pauseScreen,
     pauseTitle, pauseButton, place: layHud,
-  } = createHud(scheme, difficulty);
+  } = createHud(yourCar?.paint ? { ...scheme, body: yourCar.paint.body, trim: yourCar.paint.stripe } : scheme, difficulty);
   weatherTag.textContent = tl(weather.name);
   // the rain and your chequered flag, drawn over the picture (race/screenFx.ts); no speed lines (Onur, 2026-11-18)
   /** less motion asked for (MOTION in the settings, or the device): no flashing readout; read as it's changed */
@@ -310,10 +316,8 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   // (your car's fire light, in the scene from the start: a light coming or going makes every shader compile again, a
   // hitch mid-stage; effects.ts)
   const [fireLight] = makeFireLights(world.scene, 1);
-  // (?debug&car=<id>: the stage in one of the garage's cars, in its own paint, to see how it looks on the road)
-  const tryCar = new URLSearchParams(window.location.search).has('debug') ? carById(new URLSearchParams(window.location.search).get('car')) : undefined;
   const addLook = (): CarLook => {
-    const paint = tryCar ? { ...tryCar.paint, model: tryCar.id } : liveryOf(scheme);
+    const paint = yourCar ? { ...yourCar.paint, model: yourCar.id } : liveryOf(scheme);
     const mesh: CarMesh = createCarMesh('f1', { ...paint, helmet: 'gold' }, !!layout.dirt);
     world.scene.add(mesh);
     return { mesh, fx: new CarFx(mesh, fireLight) };
@@ -374,7 +378,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     session = 'rally';
     learn = undefined;
     resetSession();
-    noteStat('race_start', { circuit: layout.id, mode: 'rally', data: { scheme: scheme.id } });
+    noteStat('race_start', { circuit: layout.id, mode: 'rally', data: { scheme: scheme.id, car: yourCar?.id ?? null } });
     onTheLine(COUNTDOWN - LIGHTS, rallyRun.rally.health);
     // (the same all through the stage's restarts)
     const slot = circuit.slots[0];
@@ -439,9 +443,12 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     recordStage(r, rallyRun.stage, { time, penalty: p.penalty, health: me.car.wrecked ? 0 : me.car.health / me.car.cls.health }, aiStage(r, rallyRun.stage, stage.reference.time, difficulty));
     if (recordBest(r)) sounds.record();
     saveRally(r);
-    // (the last stage of a season's round: its points into the season)
+    // (the last stage of a season's round: its points into the season, and your career points)
     const season = r.season ? loadSeason() : undefined;
-    if (season && recordRound(season, r)) saveSeason(season);
+    if (season && recordRound(season, r)) {
+      saveSeason(season);
+      payCareer(season);
+    }
     const place = stageOrder(r, rallyRun.stage).findIndex((o) => o.crew === r.you) + 1;
     stage.result.place = place;
     noteStat('race_finish', { circuit: layout.id, mode: 'rally', data: { place: time === undefined ? null : place, stage: rallyRun.stage } });

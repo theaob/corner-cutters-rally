@@ -11,9 +11,11 @@ import { LABEL_ICON } from '../../src/f1/race/readout';
 import { prompt, STEPS, type Device } from '../../src/f1/onboarding';
 import { RALLIES } from '../../src/f1/rally';
 import { STAGE_SPECS } from '../../src/f1/stages';
+import { CLASSES } from '../../src/f1/cars';
+import { BARS, DRIVE } from '../../src/f1/screens/garage';
 
 /** Texts that stay as they are in a language: names, codes and things that read the same. */
-export const SAME = new Set(['OK', 'NORMAL', 'AUTO', 'ABC', 'YOU', 'CORNER CUTTERS', 'CORNER CUTTERS RALLY']);
+export const SAME = new Set(['OK', 'NORMAL', 'AUTO', 'ABC', 'YOU', 'WRC', 'CORNER CUTTERS', 'CORNER CUTTERS RALLY']);
 
 const sources = (dir: string): string[] =>
   readdirSync(dir).flatMap((f) => {
@@ -94,6 +96,10 @@ export function gameTexts(): string[] {
     ...literals(stripComments(readFileSync('src/f1/race/deckLabels.ts', 'utf8'))).filter((s) => /^[A-Z]+$/.test(s)),
     ...RALLIES.flatMap((e) => [e.name, e.surface, e.about]),
     ...STAGE_SPECS.map((l) => l.about),
+    // (the garage's: the classes, its bars, which wheels drive)
+    ...CLASSES.map((c) => c.name),
+    ...BARS.map((b) => b.label),
+    ...Object.values(DRIVE),
     // (a setting's choices, named and told about in the row's own callback: optionRow translates them)
     ...['src/f1/settingsRows.ts', 'src/f1/screens/rally.ts'].flatMap((f) => fields(stripComments(readFileSync(f, 'utf8')))),
     // (said through a variable: the stage notes on the results, the road's state)

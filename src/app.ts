@@ -25,10 +25,12 @@ import { hintToast } from './f1/screens/celebrate';
 import { listenForBack, pressBack } from './engine/backButton';
 import { newSeed } from './engine/rng';
 import { SEASON, currentSeason, retireRound, saveSeason } from './f1/season';
+import { loadCareer, payCareer, yourCar } from './f1/career';
+import { carById } from './f1/cars';
 import { NORMAL, difficultyById } from './f1/difficulty';
 import { DRY, weatherById } from './f1/weather';
 import { openReport, reportOpen } from './f1/report';
-import type { HomePage } from './f1/screens/rally';
+import type { HomePage, RallyAction } from './f1/screens/rally';
 import { clearRally, loadRally, loadStageBests, newRally, nextStage, rallyEvent, rallyOver, saveRally, type RallySlot } from './f1/rally';
 import { SCHEMES, crewById, schemeById } from './f1/crews';
 import { showSettings } from './f1/menu';
@@ -102,7 +104,7 @@ window.addEventListener('resize', () => onResize());
  * ?mode: with ?circuit, the stage's: a round of the season's ('rally'), free play's ('free') or the controls lap; without,
  * which of home's screens ('season' or 'free': a kind of play's page; none: home itself).
  */
-type Mode = 'rally' | 'free' | 'tutorial' | 'season';
+type Mode = 'rally' | 'free' | 'tutorial' | 'season' | 'garage';
 /** The kind of play a stage's ?mode is. */
 const slotFor = (mode: string | null): RallySlot => (mode === 'free' ? 'free' : 'season');
 /** The stage ?mode for a kind of play. */
@@ -172,7 +174,7 @@ async function route(): Promise<void> {
   try {
     if (stage && mode === 'tutorial') await showStage(id, stage, 'tutorial');
     else if (stage && (mode === 'rally' || mode === 'free')) await showStage(id, stage, mode);
-    else await showHome(id, !stage && (mode === 'season' || mode === 'free') ? mode : 'home');
+    else await showHome(id, !stage && (mode === 'season' || mode === 'free' || mode === 'garage') ? mode : 'home');
   } catch (e) {
     // (a screen that failed to open: the curtain lifted all the same, on whatever got up, rather than black for good;
     // a stage that failed, back home)
@@ -344,16 +346,22 @@ async function showHome(id: number, page: HomePage): Promise<void> {
   if (id !== routeId) return;
   const seasonRally = loadRally('season');
   const freeRally = loadRally('free');
-  const slot: RallySlot | undefined = page === 'home' ? undefined : page;
+  const slot: RallySlot | undefined = page === 'season' || page === 'free' ? page : undefined;
   const rally = page === 'season' ? seasonRally : page === 'free' ? freeRally : undefined;
   const season = currentSeason(newSeed());
+  // (anything the season owes your career paid: a round driven before career points were kept, say)
+  payCareer(season);
   // (a language change built home again with the settings open: they open again, at LANGUAGE, home not under them)
-  const showing = settingsResumePending()
+  const career = loadCareer().points;
+  const showing: Promise<RallyAction> = settingsResumePending()
     ? Promise.resolve('settings' as const)
-    : showRally(screen, services, { page, seasonRally, freeRally, scheme: savedScheme(), view: { season, now: seasonNow() } }, closed.signal);
+    : page === 'garage'
+      ? (await import('./f1/screens/garage')).showGarage(screen, services, career, closed.signal)
+      : showRally(screen, services, { page, seasonRally, freeRally, scheme: savedScheme(), view: { season, now: seasonNow() }, career }, closed.signal);
+  if (id !== routeId) return;
   curtainUp();
-  // rally cars on the shakedown behind it (loaded once it's up)
-  const stopBackdrop = carsBehind(closed.signal);
+  // rally cars on the shakedown behind it (loaded once it's up; not behind the garage, whose car turns on a stand of its own)
+  const stopBackdrop = page === 'garage' ? () => {} : carsBehind(closed.signal);
   const action = await showing;
   if (id !== routeId) return stopBackdrop();
   // (a stage needs the GPU: the cars behind stop; the settings carry them on)
@@ -365,7 +373,10 @@ async function showHome(id: number, page: HomePage): Promise<void> {
     void route();
   } else if (action === 'retire') {
     // (a season's round retired from: 0 points, and over for the season)
-    if (rally && retireRound(season, rally)) saveSeason(season);
+    if (rally && retireRound(season, rally)) {
+      saveSeason(season);
+      payCareer(season);
+    }
     clearRally('season');
     void route();
   } else if (action === 'new-season') {
@@ -383,7 +394,7 @@ async function showHome(id: number, page: HomePage): Promise<void> {
     // a new rally, in the paint picked (kept for the next), at the difficulty in the settings
     save('choices', 'scheme', action.scheme.id);
     // (a round of the season, against the season's crews; free play's, against a field of its own)
-    saveRally(newRally({ event: action.start, seed: newSeed(), scheme: action.scheme, difficulty: savedDifficulty().id, ...(page === 'season' ? { season } : {}) }));
+    saveRally(newRally({ event: action.start, seed: newSeed(), scheme: action.scheme, car: yourCar().id, difficulty: savedDifficulty().id, ...(page === 'season' ? { season } : {}) }));
     void route();
   }
 }
@@ -426,7 +437,7 @@ async function showStage(id: number, stage: CircuitLayout, mode: 'rally' | 'free
   const yours = rally ? rally.crews[rally.you] : undefined;
   const view: StandaloneView = await stageOn(stage, quit, rally && next
     ? {
-        scheme: schemeById(yours?.scheme ?? crewById(yours?.crew)?.scheme) ?? savedScheme(), difficulty: difficultyById(rally.difficulty) ?? NORMAL,
+        scheme: schemeById(yours?.scheme ?? crewById(yours?.crew)?.scheme) ?? savedScheme(), car: carById(yours?.car) ?? yourCar(), difficulty: difficultyById(rally.difficulty) ?? NORMAL,
         weather: weatherById(next.weather) ?? DRY, mode: 'rally', rally: { rally, stage: nextStage(rally), onDone: home },
       }
     : { scheme: savedScheme(), difficulty: NORMAL, weather: DRY, mode: 'tutorial' })({ host: screen, services, fit });
