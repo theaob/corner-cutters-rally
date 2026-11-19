@@ -428,7 +428,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
    * BRISK 1800, after the Ford Escort RS1800 that won on gravel through the late 1970s: a plain two-door saloon, square
    * and upright, rear driven. A long flat bonnet, a square nose with a black grille and oblong headlamps, four big
    * spotlights on a bar before it, a tall glasshouse with thick rear pillars, a flat boot, bolt-on box flares. Its own
-   * paint: white, a broad green stripe nose to tail; the spotlights' housings in the driver's colour (yours gold).
+   * paint: white, blue and light blue bands across the bonnet and along the waist; the spotlights' housings in the
+   * driver's colour (yours gold).
    */
   brisk(k) {
     const w = 11;
@@ -483,15 +484,27 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
         s.lineTo(5.6, 5.45);
       }, 0.3).translate(x, 0, 0), [k.body, k.body]);
     }
-    // a broad stripe nose to tail over the bonnet, roof and boot, in the second colour
-    k.add(profile((s) => {
-      s.moveTo(front + 0.35, 5.15);
-      s.lineTo(-3.6, 5.47);
-      s.lineTo(-3.6, 5.6);
-      s.lineTo(front + 0.35, 5.28);
-    }, 3.2), [k.trim, k.trim]);
-    k.box(3.2, 0.12, 5.6, 9.62, 1.85, k.all(k.trim));
-    k.box(3.2, 0.12, back - 8.1, 5.53, (back + 7.7) / 2, k.all(k.trim));
+    // the works colours: a blue band across the bonnet, light blue behind it, the two running on along the waist to the
+    // tail (over the flares too), a thin blue line under them
+    const sky = k.paint(0x2f8fd6);
+    const bonnet = (z: number) => 5.15 + ((z - front - 0.35) * 0.32) / (-3.6 - front - 0.35);
+    for (const [z0, z1, m] of [[-11.9, -9, k.trim], [-9, -7.5, sky]] as const) {
+      k.add(profile((s) => {
+        s.moveTo(z0, bonnet(z0) - 0.05);
+        s.lineTo(z1, bonnet(z1) - 0.05);
+        s.lineTo(z1, bonnet(z1) + 0.08);
+        s.lineTo(z0, bonnet(z0) + 0.08);
+      }, w - 0.8), [m, m]);
+    }
+    const bands = (x: number, z0: number, z1: number) => {
+      k.box(0.12, 0.35, z1 - z0, 5.08, (z0 + z1) / 2, k.all(sky), undefined, x);
+      k.box(0.12, 0.75, z1 - z0, 4.5, (z0 + z1) / 2, k.all(k.trim), undefined, x);
+      k.box(0.12, 0.16, z1 - z0, 3.85, (z0 + z1) / 2, k.all(k.trim), undefined, x);
+    };
+    for (const side of [-1, 1]) {
+      bands(side * (w / 2 + 0.03), front + 0.4, back - 0.4);
+      for (const z of [-8.6, 7.9]) bands(side * (w / 2 + 0.63), z - 2.2, z + 2.2);
+    }
     // a black panel across the tail
     k.box(w - 1.2, 1.4, 0.12, 3.6, back + 0.03, k.all(black));
     // bolt-on box flares over all four wheels
@@ -536,7 +549,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const z of [-4.9, 11.6]) for (const x of [-(w / 2 - 0.9), w / 2 - 0.9]) k.box(1.8, 1.6, 0.2, 1.3, z, k.all(black), undefined, x);
     return {
       axles: [-8.6, 7.9],
-      wheel: { radius: 2.1, width: 2.4, half: w / 2 - 0.75, rim: '#f0efe9' },
+      wheel: { radius: 2.1, width: 2.4, half: w / 2 - 0.75, rim: '#c4c8ce' },
       tail: { z: back + 0.05, y: 3.6, x: w / 2 - 1.3, w: 1.8, h: 1.2 },
     };
   },
