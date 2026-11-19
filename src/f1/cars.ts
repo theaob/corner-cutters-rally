@@ -30,6 +30,7 @@ export interface CarSpec {
 export const CARS: CarSpec[] = [
   { id: 'mini', name: 'BANTAM S', era: '1960s', drive: 'front', unlock: 0, speed: 0.94, pickup: 1.25, turn: 1.08, grip: 0.95, tough: 0.9, paint: { body: '#b8182a', stripe: '#f3f1ea' } },
   { id: 'fulvia', name: 'VELA 1600', era: '1960s', drive: 'front', unlock: 20, speed: 0.95, pickup: 1.22, turn: 1.06, grip: 0.96, tough: 0.92, paint: { body: '#94172b', stripe: '#c9a96a' } },
+  { id: 'alpine', name: 'BERLINA 1600', era: '1970s', drive: 'rear', unlock: 30, speed: 0.955, pickup: 1.2, turn: 1.1, grip: 0.92, tough: 0.88, paint: { body: '#1f5bb0', stripe: '#f4f4f0' } },
   { id: 'brisk', name: 'BRISK 1800', era: '1970s', drive: 'rear', unlock: 40, speed: 0.96, pickup: 1.2, turn: 1, grip: 0.82, tough: 1 },
   { id: 'stiletto', name: 'STILETTO', era: '1970s', drive: 'rear', unlock: 110, speed: 0.98, pickup: 1.1, turn: 1.12, grip: 0.92, tough: 0.85 },
   { id: 'quadra', name: 'QUADRA', era: '1980s', drive: 'all', unlock: 220, speed: 1, pickup: 1.1, turn: 0.94, grip: 1.12, tough: 1.1 },

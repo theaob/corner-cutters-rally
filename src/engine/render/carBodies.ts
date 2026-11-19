@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 
-export type CarModel = 'mini' | 'fulvia' | 'brisk' | 'stiletto' | 'quadra' | 'typhoon' | 'apex';
+export type CarModel = 'mini' | 'fulvia' | 'alpine' | 'brisk' | 'stiletto' | 'quadra' | 'typhoon' | 'apex';
 
 type Faces = THREE.Material[];
 
@@ -316,6 +316,111 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       axles: [-8.4, 7.6],
       wheel: { radius: 2.35, width: 2.3, half: w / 2 - 1.1, rim: '#c4c8ce' },
       tail: { z: back + 0.05, y: 4.1, x: w / 2 - 1.3, w: 2, h: 0.9 },
+    };
+  },
+
+  /**
+   * BERLINA 1600, after the Alpine A110 that won the first world rally championship in 1973: tiny and very low, the
+   * engine in the tail, a long rounded nose falling to four round lamps (two in the wings, two in the nose), a steeply
+   * raked screen, a fastback sloping to a short tail with louvres over the engine, fat flares, no bumpers. Its own
+   * paint: French blue.
+   */
+  alpine(k) {
+    const w = 11.2;
+    const front = -13;
+    const back = 13;
+    const black = k.paint(0x16171b);
+    const white = k.paint(0xf4f4f0);
+    // the body: the nose low and round, rising to the screen; the tail falling from the fastback to a short square end
+    k.add(profile((s) => {
+      s.moveTo(front + 1, 1.3);
+      s.lineTo(back - 0.6, 1.3);
+      s.lineTo(back, 2);
+      s.lineTo(back, 4.1);
+      s.quadraticCurveTo(back - 0.2, 4.6, back - 1, 4.65);
+      s.lineTo(8.4, 4.95);
+      s.lineTo(-3.8, 4.95);
+      s.quadraticCurveTo(-9, 4.5, front + 0.6, 3.3);
+      s.quadraticCurveTo(front - 0.1, 2.8, front, 2.1);
+      s.quadraticCurveTo(front + 0.1, 1.4, front + 1, 1.3);
+    }, w, 0.8), [k.pods, k.body]);
+    // the wings over the front wheels, standing a little proud of the bonnet, each ending in its headlamp fairing
+    for (const x of [-(w / 2 - 1.3), w / 2 - 1.3]) {
+      k.add(profile((s) => {
+        s.moveTo(front + 0.7, 3.2);
+        s.quadraticCurveTo(-10, 5, -6.5, 5.2);
+        s.quadraticCurveTo(-4.6, 5.2, -3.6, 4.9);
+        s.lineTo(-3.6, 4.4);
+        s.lineTo(front + 0.7, 2.6);
+      }, 2.6, 0.5).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // the glasshouse: a steep screen, a short roof, the fastback's side windows
+    k.add(profile((s) => {
+      s.moveTo(-3.9, 4.9);
+      s.lineTo(-0.9, 7.5);
+      s.lineTo(3, 7.5);
+      s.lineTo(7.6, 4.9);
+    }, w - 2.2), [k.glass, k.glass]);
+    // the roof and the fastback, in the body colour: a small back window set in it
+    k.add(profile((s) => {
+      s.moveTo(-1.1, 7.35);
+      s.lineTo(3.2, 7.35);
+      s.lineTo(9.2, 4.9);
+      s.lineTo(9.8, 4.9);
+      s.lineTo(3.4, 7.85);
+      s.lineTo(-0.8, 7.85);
+    }, w - 1.9, 0.3, 2), [k.body, k.body]);
+    k.add(profile((s) => {
+      s.moveTo(4.2, 7.5);
+      s.lineTo(7.4, 6.2);
+      s.lineTo(7.5, 6.35);
+      s.lineTo(4.3, 7.65);
+    }, w - 4.6), [k.glass, k.glass]);
+    // the screen's pillars
+    for (const x of [-(w - 2.2) / 2, (w - 2.2) / 2]) {
+      k.add(profile((s) => {
+        s.moveTo(-4.1, 4.9);
+        s.lineTo(-1.1, 7.5);
+        s.lineTo(-0.7, 7.5);
+        s.lineTo(-3.6, 4.9);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // louvres over the engine, in the driver's colour (yours gold)
+    for (let i = 0; i < 4; i++) k.box(w - 4.6, 0.12, 0.45, 4.92 - i * 0.07, 9.6 + i * 0.75, k.all(k.scoop));
+    // fat flares over all four wheels
+    for (const z of [-8.3, 8]) for (const x of [-(w / 2 + 0.1), w / 2 + 0.1]) {
+      k.add(profile((s) => {
+        s.moveTo(z - 3.3, 1.9);
+        s.quadraticCurveTo(z - 3.1, 5.1, z, 5.2);
+        s.quadraticCurveTo(z + 3.1, 5.1, z + 3.3, 1.9);
+        s.lineTo(z + 2.7, 1.9);
+        s.quadraticCurveTo(z + 2.5, 4.5, z, 4.6);
+        s.quadraticCurveTo(z - 2.5, 4.5, z - 2.7, 1.9);
+      }, 1, 0.3).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // a white roundel on each door, for the rally number
+    for (const x of [-(w / 2 + 0.04), w / 2 + 0.04]) k.add(drum(1.25, 0.1, 'x', x, 3.2, 0.2, 14), [white, white, white]);
+    // the nose: two lamps in the wings' fairings, two set into the nose between them, a small black intake below
+    for (const x of [-(w / 2 - 1.3), w / 2 - 1.3]) {
+      // (each in a pod of the wing, standing out in front of it: the bodywork never cuts into the lamp)
+      k.add(drum(1.1, 1.6, 'z', x, 3.05, front + 0.8 - k.noseZ, 14), [k.body, k.body, k.body], k.nose);
+      k.add(drum(0.95, 0.4, 'z', x, 3.05, front - 0.1 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+      k.add(drum(0.8, 0.15, 'z', x, 3.05, front - 0.33 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    }
+    for (const x of [-1.55, 1.55]) {
+      k.add(drum(0.85, 0.5, 'z', x, 2.55, front - 0.25 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+      k.add(drum(0.7, 0.15, 'z', x, 2.55, front - 0.55 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    }
+    k.front(4.4, 0.6, 0.3, 1.6, front + 0.1, k.all(black));
+    // the tail: a black panel across it, the number plate
+    k.box(w - 2.4, 1.3, 0.15, 3, back + 0.03, k.all(black));
+    k.box(3.2, 0.9, 0.12, 3, back + 0.12, k.all(white));
+    // mud flaps behind the wheels
+    for (const z of [-4.8, 11.4]) for (const x of [-(w / 2 - 1), w / 2 - 1]) k.box(1.8, 1.4, 0.2, 1.1, z, k.all(black), undefined, x);
+    return {
+      axles: [-8.3, 8],
+      wheel: { radius: 2.35, width: 2.5, half: w / 2 - 1, rim: '#c4c8ce' },
+      tail: { z: back + 0.08, y: 3.9, x: w / 2 - 1.6, w: 1.4, h: 1 },
     };
   },
 

@@ -19,7 +19,7 @@ describe('the garage lineup', () => {
 
   it('unlocks by career points', () => {
     expect(unlockedCars(0).map((c) => c.id)).toEqual(['mini']);
-    expect(unlockedCars(110).map((c) => c.id)).toEqual(['mini', 'fulvia', 'brisk', 'stiletto']);
+    expect(unlockedCars(110).map((c) => c.id)).toEqual(['mini', 'fulvia', 'alpine', 'brisk', 'stiletto']);
     expect(nextCar(110)?.id).toBe('quadra');
     expect(nextCar(10_000)).toBeUndefined();
   });
