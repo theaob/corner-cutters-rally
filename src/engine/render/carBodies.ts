@@ -624,10 +624,35 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     }, w - 2, 0.1, 2), [k.scoop, k.scoop]);
     // the door's rear pillar
     for (const x of [-(w - 1.6) / 2, (w - 1.6) / 2]) k.box(0.3, 2.6, 0.5, 6.3, 2.2, k.all(k.body), undefined, x);
-    // the engine cover's louvres, black, down the slope
+    // the engine cover's works colours: a green and a red band from each side of the roof meeting in a V at the tail,
+    // the louvres over it painted to match
+    const onDeck = (pts: [number, number][], lift: number, m: THREE.Material) => {
+      const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
+      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: false }).rotateX(Math.PI / 2);
+      const pos = g.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) pos.setY(i, pos.getY(i) + deck(pos.getZ(i)) + lift);
+      g.computeVertexNormals();
+      k.add(g, [m, m]);
+    };
+    const z0 = 4.4;
+    const z1 = back - 0.6;
+    for (const side of [-1, 1]) {
+      onDeck([[side * 5, z0], [side * 3.5, z0], [side * 0.9, z1], [side * 2.4, z1]], 0.1, k.trim);
+      onDeck([[side * 3.3, z0], [side * 2.5, z0], [side * 0, z1], [side * 0.8, z1]], 0.1, red);
+    }
+    // (the louvres painted through: green and red where the bands cross them, white between)
+    const across = (a: number, b: number, z: number) => a + ((b - a) * (z - z0)) / (z1 - z0);
+    const half = (w - 3.4) / 2;
     for (let i = 0; i < 6; i++) {
-      const z = 5 + i * 1.15;
-      k.box(w - 3.6, 0.14, 0.55, deck(z) + 0.08, z, k.all(black));
+      const z = 5 + i * 1.05;
+      const cuts = [0, across(2.5, 0, z), across(3.3, 0.8, z), across(3.5, 0.9, z), across(5, 2.4, z), half];
+      const mats = [k.body, red, k.body, k.trim, k.body];
+      for (let j = 0; j < 5; j++) {
+        const a = Math.min(cuts[j], half);
+        const b = Math.min(cuts[j + 1], half);
+        if (b - a < 0.05) continue;
+        for (const side of [-1, 1]) k.box(b - a, 0.18, 0.5, deck(z) + 0.24, z, k.all(mats[j]), undefined, side * (a + b) / 2);
+      }
     }
     // the ducktail spoiler across the tail
     k.add(profile((s) => {
