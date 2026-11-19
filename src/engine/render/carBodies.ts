@@ -425,33 +425,119 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
   },
 
   /**
-   * BRISK 1800, 1970s: the square three-box saloon, rear driven, that won on gravel for years. A long bonnet with a
-   * black anti-glare panel before the screen, a small upright cabin, a boot with a lip, square flares, a quad lamp pod.
+   * BRISK 1800, after the Ford Escort RS1800 that won on gravel through the late 1970s: a plain two-door saloon, square
+   * and upright, rear driven. A long flat bonnet, a square nose with a black grille and oblong headlamps, four big
+   * spotlights on a bar before it, a tall glasshouse with thick rear pillars, a flat boot, bolt-on box flares. Its own
+   * paint: white, a broad green stripe nose to tail; the spotlights' housings in the driver's colour (yours gold).
    */
   brisk(k) {
-    const w = 12.4;
-    const half = 14.4;
-    k.box(w, 4.2, half * 2 - 0.4, 4.3, 0, capped(k.pods, k.body, k.dark)); // the shell
-    k.box(w - 0.4, 0.5, 10, 6.65, -half + 5.2, capped(k.body, k.deck(w - 0.4, 10), k.dark)); // the bonnet
-    k.box(w - 3, 0.12, 2.6, 6.95, -5.6, k.all(k.carbon)); // the black panel before the screen
-    k.slant(w - 1.6, 3.8, 11.4, 8.3, 0.9, k.all(k.glass), { front: 0.6, back: 0.6, inset: 0.4 });
-    pillars(k, w - 1.8, 3.8, 8.3, -4.4, 6.2, 0.4);
-    k.box(w - 2.6, 0.6, 9.6, 10.4, 0.9, capped(k.body, k.deck(w - 2.6, 9.6), k.dark)); // the roof
-    k.box(3, 1, 3, 11.2, 0.4, k.all(k.scoop));
-    k.box(w - 4.4, 0.6, 0.8, 10.9, -3.6, k.all(k.tcam));
-    k.box(w - 0.4, 0.5, 7.6, 6.65, half - 4, capped(k.body, k.body, k.dark)); // the boot
-    k.box(w - 1, 0.8, 1.1, 7.3, half - 0.6, k.all(k.trim)); // its lip
-    // square flares over the wheels
-    for (const z of [-9.4, 9.4]) for (const x of [-(w / 2 + 0.1), w / 2 + 0.1]) k.box(1.6, 1.8, 8, 5.6, z, capped(k.trim, k.trim, k.dark), undefined, x);
-    // the nose: the grille full width, a chrome bumper, the quad lamp pod
-    k.front(w - 0.6, 2, 0.4, 5, -half - 0.05, capped(k.dark, k.dark, k.dark));
-    k.front(w + 0.2, 0.7, 0.8, 2.7, -half - 0.3, k.all(k.chrome));
-    spotlights(k, 4, 2.7, 6.9, -half + 0.4, w - 2, 1.7);
-    for (const x of [-(w / 2 - 1.4), w / 2 - 1.4]) k.box(2.6, 2.4, 0.3, 1.6, half - 2.6, k.all(k.carbon), undefined, x);
+    const w = 11;
+    const front = -13.6;
+    const back = 13.6;
+    const black = k.paint(0x16171b);
+    const white = k.paint(0xf4f4f0);
+    // the body: a square nose, the bonnet flat and long, the waist level to a flat boot and a square tail
+    k.add(profile((s) => {
+      s.moveTo(front + 0.5, 1.8);
+      s.lineTo(back - 0.5, 1.8);
+      s.lineTo(back, 2.4);
+      s.lineTo(back, 5);
+      s.lineTo(back - 0.4, 5.5);
+      s.lineTo(-3.6, 5.5);
+      s.lineTo(front + 0.4, 5.2);
+      s.lineTo(front, 4.9);
+      s.lineTo(front, 2.3);
+    }, w, 0.4, 2), [k.pods, k.body]);
+    // the glasshouse: an upright screen, a long flat roof, a raked back window
+    k.add(profile((s) => {
+      s.moveTo(-3.6, 5.45);
+      s.lineTo(-0.9, 9.1);
+      s.lineTo(4.6, 9.1);
+      s.lineTo(7.6, 5.45);
+    }, w - 1.6), [k.glass, k.glass]);
+    // the roof, and the thick rear pillars falling to the boot, in the body colour
+    k.add(profile((s) => {
+      s.moveTo(-1.1, 9);
+      s.lineTo(4.8, 9);
+      s.lineTo(4.8, 9.6);
+      s.lineTo(-0.8, 9.6);
+    }, w - 1.3, 0.25, 2), [k.body, k.body]);
+    for (const x of [-(w - 1.6) / 2, (w - 1.6) / 2]) {
+      // (the screen's pillar, the door's, and the broad rear one)
+      k.add(profile((s) => {
+        s.moveTo(-3.8, 5.45);
+        s.lineTo(-1.1, 9.1);
+        s.lineTo(-0.6, 9.1);
+        s.lineTo(-3.3, 5.45);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+      k.add(profile((s) => {
+        s.moveTo(1.9, 5.45);
+        s.lineTo(1.9, 9.1);
+        s.lineTo(2.3, 9.1);
+        s.lineTo(2.3, 5.45);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+      k.add(profile((s) => {
+        s.moveTo(4.4, 9.1);
+        s.lineTo(4.9, 9.1);
+        s.lineTo(8.2, 5.45);
+        s.lineTo(5.6, 5.45);
+      }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // a broad stripe nose to tail over the bonnet, roof and boot, in the second colour
+    k.add(profile((s) => {
+      s.moveTo(front + 0.35, 5.15);
+      s.lineTo(-3.6, 5.47);
+      s.lineTo(-3.6, 5.6);
+      s.lineTo(front + 0.35, 5.28);
+    }, 3.2), [k.trim, k.trim]);
+    k.box(3.2, 0.12, 5.6, 9.62, 1.85, k.all(k.trim));
+    k.box(3.2, 0.12, back - 8.1, 5.53, (back + 7.7) / 2, k.all(k.trim));
+    // a black panel across the tail
+    k.box(w - 1.2, 1.4, 0.12, 3.6, back + 0.03, k.all(black));
+    // bolt-on box flares over all four wheels
+    for (const z of [-8.6, 7.9]) for (const x of [-(w / 2 + 0.1), w / 2 + 0.1]) {
+      k.add(profile((s) => {
+        s.moveTo(z - 3.3, 1.9);
+        s.lineTo(z - 3.3, 3.6);
+        s.quadraticCurveTo(z - 3.2, 5.35, z - 1.6, 5.4);
+        s.lineTo(z + 1.6, 5.4);
+        s.quadraticCurveTo(z + 3.2, 5.35, z + 3.3, 3.6);
+        s.lineTo(z + 3.3, 1.9);
+        s.lineTo(z + 2.75, 1.9);
+        s.lineTo(z + 2.75, 3.5);
+        s.quadraticCurveTo(z + 2.7, 4.9, z + 1.4, 4.95);
+        s.lineTo(z - 1.4, 4.95);
+        s.quadraticCurveTo(z - 2.7, 4.9, z - 2.75, 3.5);
+        s.lineTo(z - 2.75, 1.9);
+      }, 1, 0.2, 4).translate(x, 0, 0), [k.body, k.body]);
+    }
+    // a white roundel on each door ringed in the second colour, for the rally number
+    for (const x of [-(w / 2 + 0.06), w / 2 + 0.06]) {
+      k.add(drum(1.55, 0.08, 'x', x, 3.3, -0.6, 14), [k.trim, k.trim, k.trim]);
+      k.add(drum(1.3, 0.1, 'x', x + Math.sign(x) * 0.03, 3.3, -0.6, 14), [white, white, white]);
+    }
+    // the nose: a black grille across it, oblong headlamps in chrome surrounds at its ends, four spotlights on a bar
+    // below them (their housings in the driver's colour), a slim black bumper
+    k.front(w - 1.4, 2, 0.2, 4.05, front - 0.05, k.all(black));
+    for (const x of [-(w / 2 - 1.9), w / 2 - 1.9]) {
+      k.front(2.4, 1.5, 0.3, 4.05, front - 0.2, k.all(k.chrome), x);
+      k.front(2, 1.1, 0.2, 4.05, front - 0.32, k.all(k.lamp), x);
+    }
+    k.front(w - 1, 0.4, 0.4, 2.5, front - 1.1, k.all(black));
+    for (const x of [-4.05, -1.35, 1.35, 4.05]) {
+      k.add(drum(0.8, 0.9, 'z', x, 2.5, front - 0.95 - k.noseZ, 14), [k.scoop, k.scoop, k.scoop], k.nose);
+      k.add(drum(0.65, 0.15, 'z', x, 2.5, front - 1.45 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    }
+    k.front(w + 0.2, 0.6, 0.6, 1.9, front - 0.2, k.all(black));
+    // the tail: a slim black bumper, the number plate
+    k.box(w + 0.2, 0.6, 0.6, 2, back + 0.2, k.all(black));
+    k.box(3.2, 0.9, 0.12, 3.2, back + 0.08, k.all(white));
+    // mud flaps behind the wheels
+    for (const z of [-4.9, 11.6]) for (const x of [-(w / 2 - 0.9), w / 2 - 0.9]) k.box(1.8, 1.6, 0.2, 1.3, z, k.all(black), undefined, x);
     return {
-      axles: [-9.4, 9.4],
-      wheel: { radius: 3.3, width: 3, half: w / 2 - 1.2, rim: '#f0f0f0' },
-      tail: { z: half - 0.1, y: 5.3, x: w / 2 - 1.9, w: 3, h: 1.6 },
+      axles: [-8.6, 7.9],
+      wheel: { radius: 2.1, width: 2.4, half: w / 2 - 0.75, rim: '#f0efe9' },
+      tail: { z: back + 0.05, y: 3.6, x: w / 2 - 1.3, w: 1.8, h: 1.2 },
     };
   },
 
