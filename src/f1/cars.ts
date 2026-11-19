@@ -37,6 +37,7 @@ export const CARS: CarSpec[] = [
   { id: 'raia', name: 'RAIA 400', era: '1980s', drive: 'rear', unlock: 190, speed: 0.995, pickup: 1.1, turn: 1.04, grip: 0.94, tough: 1.05, paint: { body: '#f2c230', stripe: '#2148b8' } },
   { id: 'saetta', name: 'SAETTA 037', era: '1980s', drive: 'rear', unlock: 205, speed: 0.998, pickup: 1.08, turn: 1.08, grip: 0.96, tough: 1, paint: { body: '#f3f2ec', stripe: '#1c2f6e' } },
   { id: 'quadra', name: 'QUADRA S1', era: '1980s', drive: 'all', unlock: 220, speed: 1, pickup: 1.1, turn: 0.94, grip: 1.12, tough: 1.1, paint: { body: '#f3f2ec', stripe: '#f2c21c' } },
+  { id: 'kestrel', name: 'KESTREL T16', era: '1980s', drive: 'all', unlock: 260, speed: 1.008, pickup: 1.12, turn: 1.04, grip: 1.12, tough: 1, paint: { body: '#f3f2ec', stripe: '#3a8fd8' } },
   { id: 'typhoon', name: 'TYPHOON', era: '1990s', drive: 'all', unlock: 380, speed: 1.02, pickup: 1.05, turn: 1.02, grip: 1.08, tough: 1.05 },
   { id: 'apex', name: 'APEX R1', era: 'TODAY', drive: 'all', unlock: 560, speed: 1.04, pickup: 1, turn: 1.06, grip: 1.15, tough: 1 },
 ];
