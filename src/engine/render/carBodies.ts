@@ -1345,22 +1345,35 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       k.add(g, [orange, orange]);
     }
     // the nose: a square headlamp at each end, a black grille between them with two big round lamps on it, four
-    // round spotlights on a bar low in front of the chin, amber indicators under the square lamps; the chin a deep
-    // yellow wedge reaching forward
+    // round spotlights standing on the chin, amber indicators under the square lamps; the chin a long
+    // yellow wedge sloping forward to the ground
     for (const side of [-1, 1]) {
       k.front(1.5, 1, 0.12, 3.9, front - 0.04, k.all(k.lamp), side * (w / 2 - 1.3));
       k.front(1, 0.4, 0.1, 3.05, front - 0.04, k.all(amber), side * (w / 2 - 1.3));
       k.add(drum(0.85, 0.5, 'z', side * 1.9, 3.9, front - 0.35 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
       k.add(drum(0.72, 0.1, 'z', side * 1.9, 3.9, front - 0.62 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       for (const x of [0.85, 2.5]) {
-        k.add(drum(0.72, 0.5, 'z', side * x, 2.85, front - 1.35 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
-        k.add(drum(0.6, 0.1, 'z', side * x, 2.85, front - 1.62 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+        k.add(drum(0.72, 0.5, 'z', side * x, 3.35, front - 0.9 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
+        k.add(drum(0.6, 0.1, 'z', side * x, 3.35, front - 1.17 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
       }
     }
     k.front(w - 3.4, 1.4, 0.1, 3.75, front - 0.04, k.all(black));
-    k.front(w + 0.2, 0.6, 1.4, 1.75, front - 0.5, k.all(yellow));
-    k.front(w + 0.2, 0.6, 0.6, 2.35, front - 0.1, k.all(k.body));
-    k.front(6, 0.25, 0.3, 2.85, front - 0.85, k.all(black));
+    k.add(profile((s) => {
+      s.moveTo(front + 0.3, 1.35);
+      s.lineTo(front - 2.4, 1.35);
+      s.lineTo(front - 2.6, 1.95);
+      s.lineTo(front - 0.1, 2.95);
+      s.lineTo(front + 0.3, 2.95);
+    }, w + 0.2, 0.08, 2).translate(0, 0, -k.noseZ), [yellow, yellow], k.nose);
+    // (a black line along each side of it)
+    for (const x of [-(w / 2 + 0.12), w / 2 + 0.12]) {
+      k.add(profile((s) => {
+        s.moveTo(front - 2.55, 1.75);
+        s.lineTo(front + 0.3, 2.9);
+        s.lineTo(front + 0.3, 2.5);
+        s.lineTo(front - 2.45, 1.45);
+      }, 0.06).translate(x, 0, -k.noseZ), [black, black], k.nose);
+    }
     // the tail: two big black radiator grilles, dark lamps at the corners, a yellow band, a mesh panel below
     for (const x of [-2.6, 2.6]) k.box(4.6, 1.5, 0.12, 6.4, back + 0.03, k.all(black), undefined, x);
     for (const x of [-(w / 2 - 0.7), w / 2 - 0.7]) k.box(0.9, 1.7, 0.15, 6.35, back + 0.06, k.all(red), undefined, x);
