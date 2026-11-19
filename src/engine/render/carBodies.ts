@@ -896,7 +896,7 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
   /**
    * RAIA 400, after the Opel Manta 400, the last rear-driven car to win in the four-wheel-drive Group B years: a long
    * low coupe, a sloping nose with a black slatted grille, a bulge on the long bonnet, a short
-   * cabin, a sloping back window to a short boot with a lip spoiler, big square flares, a deep air dam, twin round
+   * cabin, a sloping back window to a short boot with a lip spoiler, big bulging arches, a ducktail, a deep air dam, twin round
    * headlamps each side. Its own paint, after a famous privateer's: yellow, the lower body and the air dam blue, a red
    * band edged in white between them, a white roof, white wheels; the boot's spoiler in the driver's colour (yours
    * gold).
@@ -910,18 +910,19 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     const red = k.paint(0xc8202a);
     /** the bonnet's height at `z`, falling from the screen to the nose */
     const bonnet = (z: number) => 4.5 + ((z - front - 0.6) * 1) / (-4.4 - front - 0.6);
-    // the body: the nose low and sloping, the long bonnet rising to the screen, the waist rising a little to a short
-    // high boot
+    // the body: a square nose under the bonnet's lip, the long bonnet rising to the screen, the waist level to the
+    // boot, its ducktail rising at the tail
     k.add(profile((s) => {
       s.moveTo(front + 0.6, 1.6);
       s.lineTo(back - 0.5, 1.6);
       s.lineTo(back, 2.3);
-      s.lineTo(back, 5.4);
-      s.lineTo(back - 0.4, 5.9);
-      s.lineTo(8.6, 5.95);
-      s.lineTo(-4.4, 5.5);
-      s.lineTo(front + 0.6, 4.5);
-      s.quadraticCurveTo(front, 4.4, front, 3.8);
+      s.lineTo(back, 6.2);
+      s.lineTo(back - 0.3, 6.6);
+      s.lineTo(back - 2.2, 6.0);
+      s.lineTo(9, 5.85);
+      s.lineTo(-4.6, 5.45);
+      s.lineTo(front + 0.9, 4.65);
+      s.quadraticCurveTo(front - 0.1, 4.6, front, 4.1);
       s.lineTo(front, 2.2);
     }, w, 0.45, 2), [k.pods, k.body]);
     // the bonnet's bulge
@@ -931,58 +932,54 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       s.lineTo(-4.6, bonnet(-4.6) + 0.45);
       s.lineTo(-10.6, bonnet(-10.6) + 0.45);
     }, 4.2, 0.2, 2), [k.body, k.body]);
-    // the glasshouse: a raked screen, a short roof, the back window sloping to the boot
+    // the glasshouse: a raked screen, a flat roof, the long back window sloping to the boot
     k.add(profile((s) => {
-      s.moveTo(-4.5, 5.45);
-      s.lineTo(-1.3, 8.9);
-      s.lineTo(3.6, 8.9);
-      s.lineTo(8.9, 5.9);
+      s.moveTo(-4.7, 5.4);
+      s.lineTo(-1.6, 8.7);
+      s.lineTo(3.4, 8.7);
+      s.lineTo(9.2, 5.85);
       s.lineTo(4, 5.6);
     }, w - 1.6), [k.glass, k.glass]);
     // the roof (white) and the pillars: the screen's, and the broad rear one sloping with the back window
     k.add(profile((s) => {
-      s.moveTo(-1.5, 8.8);
-      s.lineTo(3.8, 8.8);
-      s.lineTo(3.8, 9.35);
-      s.lineTo(-1.2, 9.35);
+      s.moveTo(-1.8, 8.6);
+      s.lineTo(3.6, 8.6);
+      s.lineTo(3.6, 9.15);
+      s.lineTo(-1.5, 9.15);
     }, w - 1.3, 0.25, 2), [white, white]);
     for (const x of [-(w - 1.6) / 2, (w - 1.6) / 2]) {
       k.add(profile((s) => {
-        s.moveTo(-4.7, 5.45);
-        s.lineTo(-1.5, 8.9);
-        s.lineTo(-1, 8.9);
-        s.lineTo(-4.2, 5.45);
+        s.moveTo(-4.9, 5.4);
+        s.lineTo(-1.8, 8.7);
+        s.lineTo(-1.3, 8.7);
+        s.lineTo(-4.4, 5.4);
       }, 0.3).translate(x, 0, 0), [k.body, k.body]);
       k.add(profile((s) => {
-        s.moveTo(2.4, 8.9);
-        s.lineTo(3.8, 8.9);
-        s.lineTo(9.2, 5.9);
-        s.lineTo(6.2, 5.7);
+        s.moveTo(2.2, 8.7);
+        s.lineTo(3.6, 8.7);
+        s.lineTo(9.4, 5.85);
+        s.lineTo(6.6, 5.65);
       }, 0.3).translate(x, 0, 0), [k.body, k.body]);
+      // (the door's pillar)
+      k.box(0.3, 3.3, 0.4, 7.05, 1.4, k.all(k.body), undefined, x);
     }
-    // the lip spoiler across the boot's tail (in the driver's colour)
-    k.add(profile((s) => {
-      s.moveTo(back - 1.8, 5.95);
-      s.lineTo(back - 0.1, 5.85);
-      s.lineTo(back + 0.2, 6.7);
-      s.lineTo(back - 0.5, 6.75);
-    }, w - 0.8, 0.15, 2), [k.scoop, k.scoop]);
-    // big square flares over all four wheels
-    for (const z of [-9.2, 8.2]) for (const x of [-(w / 2 + 0.1), w / 2 + 0.1]) {
+    // a lip along the ducktail's edge, in the driver's colour (yours gold)
+    k.box(w - 1.2, 0.2, 0.5, 6.68, back - 0.3, k.all(k.scoop));
+    // bulging arches over all four wheels, blended into the sides: each a solid blister with the wheel's opening
+    const R = 2.9;
+    const hubY = 2.25;
+    const reach = 4.3;
+    for (const z of [-9.2, 8.2]) for (const x of [-(w / 2 + 0.05), w / 2 + 0.05]) {
       k.add(profile((s) => {
-        s.moveTo(z - 3.6, 1.8);
-        s.lineTo(z - 3.6, 4.2);
-        s.quadraticCurveTo(z - 3.5, 5.75, z - 2, 5.8);
-        s.lineTo(z + 2, 5.8);
-        s.quadraticCurveTo(z + 3.5, 5.75, z + 3.6, 4.2);
-        s.lineTo(z + 3.6, 1.8);
-        s.lineTo(z + 3, 1.8);
-        s.lineTo(z + 3, 4);
-        s.quadraticCurveTo(z + 2.9, 5.25, z + 1.8, 5.3);
-        s.lineTo(z - 1.8, 5.3);
-        s.quadraticCurveTo(z - 2.9, 5.25, z - 3, 4);
-        s.lineTo(z - 3, 1.8);
-      }, 1, 0.25, 4).translate(x, 0, 0), [k.body, k.body]);
+        const a = Math.asin((hubY - 1.8) / R);
+        s.moveTo(z - reach, 1.8);
+        s.lineTo(z - reach, 3.9);
+        s.quadraticCurveTo(z - reach + 0.2, 5.75, z - 2.2, 5.8);
+        s.lineTo(z + 2.2, 5.8);
+        s.quadraticCurveTo(z + reach - 0.2, 5.75, z + reach, 3.9);
+        s.lineTo(z + reach, 1.8);
+        s.absarc(z, hubY, R, -a, Math.PI + a, false);
+      }, 1.1, 0.3, 10).translate(x, 0, 0), [k.body, k.body]);
     }
     // the colours: the lower body blue, a red band over it edged in white, along the sides and over the flares
     const bands = (x: number, z0: number, z1: number) => {
@@ -996,8 +993,15 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     for (const side of [-1, 1]) {
       bands(side * (w / 2 + 0.03), front + 0.6, back - 0.5);
       for (const z of [-9.2, 8.2]) {
-        bands(side * (w / 2 + 0.63), z - 3.6, z - 2.95);
-        bands(side * (w / 2 + 0.63), z + 2.95, z + 3.6);
+        // (on each arch, either side of its opening)
+        const x = side * (w / 2 + 0.63);
+        k.box(0.1, 1.4, reach - R, 2.4, z - (reach + R) / 2, k.all(k.trim), undefined, x);
+        k.box(0.1, 1.4, reach - R, 2.4, z + (reach + R) / 2, k.all(k.trim), undefined, x);
+        for (const [y, h, m] of [[3.18, 0.16, white], [3.6, 0.7, red], [4.03, 0.16, white]] as const) {
+          const open = Math.sqrt(R * R - (y - h / 2 - hubY) ** 2);
+          k.box(0.1, h, reach - open, y, z - (reach + open) / 2, k.all(m), undefined, x);
+          k.box(0.1, h, reach - open, y, z + (reach + open) / 2, k.all(m), undefined, x);
+        }
       }
     }
     // a white roundel on each door, for the rally number
