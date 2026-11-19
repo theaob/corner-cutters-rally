@@ -31,6 +31,8 @@ export interface CarLook {
   helmet?: string | 'gold';
   /** the car's body (carBodies.ts): the APEX R1 hatch when unset */
   model?: CarModel;
+  /** the extra floodlights some cars carry on a night or evening rally (off by day) */
+  floodlights?: boolean;
 }
 
 /**
@@ -244,6 +246,7 @@ export function createCarMesh(id: CarClassId, livery?: string | Partial<CarLook>
     paint: (color) => mat(color),
     nose,
     noseZ,
+    floodlights: !!look.floodlights,
   };
   const spec = BODIES[look.model ?? 'apex'](kit);
 

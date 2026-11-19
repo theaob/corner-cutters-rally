@@ -11,6 +11,8 @@ import { SCHEMES, liveryOf, schemeById } from '../../src/f1/crews';
 const q = new URLSearchParams(location.search);
 const one = schemeById(q.get('scheme'));
 const dirt = q.has('dirt');
+/** ?night: the cars in their night floodlights */
+const night = q.has('night');
 const only = CARS.find((c) => c.id === q.get('car'));
 const W = innerWidth;
 const H = innerHeight;
@@ -39,7 +41,7 @@ scene.add(ground);
 const list = only ? [only] : CARS;
 const cars = list.map((c, i) => {
   const paint = one ? liveryOf(one) : (c.paint ?? liveryOf(SCHEMES[[0, 3, 2, 6, 7, 4][i] ?? i]));
-  const mesh = createCarMesh('f1', { ...paint, model: c.id }, dirt);
+  const mesh = createCarMesh('f1', { ...paint, model: c.id, floodlights: night }, dirt);
   scene.add(mesh);
   return { car: c, mesh };
 });

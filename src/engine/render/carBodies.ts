@@ -46,6 +46,8 @@ export interface BodyKit {
   /** the nose part (a crash tears it off) and where it sits along the car */
   nose: THREE.Object3D;
   noseZ: number;
+  /** the car wears its night floodlights (a night or evening rally), not by day */
+  floodlights: boolean;
 }
 
 export interface Slant {
@@ -1553,8 +1555,8 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
     k.front(w + 0.2, 1.3, 0.9, 2.3, front - 0.25, k.all(k.body));
     k.front(5.6, 0.8, 0.1, 2.3, front - 0.72, k.all(black));
     k.front(w + 0.6, 0.15, 1.6, 1.45, front - 0.5, k.all(white));
-    // six round floodlights in an arch across the front, the outer ones lower
-    for (let i = 0; i < 6; i++) {
+    // at night or in the evening, six round floodlights in an arch across the front, the outer ones lower
+    if (k.floodlights) for (let i = 0; i < 6; i++) {
       const x = (i - 2.5) * 1.85;
       const y = 3.75 - 0.035 * x * x;
       k.add(drum(0.78, 0.5, 'z', x, y, front - 0.95 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);

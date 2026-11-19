@@ -62,3 +62,19 @@ describe('the rebuilt cars', () => {
     });
   }
 });
+
+describe('night floodlights', () => {
+  /** the vertices in a car's meshes */
+  const size = (floodlights: boolean) => {
+    const car = createCarMesh('f1', { body: '#f3f2ec', model: 'kestrel', floodlights }, false);
+    let n = 0;
+    car.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) n += m.geometry.getAttribute('position').count;
+    });
+    return n;
+  };
+  it('a car carries its floodlights only when told to (a night or evening rally)', () => {
+    expect(size(true)).toBeGreaterThan(size(false));
+  });
+});
