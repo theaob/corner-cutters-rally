@@ -45,7 +45,7 @@ export const CARS: CarSpec[] = [
   { id: 'falco', name: 'FALCO VI', era: '1990s', drive: 'all', unlock: 410, speed: 1.022, pickup: 1.1, turn: 1.05, grip: 1.12, tough: 1.05, paint: { body: '#d0242a', stripe: '#f4f4f0' } },
   { id: 'leone', name: 'LEONE S', era: '2000s', drive: 'all', unlock: 450, speed: 1.026, pickup: 1.12, turn: 1.07, grip: 1.13, tough: 1.02, paint: { body: '#f4f4f0', stripe: '#1d3f9a' } },
   { id: 'zefiro', name: 'ZEFIRO RS', era: '2000s', drive: 'all', unlock: 500, speed: 1.03, pickup: 1.1, turn: 1.06, grip: 1.14, tough: 1.05, paint: { body: '#f4f4f0', stripe: '#a6d23a' } },
-  { id: 'apex', name: 'APEX R1', era: 'TODAY', drive: 'all', unlock: 560, speed: 1.04, pickup: 1, turn: 1.06, grip: 1.15, tough: 1 },
+  { id: 'apex', name: 'APEX R1', era: 'TODAY', drive: 'all', unlock: 560, speed: 1.04, pickup: 1, turn: 1.06, grip: 1.15, tough: 1, paint: { body: '#f4f4f0', stripe: '#d8202a' } },
 ];
 
 export const carById = (id: string | null | undefined): CarSpec | undefined => CARS.find((c) => c.id === id);
