@@ -1902,10 +1902,13 @@ export const BODIES: Record<CarModel, (k: BodyKit) => BodySpec> = {
       k.front(1.1, 0.4, 0.1, 3.0, front - 0.62, k.all(amber), Math.sign(x) * (w / 2 - 0.8));
     }
     k.front(w, 0.15, 1.2, 1.5, front - 0.4, k.all(black));
-    // at night or in the evening, four big round lamps across the top of the nose
-    if (k.floodlights) for (const x of [-4.5, -1.5, 1.5, 4.5]) {
-      k.add(drum(0.85, 0.5, 'z', x, 5.15, front - 0.45 - k.noseZ, 14), [k.chrome, k.chrome, k.chrome], k.nose);
-      k.add(drum(0.72, 0.1, 'z', x, 5.15, front - 0.72 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+    // at night or in the evening, four big round lamps bunched together on a black platform across the nose
+    if (k.floodlights) {
+      k.front(7.4, 0.3, 1.4, 4.4, front - 0.6, k.all(black));
+      for (const x of [-2.7, -0.9, 0.9, 2.7]) {
+        k.add(drum(0.88, 0.5, 'z', x, 5.4, front - 0.75 - k.noseZ, 14), [black, black, black], k.nose);
+        k.add(drum(0.74, 0.1, 'z', x, 5.4, front - 1.02 - k.noseZ, 14), [k.lamp, k.lamp, k.lamp], k.nose);
+      }
     }
     // the tail: red lamps at the corners on a black panel, a white bumper
     k.box(w - 1, 1.2, 0.12, 4.8, back + 0.03, k.all(black));
