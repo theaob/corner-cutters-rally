@@ -204,6 +204,47 @@ describe('menu row gestures', () => {
     expect(rowGesture(-2, 0.1)).toBe(-1); // a tap on the ◀ side
     expect(rowGesture(18, 0.5)).toBe(0); // neither a tap nor a swipe
   });
+
+  it('a drag up or down (scrolling the page) changes nothing', async () => {
+    const { rowGesture } = await import('../src/f1/menu');
+    expect(rowGesture(2, 0.8, -120)).toBe(0);
+    expect(rowGesture(-4, 0.1, 60)).toBe(0);
+    expect(rowGesture(-60, 0.5, 30)).toBe(1); // mostly sideways: still a swipe
+    expect(rowGesture(3, 0.8, 6)).toBe(1); // a tap that wobbled
+  });
+});
+
+describe('menus taller than the screen scroll under a finger', () => {
+  class FakeEl {
+    constructor(public parentElement: FakeEl | null, public scrollHeight = 0, public clientHeight = 0, public overflowY = 'visible') {}
+  }
+  const stub = () => {
+    vi.stubGlobal('Element', FakeEl);
+    vi.stubGlobal('HTMLElement', FakeEl);
+    vi.stubGlobal('getComputedStyle', (e: FakeEl) => ({ overflowY: e.overflowY }));
+  };
+
+  it('finds the scrolling menu a touch is in, only while it has more than it shows', async () => {
+    stub();
+    const { scrollerUnder } = await import('../src/engine/deck');
+    const menu = new FakeEl(null, 643, 390, 'auto');
+    const row = new FakeEl(new FakeEl(menu, 40, 40), 40, 40);
+    expect(scrollerUnder(row as unknown as EventTarget, menu as unknown as HTMLElement)).toBe(menu);
+    menu.scrollHeight = 390; // it all fits: the touches stay held, as before
+    expect(scrollerUnder(row as unknown as EventTarget, menu as unknown as HTMLElement)).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it('never looks past the held element, nor at a box that only hides what overflows', async () => {
+    stub();
+    const { scrollerUnder } = await import('../src/engine/deck');
+    const page = new FakeEl(null, 900, 390, 'auto');
+    const held = new FakeEl(page, 390, 390, 'hidden');
+    const clipped = new FakeEl(held, 500, 100, 'hidden');
+    const target = new FakeEl(clipped);
+    expect(scrollerUnder(target as unknown as EventTarget, held as unknown as HTMLElement)).toBeNull();
+    vi.unstubAllGlobals();
+  });
 });
 
 describe('the last source used, and gamepads', () => {

@@ -57,6 +57,10 @@ body {
   flex-direction: column;
   gap: 10px;
   overflow-y: auto;
+  /* (taller than the screen, as settings and the garage are in landscape: a finger scrolls it up and down, and only
+  it, never the page around a framed game; no pinch or double-tap zoom: deck.ts holdTouches lets these touches through) */
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   background: #111118;
   color: var(--text);
   font-family: var(--pixel);

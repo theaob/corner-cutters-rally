@@ -21,10 +21,26 @@ export function holdTouches(el: HTMLElement): void {
   const stop = (e: TouchEvent) => {
     // (a text field keeps its touches: a tap focuses it and brings up the keyboard)
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    // (and a page taller than the screen keeps them too, so a finger can scroll it: a menu's lower rows in
+    // landscape; the browser cancels the press once the finger moves, so a scroll picks nothing)
+    if (scrollerUnder(e.target, el)) return;
     if (e.cancelable) e.preventDefault();
   };
   el.addEventListener('touchstart', stop, { passive: false });
   el.addEventListener('touchmove', stop, { passive: false });
+}
+
+/**
+ * The element from `target` up to `root` that scrolls up and down and has more in it than it shows (a menu taller
+ * than the screen), or null.
+ */
+export function scrollerUnder(target: EventTarget | null, root: HTMLElement): HTMLElement | null {
+  for (let e = target instanceof Element ? target : null; e; e = e === root ? null : e.parentElement) {
+    if (!(e instanceof HTMLElement) || e.scrollHeight <= e.clientHeight + 1) continue;
+    const y = getComputedStyle(e).overflowY;
+    if (y === 'auto' || y === 'scroll') return e;
+  }
+  return null;
 }
 
 /** Keep the pointer's events coming to `el` while it's held, if the browser allows it (it can refuse). */
