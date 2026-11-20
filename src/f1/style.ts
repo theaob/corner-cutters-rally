@@ -101,25 +101,32 @@ function furthestLead(ux: number, uy: number, screen: SightScreen, zoom: number,
 }
 
 /**
- * How the stage's camera leads the car (race.ts): it sits CAMERA_NEAR closer than TOP_DOWN's framing and aims as far
- * ahead as keeps the car `behind` of the screen's span in from the edge it's coming from (driving up and to the right,
- * the car low and to the left), so the road coming shows as much as the nearer camera allows; at the top, `top` of it
- * (clear of the stage's strip and the co-driver's card there). The lead grows with the
- * speed, all of it from `full` of top speed (so a car crawling or stopped sits nearer the middle).
+ * Where the stage's camera holds your car on the screen (shares of its width and height from the top left), whatever
+ * its speed or way: no lead and no lag. Onur wanted the car fixed on the screen (2026-11-20); this is the low-left
+ * spot he asked to try (the middle is { x: 0.5, y: 0.5 }).
  */
-export const LEAD = { behind: 0.12, top: 0.2, full: 0.45 };
+export const CAR_SPOT = { x: 0.25, y: 0.72 };
 
-/** The stage camera's zoom and lead (px ahead at speed) for a car going (dx, dy) on `screen` (LEAD). */
-export function stageFraming(dx: number, dy: number, screen: SightScreen, topSpeed: number): { zoom: number; lead: number } {
+/** The stage's camera (race.ts): CAMERA_NEAR closer than TOP-DOWN's framing for the way the car's going. */
+export function stageFraming(dx: number, dy: number, screen: SightScreen, topSpeed: number): { zoom: number } {
   const len = Math.hypot(dx, dy);
   const ux = len > 0 ? dx / len : 0;
   const uy = len > 0 ? dy / len : -1;
-  const zoom = topDownFraming(ux, uy, screen, topSpeed).zoom * CAMERA_NEAR;
-  return { zoom, lead: furthestLead(ux, uy, screen, zoom, LEAD.behind, LEAD.top) };
+  return { zoom: topDownFraming(ux, uy, screen, topSpeed).zoom * CAMERA_NEAR };
 }
 
-/** How much of the camera's lead to use at `speed` (0…1: all of it from LEAD.full of `topSpeed`). */
-export const leadShare = (speed: number, topSpeed: number): number => Math.max(0, Math.min(1, speed / (LEAD.full * topSpeed)));
+/**
+ * The point of the ground (px from the camera's aim; y south) that shows at `spot` on `screen` at `zoom` (onScreen
+ * turned round): the camera aims this far short of the car to hold it there.
+ */
+export function groundAt(spot: { x: number; y: number }, screen: SightScreen, zoom: number): { x: number; y: number } {
+  const sx = (spot.x - 0.5) * screen.width;
+  const sy = (spot.y - 0.5) * screen.height;
+  const f = focal(screen.height);
+  const y = sy / (zoom * SIN + (sy * zoom * COS) / f);
+  const w = 1 - (y * zoom * COS) / f;
+  return { x: (sx * w) / zoom, y };
+}
 
 /**
  * TOP-DOWN's camera for a car going (dx, dy) on the map (y south) on `screen`: its zoom, and px it looks ahead at top

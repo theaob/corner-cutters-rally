@@ -19,7 +19,7 @@ import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, teaches, type Device, type Onboarding } from './onboarding';
 import { RESCUE, newRescue, stepRescue } from './rescue';
-import { SIGHT, bestKey, leadShare, rallyCar, stageFraming, styleHandling } from './style';
+import { CAR_SPOT, SIGHT, bestKey, groundAt as spotOnGround, rallyCar, stageFraming, styleHandling } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { DustLayer, dustKindOf } from '../engine/render/dust';
@@ -533,6 +533,12 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
         me: () => {
           const c = race.entrants[you].car;
           return { x: c.x, y: c.y, heading: c.heading, speed: Math.hypot(c.vx, c.vy), vx: c.vx, vy: c.vy };
+        },
+        /** where your car is drawn on the screen (0…1 across and down; the camera holds it at the middle) */
+        carOnScreen: () => {
+          const c = race.entrants[you].car;
+          const v = new THREE.Vector3(c.x, c.z, c.y).project(camera);
+          return { x: (v.x + 1) / 2, y: (1 - v.y) / 2 };
         },
         /** a rally's stage: its notes, the reference run, the rivals' times, the next note to call, the card's call, and its result */
         stage: () => stage && { notes: stage.caller.notes.length, next: stage.caller.next, reference: stage.reference, leader: stage.leader, card: paceCard.el.style.display === 'flex' ? paceCard.el.textContent : undefined, result: stage.result },
@@ -1054,31 +1060,29 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     rain.draw(dt, race.rain);
     skids.update(dt);
 
-    // camera: follow your car, looking ahead along its motion
+    // camera: your car held at one spot of the screen, whatever its speed or way (no lead, no lag: style.ts CAR_SPOT)
     const c = me.car;
     const drawn = pose(c, you, alpha);
-    // (the framing, for the way the car's going, eased: style.ts)
+    // (the zoom, for the way the car's going, eased: style.ts)
     const moving = speedOf(c) > 30;
     const way = moving ? Math.atan2(c.vx, -c.vy) : c.heading;
     // (snapped to it after a restart)
     sightWay = sightWay === undefined || !before ? way : lerpAngle(sightWay, way, 1 - Math.exp(-dt / SIGHT.ease));
-    // (in closer than TOP-DOWN's framing alone, and aimed far ahead, the car kept back toward the edge it's coming
-    // from: style.ts stageFraming)
     const framing = stageFraming(Math.sin(sightWay), -Math.cos(sightWay), { width: viewW, height: viewH }, c.cls.topSpeed);
-    if (lookAt) {
-      // (the debug hook's: the camera on a point of the map)
-      target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
-      focus.copy(target);
-    } else {
-      // (looking ahead the way it's going, eased, more of the way the faster it goes)
-      const lead = (framing.lead * leadShare(speedOf(c), c.cls.topSpeed)) / debugZoom;
-      target.set(drawn.x + Math.sin(sightWay) * lead, drawn.z * 0.5, drawn.y - Math.cos(sightWay) * lead);
-    }
-    focus.lerp(target, 1 - Math.exp(-dt * 6));
     const pitch = deg(LOOK.pitch);
     // (the rush of speed pulls the camera back a touch)
     const rushWant = running(me) ? rushOf(speedOf(me.car), me.car.cls.topSpeed) : 0;
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
+    if (lookAt) {
+      // (the debug hook's: the camera on a point of the map)
+      target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
+    } else {
+      // (aimed short of the car by as much as puts it at CAR_SPOT, at the zoom the picture has now; its height too, so
+      // a jump or a crest doesn't nudge it on the screen)
+      const off = spotOnGround(CAR_SPOT, { width: viewW, height: viewH }, (framing.zoom * debugZoom) / (1 + RUSH.pullBack * rushNow));
+      target.set(drawn.x - off.x, drawn.z, drawn.y - off.y);
+    }
+    focus.copy(target);
     // (pulled back as far as the framing asks)
     const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / framing.zoom / debugZoom) * (1 + RUSH.pullBack * rushNow);
     // the one view: CLASSIC (high, north up: the HD-2D view)
