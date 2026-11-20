@@ -6,7 +6,7 @@ import {
   ROUNDS, SEASON, YOU, currentSeason, loadSeason, newSeason, opensAt, parseSeason, recordRound, retireRound, roundOpen, roundResult, roundsToDrive,
   saveSeason, seasonOver, seasonPlace, seasonStandings, type Season,
 } from '../src/f1/season';
-import { useSave } from '../src/engine/save';
+import { save, useSave } from '../src/engine/save';
 import { CC_SAVE } from '../src/f1/save';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -95,15 +95,46 @@ describe('a season', () => {
   it('is kept on the device, and a saved one from another season starts afresh', () => {
     useSave(CC_SAVE, undefined);
     const s = currentSeason(4);
-    expect(loadSeason()).toEqual(s);
+    expect(loadSeason('historic')).toEqual(s);
     recordRound(s, drive(s, 'forests', 25));
     saveSeason(s);
-    expect(loadSeason()?.results.forests.place).toBe(1);
+    expect(loadSeason('historic')?.results.forests.place).toBe(1);
     expect(currentSeason(9).seed).toBe(4);
     expect(parseSeason({ ...s, id: 'old' })).toBeUndefined();
     expect(parseSeason({ ...s, results: { nowhere: s.results.forests } })).toBeUndefined();
     // (a round's rally keeps which season it's of)
     expect(parseRally(JSON.parse(JSON.stringify(drive(s, 'winter', 25))))?.season).toBe(s.id);
+  });
+});
+
+describe('a championship for each class', () => {
+  it('runs each class its own championship, with rivals of its own, side by side', () => {
+    const h = currentSeason(4, 'historic');
+    const b = currentSeason(5, 'groupb');
+    expect(b.cls).toBe('groupb');
+    expect(b.rivals).not.toEqual(h.rivals);
+    // (a round counts in its own class's championship only)
+    const r = newRally({ event: rallyById('forests')!, seed: 2, scheme: SCHEMES[0], difficulty: 'normal', season: { id: b.id, cls: b.cls, rivals: b.rivals } });
+    while (!rallyOver(r)) recordStage(r, nextStage(r), { time: 25, health: 1 }, aiStage(r, nextStage(r), 30, NORMAL));
+    expect(recordRound(h, r)).toBe(false);
+    expect(recordRound(b, r)).toBe(true);
+    saveSeason(b);
+    expect(loadSeason('groupb')?.results.forests.place).toBe(1);
+    expect(loadSeason('historic')?.results).toEqual({});
+    // (a new championship for one class leaves the others)
+    saveSeason(undefined, 'historic');
+    expect(loadSeason('historic')).toBeUndefined();
+    expect(loadSeason('groupb')).toBeDefined();
+  });
+
+  it("takes a season saved before the classes as HISTORIC's, and its rounds too", () => {
+    const old: Partial<Season> = { ...newSeason(7) };
+    delete old.cls;
+    save('rally', 'season', old);
+    expect(loadSeason('historic')?.seed).toBe(7);
+    const r = drive(newSeason(7), 'forests', 25);
+    delete r.cls;
+    expect(recordRound(loadSeason('historic')!, r)).toBe(true);
   });
 });
 

@@ -62,7 +62,7 @@ import { createFlagOverlay, createRain } from './race/screenFx';
 import { openReport, reportOpen } from './report';
 import { frameWanted } from '../engine/render/capture';
 import { YOUTUBE, onHidden } from '../engine/host';
-import { loadSeason, recordRound, saveSeason } from './season';
+import { loadSeason, recordRound, roundClass, saveSeason } from './season';
 import { payCareer } from './career';
 import { aiStage, rallyEvent, recordBest, recordStage, recordStageBest, referenceStage, saveRally, stageOrder, type Rally } from './rally';
 import { newCaller, paceNotes, screenFacing, stepCaller, type Caller } from './paceNotes';
@@ -444,7 +444,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     if (recordBest(r)) sounds.record();
     saveRally(r);
     // (the last stage of a season's round: its points into the season, and your career points)
-    const season = r.season ? loadSeason() : undefined;
+    const season = r.season ? loadSeason(roundClass(r)) : undefined;
     if (season && recordRound(season, r)) {
       saveSeason(season);
       payCareer(season);

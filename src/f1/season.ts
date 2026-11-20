@@ -3,13 +3,18 @@
 // out), with the same nine rival crews all season. Each round scores points as the WRC does: the top ten overall at
 // the end of it (25, 18, 15 … 1), and the five quickest on its last stage, the Power Stage, a bonus (5 … 1). The
 // most points after the last round takes the title. A round is driven once: it counts as it finished, and one you
-// retire from scores you nothing (retireRound). The season in progress is kept on the device (the save's 'rally'
-// section, as 'season'). Engine-free and unit-tested.
+// retire from scores you nothing (retireRound).
+//
+// Each performance class (cars.ts) runs a championship of its own over the same rounds, with nine rival crews of its
+// own: you drive a round in a class's championship in one of its cars, and can drive every class you've opened. The
+// championships under way are kept on the device (the save's 'rally' section, as 'seasons', by class; one kept as
+// 'season' from before the classes is the HISTORIC one, the class every player starts in). Engine-free and unit-tested.
 
 import { save, saved } from '../engine/save';
 import { seededRandom } from '../engine/rng';
 import { paceRanks } from './difficulty';
 import { CREWS, crewById } from './crews';
+import { classById, type CarClassKey } from './cars';
 import { RALLY, rallyById, rallyOver, stageOrder, standings, type Rally, type RallyCrew, type RallyEvent } from './rally';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -50,9 +55,12 @@ export interface RoundResult {
   power: Record<string, number>;
 }
 
+/** A class's championship over the season. */
 export interface Season {
   v: 1;
   id: string;
+  /** the performance class it's for (one saved before the classes: HISTORIC) */
+  cls: CarClassKey;
   seed: number;
   /** the nine rival crews, with their pace ranks: the same all season */
   rivals: RallyCrew[];
@@ -60,8 +68,8 @@ export interface Season {
   results: Record<string, RoundResult>;
 }
 
-/** A new season: nine of the rival crews, drawn by `seed`, with their pace ranks. */
-export function newSeason(seed: number): Season {
+/** A new championship of class `cls`: nine of the rival crews, drawn by `seed`, with their pace ranks. */
+export function newSeason(seed: number, cls: CarClassKey = 'historic'): Season {
   const rng = seededRandom(seed);
   const all: RallyCrew[] = CREWS.map((c) => ({ crew: c.id }));
   for (let i = all.length - 1; i > 0; i--) {
@@ -71,7 +79,7 @@ export function newSeason(seed: number): Season {
   const rivals = all.slice(0, RALLY.crews - 1);
   const ranks = paceRanks(rivals.length, rng);
   rivals.forEach((c, i) => (c.rank = ranks[i]));
-  return { v: 1, id: SEASON.id, seed, rivals, results: {} };
+  return { v: 1, id: SEASON.id, cls, seed, rivals, results: {} };
 }
 
 /** A crew's key in a rally's points. */
@@ -91,9 +99,15 @@ export function roundResult(r: Rally): RoundResult {
   return { place: order.findIndex((s) => s.crew === r.you) + 1, points, power };
 }
 
+/** The class whose championship rally `r` is a round of (one from before the classes: HISTORIC). */
+export const roundClass = (r: Rally): CarClassKey => classById(r.cls)?.id ?? 'historic';
+
+/** Whether rally `r` is a round of championship `season` not yet driven (a rally from before the classes: HISTORIC's). */
+const roundFor = (season: Season, r: Rally) => r.season === season.id && roundClass(r) === season.cls && roundOf(r.event) >= 0 && !season.results[r.event];
+
 /** Rally `r`, a round of `season`, over: its result kept (once: a round counts as it first finished). Whether it was. */
 export function recordRound(season: Season, r: Rally): boolean {
-  if (r.season !== season.id || roundOf(r.event) < 0 || !rallyOver(r) || season.results[r.event]) return false;
+  if (!roundFor(season, r) || !rallyOver(r)) return false;
   season.results[r.event] = roundResult(r);
   return true;
 }
@@ -104,7 +118,7 @@ export function recordRound(season: Season, r: Rally): boolean {
  * stage had been run, as they rank on pace. No Power Stage bonus: it's the last stage, and wasn't run. Whether it was kept.
  */
 export function retireRound(season: Season, r: Rally): boolean {
-  if (r.season !== season.id || roundOf(r.event) < 0 || season.results[r.event]) return false;
+  if (!roundFor(season, r)) return false;
   const rivals = r.crews.map((_, i) => i).filter((i) => i !== r.you);
   const order = r.stages.length
     ? standings(r).map((o) => o.crew).filter((i) => i !== r.you)
@@ -142,24 +156,48 @@ export const seasonOver = (s: Season) => ROUNDS.every((e) => !!s.results[e.id]);
 /** The rounds still to drive that are open at `now`. */
 export const roundsToDrive = (s: Season, now: number) => ROUNDS.filter((e, k) => roundOpen(k, now) && !s.results[e.id]);
 
-/** A saved season, if it's a good one (and this season's). */
+/** A saved championship, if it's a good one (and this season's; one from before the classes is HISTORIC's). */
 export function parseSeason(v: unknown): Season | undefined {
   if (!v || typeof v !== 'object') return undefined;
   const s = v as Season;
-  const ok = s.v === 1 && s.id === SEASON.id && Number.isInteger(s.seed) && Array.isArray(s.rivals) && s.rivals.length === RALLY.crews - 1
+  const cls = s.cls ?? 'historic';
+  const ok = s.v === 1 && s.id === SEASON.id && !!classById(cls) && Number.isInteger(s.seed) && Array.isArray(s.rivals) && s.rivals.length === RALLY.crews - 1
     && s.rivals.every((c) => !!crewById(c?.crew) && Number.isInteger(c.rank)) && !!s.results && typeof s.results === 'object'
     && Object.entries(s.results).every(([id, r]) => roundOf(id) >= 0 && Number.isInteger(r?.place) && !!r.points && typeof r.points === 'object');
-  return ok ? { ...s, results: Object.fromEntries(Object.entries(s.results).map(([id, r]) => [id, { ...r, power: r.power ?? {} }])) } : undefined;
+  return ok ? { ...s, cls, results: Object.fromEntries(Object.entries(s.results).map(([id, r]) => [id, { ...r, power: r.power ?? {} }])) } : undefined;
 }
 
-export const loadSeason = (): Season | undefined => parseSeason(saved('rally', 'season'));
-export const saveSeason = (s: Season | undefined): void => save('rally', 'season', s);
+/** The championships kept, by class (the one from before the classes moved in as HISTORIC's). */
+export function loadSeasons(): Partial<Record<CarClassKey, Season>> {
+  const kept = saved('rally', 'seasons');
+  const out: Partial<Record<CarClassKey, Season>> = {};
+  if (kept && typeof kept === 'object') {
+    for (const v of Object.values(kept as Record<string, unknown>)) {
+      const s = parseSeason(v);
+      if (s) out[s.cls] = s;
+    }
+  }
+  const old = parseSeason(saved('rally', 'season'));
+  if (old && !out[old.cls]) out[old.cls] = old;
+  return out;
+}
 
-/** The season under way, or a new one (drawn by `seed`), saved. */
-export function currentSeason(seed: number): Season {
-  const had = loadSeason();
+export const loadSeason = (cls: CarClassKey): Season | undefined => loadSeasons()[cls];
+/** Championship `s` kept as its class's (or, `undefined`, class `cls`'s let go: a new one is drawn next time). */
+export function saveSeason(s: Season | undefined, cls: CarClassKey | undefined = s?.cls): void {
+  if (!cls) return;
+  const all = loadSeasons();
+  if (s) all[cls] = s;
+  else delete all[cls];
+  save('rally', 'seasons', all);
+  save('rally', 'season', undefined);
+}
+
+/** Class `cls`'s championship under way, or a new one (drawn by `seed`), saved. */
+export function currentSeason(seed: number, cls: CarClassKey = 'historic'): Season {
+  const had = loadSeason(cls);
   if (had) return had;
-  const s = newSeason(seed);
+  const s = newSeason(seed, cls);
   saveSeason(s);
   return s;
 }

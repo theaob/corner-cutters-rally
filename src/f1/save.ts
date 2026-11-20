@@ -5,7 +5,8 @@
 //   choices   the difficulty (by id), your car's paint scheme from before the garage (crews.ts), and your car (career.ts)
 //   progress  onboarded: the controls lap done or skipped; career: your career points, and what's been paid (career.ts)
 //   rally     current: the rally under way (or just over); best: your best finish in each rally; stages: your best time on each stage (rally.ts);
-//             season: the season under way, its rival crews and the rounds driven (season.ts)
+//             seasons: each class's championship under way, its rival crews and the rounds driven (season.ts; 'season', from
+//             before the classes, is read as HISTORIC's)
 // Each value is checked where it's read, so a missing or odd one falls back to its default.
 //
 // To change the format: bump `version`, and add a migration from the old

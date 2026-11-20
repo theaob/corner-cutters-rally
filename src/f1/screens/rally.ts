@@ -18,7 +18,7 @@ import { formatTime as fmt } from '../time';
 import { layoutById } from '../layouts';
 import { weatherById } from '../weather';
 import type { Scheme } from '../crews';
-import { CARS, classOf, unlockedCars } from '../cars';
+import { CARS, classById, classOf, unlockedCars } from '../cars';
 import { pickCar, yourCar } from '../career';
 import {
   RALLIES, crewName, crewScheme, gapText, loadBests, nextStage, rallyEvent, rallyOver, serviceAfter, standings, yourPlace, type Rally, type RallyEvent,
@@ -30,7 +30,7 @@ import { COLOR, SURFACE_COLOR } from '../theme';
 import { backLabel, language, t, upper } from '../../engine/i18n';
 import { ROUNDS, YOU, opensAt, roundOf, roundOpen, seasonOver, seasonPlace, seasonStandings, type Season } from '../season';
 
-export type RallyAction = 'stage' | 'abandon' | 'retire' | 'settings' | 'new-season' | 'back' | { open: PlayPage | 'garage' } | { start: RallyEvent; scheme: Scheme };
+export type RallyAction = 'stage' | 'abandon' | 'retire' | 'settings' | 'new-season' | 'back' | 'car' | { open: PlayPage | 'garage' } | { start: RallyEvent; scheme: Scheme };
 
 /** A kind of play's page: the season's, or free play's. */
 export type PlayPage = 'season' | 'free';
@@ -276,14 +276,19 @@ export function showRally(host: HTMLElement, services: Services, o: RallyScreen,
       screen.append(grid);
     } else if (!rally) {
       // a new rally: your car's paint, then the rallies to pick from
-      title.textContent = view ? t('SEASON') : t('FREE PLAY');
+      title.textContent = view ? `${t('SEASON')} · ${t(classById(view.season.cls)!.name)}` : t('FREE PLAY');
       screen.append(panel(line(view
         ? t('A SEASON OF {n} ROUNDS, A NEW ONE EACH WEEK: POINTS FOR THE TOP 10, BONUS POINTS ON EACH POWER STAGE', { n: ROUNDS.length })
-        : t('ANY RALLY, ANY TIME · NO SEASON POINTS'), 'var(--accent-b)')));
+        : t('ANY RALLY, ANY TIME · NO SEASON POINTS'), 'var(--accent-b)'),
+        ...(view ? [line(t('EACH CLASS HAS ITS OWN CHAMPIONSHIP · CHANGE CAR TO SWITCH CLASS'))] : [])));
       // (your car: one of those unlocked, its class under its name; the rest of them in the garage)
       const car = optionRow('CAR', unlockedCars(o.career), yourCar(o.career), (c) => ({
         name: c.name, about: `${t(classOf(c).name)} · ${c.era}`, colors: [c.paint?.body ?? '#888', c.paint?.stripe ?? '#444'],
-      }), (c) => pickCar(c, o.career));
+      }), (c) => {
+        pickCar(c, o.career);
+        // (each class runs its own championship: a car of another class shows that one's)
+        if (view && c.cls !== view.season.cls) finish('car');
+      });
       places.push({ el: car.el, step: car.step });
       screen.append(car.el);
       // (the rallies a grid of square tiles, as Corner Cutters' modes are)
@@ -321,7 +326,7 @@ export function showRally(host: HTMLElement, services: Services, o: RallyScreen,
           // (NEW SEASON over the standings, not under them: on the screen without scrolling)
           if (over) screen.append(button(`${t('NEW SEASON')} ▶`, () => finish('new-season'), true));
           screen.append(panel(
-            line(over ? (place === 1 ? t('YOU ARE THE CHAMPION!') : t('YOU FINISHED THE SEASON {place}', { place: ordinal(place) })) : t('SEASON STANDINGS'), over && place === 1 ? 'var(--gold)' : 'var(--text)'),
+            line(over ? (place === 1 ? t('YOU ARE THE CHAMPION!') : t('YOU FINISHED THE SEASON {place}', { place: ordinal(place) })) : `${t(classById(season.cls)!.name)} · ${t('SEASON STANDINGS')}`, over && place === 1 ? 'var(--gold)' : 'var(--text)'),
             seasonTable(season, scheme),
           ));
         }
