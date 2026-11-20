@@ -56,6 +56,7 @@ export const ja: Language = {
   'GAME': 'ゲーム',
   'SOUND': 'サウンド',
   'ACCESSIBILITY': 'アクセシビリティ',
+  'PRIVACY & DATA': 'プライバシーとデータ',
   'LANGUAGE': '言語',
   'the language of the menus': 'メニューの言語',
   'STICK': 'スティック',

@@ -56,6 +56,7 @@ export const it: Language = {
   'GAME': 'GIOCO',
   'SOUND': 'AUDIO',
   'ACCESSIBILITY': 'ACCESSIBILITÀ',
+  'PRIVACY & DATA': 'PRIVACY E DATI',
   'LANGUAGE': 'LINGUA',
   'the language of the menus': 'la lingua dei menu',
   'STICK': 'STICK',

@@ -56,6 +56,7 @@ export const de: Language = {
   'GAME': 'SPIEL',
   'SOUND': 'TON',
   'ACCESSIBILITY': 'BEDIENHILFEN',
+  'PRIVACY & DATA': 'DATENSCHUTZ & DATEN',
   'LANGUAGE': 'SPRACHE',
   'the language of the menus': 'die Sprache der Menüs',
   'STICK': 'STICK',

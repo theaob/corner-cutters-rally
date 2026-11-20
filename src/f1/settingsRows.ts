@@ -4,8 +4,8 @@
 // as it changes, and PRIVACY and TERMS, opened with a tap; as in Corner Cutters, LANGUAGE, NAME (your three letters on
 // the timing screens), GRAPHICS (the picture's quality, or a battery saver), MOTION (less movement) and
 // PLAYER ID. Difficulty is the menu's alone (not changed mid-race).
-// They're laid out as Corner Cutters lays out its settings: a list of pages, CONTROLS, GAME, SOUND and ACCESSIBILITY
-// (settingsPages), each page its rows and BACK. There's one way to drive (the screen's halves, in landscape) and one
+// They're laid out as Corner Cutters lays out its settings: a list of pages, CONTROLS, GAME, SOUND, ACCESSIBILITY and
+// PRIVACY & DATA (settingsPages), each page its rows and BACK. There's one way to drive (the screen's halves, in landscape) and one
 // view (one camera distance: style.ts CAMERA_NEAR), so neither is a setting.
 
 import { setVibration, vibrate, vibrationOn } from '../engine/haptics';
@@ -37,16 +37,19 @@ export type SettingsRow = Omit<ReturnType<typeof optionRow<unknown>>, 'el'> & {
   activate?: () => void;
 };
 
-/** The settings' pages, as in Corner Cutters: CONTROLS (how you drive), GAME (how it plays), SOUND and ACCESSIBILITY. */
-export const SETTINGS_SECTIONS = ['controls', 'game', 'sound', 'access'] as const;
+/**
+ * The settings' pages, as in Corner Cutters: CONTROLS (how you drive), GAME (how it plays), SOUND, ACCESSIBILITY and
+ * PRIVACY & DATA (the PRIVACY and TERMS pages, STATS and the PLAYER ID; a page shows only when it has rows, so not on YouTube).
+ */
+export const SETTINGS_SECTIONS = ['controls', 'game', 'sound', 'access', 'privacy'] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
-export const SECTION_NAME: Record<SettingsSection, string> = { controls: 'CONTROLS', game: 'GAME', sound: 'SOUND', access: 'ACCESSIBILITY' };
+export const SECTION_NAME: Record<SettingsSection, string> = { controls: 'CONTROLS', game: 'GAME', sound: 'SOUND', access: 'ACCESSIBILITY', privacy: 'PRIVACY & DATA' };
 
 /** Each row's page, by its label. */
 export const ROW_SECTION: Record<string, SettingsSection> = {
   DRIVING: 'controls', VIBRATION: 'controls',
-  DIFFICULTY: 'game', LANGUAGE: 'game', NAME: 'game', GRAPHICS: 'game', STATS: 'game',
-  PRIVACY: 'game', TERMS: 'game', 'PLAYER ID': 'game',
+  DIFFICULTY: 'game', LANGUAGE: 'game', NAME: 'game', GRAPHICS: 'game',
+  STATS: 'privacy', PRIVACY: 'privacy', TERMS: 'privacy', 'PLAYER ID': 'privacy',
   SOUND: 'sound', MUSIC: 'sound',
   TEXT: 'access', COLOURS: 'access', MOTION: 'access', 'SCREEN SHAKE': 'access',
 };

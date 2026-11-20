@@ -56,6 +56,7 @@ export const fr: Language = {
   'GAME': 'JEU',
   'SOUND': 'SON',
   'ACCESSIBILITY': 'ACCESSIBILITÉ',
+  'PRIVACY & DATA': 'VIE PRIVÉE ET DONNÉES',
   'LANGUAGE': 'LANGUE',
   'the language of the menus': 'la langue des menus',
   'STICK': 'STICK',

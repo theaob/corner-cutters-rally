@@ -56,6 +56,7 @@ export const tr: Language = {
   'GAME': 'OYUN',
   'SOUND': 'SES',
   'ACCESSIBILITY': 'ERİŞİLEBİLİRLİK',
+  'PRIVACY & DATA': 'GİZLİLİK VE VERİ',
   'LANGUAGE': 'DİL',
   'the language of the menus': 'menülerin dili',
   'STICK': 'ÇUBUK',
