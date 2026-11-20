@@ -2,8 +2,8 @@
 // the text's size (TEXT) and the colours (COLOURS: COLOUR-SAFE for colour blindness; access.ts), vibration, screen shake, the grid walk
 // before a race, and the sound and music volumes, each changed with left/right (or a tap or swipe) and remembered
 // as it changes, and PRIVACY and TERMS, opened with a tap; as in Corner Cutters, LANGUAGE, NAME (your three letters on
-// the timing screens), GRAPHICS (the picture's quality, or a battery saver), MOTION (less movement), BACK UP and RESTORE
-// (the save as a code, to move to another device) and PLAYER ID. Difficulty is the menu's alone (not changed mid-race).
+// the timing screens), GRAPHICS (the picture's quality, or a battery saver), MOTION (less movement) and
+// PLAYER ID. Difficulty is the menu's alone (not changed mid-race).
 // They're laid out as Corner Cutters lays out its settings: a list of pages, CONTROLS, GAME, SOUND and ACCESSIBILITY
 // (settingsPages), each page its rows and BACK. There's one way to drive (the screen's halves, in landscape) and one
 // view (one camera distance: style.ts CAMERA_NEAR), so neither is a setting.
@@ -21,9 +21,6 @@ import { online } from '../engine/backend';
 import { colourSafe, largeText, MOTION_SETTINGS, motionSetting, setColourSafe, setLargeText, setMotionSetting, type MotionSetting } from './access';
 import { availableLanguages, chooseLanguage, language, t, backLabel } from '../engine/i18n';
 import { GRAPHICS_SETTINGS, graphicsSetting, setGraphicsSetting, type GraphicsSetting } from './graphics';
-import { exportSaveDoc, replaceSave } from '../engine/save';
-import { decodeSave, encodeSave } from '../engine/saveCode';
-import { Share } from '@capacitor/share';
 
 /** The nearest volume step to `v`. */
 const nearest = (v: number) => VOLUMES.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
@@ -48,7 +45,7 @@ export const SECTION_NAME: Record<SettingsSection, string> = { controls: 'CONTRO
 /** Each row's page, by its label. */
 export const ROW_SECTION: Record<string, SettingsSection> = {
   DRIVING: 'controls', VIBRATION: 'controls',
-  DIFFICULTY: 'game', LANGUAGE: 'game', NAME: 'game', GRAPHICS: 'game', STATS: 'game', 'BACK UP': 'game', RESTORE: 'game',
+  DIFFICULTY: 'game', LANGUAGE: 'game', NAME: 'game', GRAPHICS: 'game', STATS: 'game',
   PRIVACY: 'game', TERMS: 'game', 'PLAYER ID': 'game',
   SOUND: 'sound', MUSIC: 'sound',
   TEXT: 'access', COLOURS: 'access', MOTION: 'access', 'SCREEN SHAKE': 'access',
@@ -87,64 +84,6 @@ export function actionRow(label: string, value: () => string, about: () => strin
   });
   render();
   return { el, step: () => {}, value: () => undefined, refresh: render, activate: () => (run(), render()) };
-}
-
-/** Copy `text` (or, where the page may not, hand it to the phone's share sheet): true if it went anywhere. */
-async function copyOrShare(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      await Share.share({ text });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
-
-/**
- * RESTORE: paste a code from BACK UP on another device. A whole, unchanged code asks to be tapped again (it replaces
- * what's on this device, which is kept aside first); then the page reloads with it.
- */
-function restoreRow(): SettingsRow {
-  const el = document.createElement('div');
-  el.className = 'option-row';
-  const label = Object.assign(document.createElement('b'), { textContent: t('RESTORE') });
-  const right = document.createElement('div');
-  right.className = 'value';
-  const field = document.createElement('input');
-  Object.assign(field, { type: 'text', autocomplete: 'off', spellcheck: false, placeholder: t('PASTE A CODE') });
-  field.setAttribute('aria-label', t('PASTE A CODE'));
-  Object.assign(field.style, { width: '9em', font: 'inherit' });
-  const about = document.createElement('span');
-  const idle = () => t('progress from a BACK UP on another device');
-  about.textContent = idle();
-  let ready: ReturnType<typeof decodeSave>;
-  let armed = false;
-  const check = () => {
-    ready = decodeSave(field.value);
-    armed = false;
-    about.textContent = !field.value.trim() ? idle() : ready ? t('a good code: tap here to replace this device’s progress') : t('not a whole code: copy it again');
-  };
-  field.addEventListener('input', check);
-  const run = () => {
-    if (!ready) return;
-    if (!armed) {
-      armed = true;
-      about.textContent = t('tap again: this replaces the progress on this device');
-      return;
-    }
-    about.textContent = replaceSave(ready) ? (location.reload(), t('restored')) : t('this code is from a newer game: update it first');
-    armed = false;
-  };
-  el.addEventListener('pointerup', (e) => {
-    if (e.target !== field) run();
-  });
-  right.append(field, about);
-  el.append(label, right);
-  return { el, step: () => {}, value: () => undefined, refresh: check, activate: run };
 }
 
 /** NAME: your name on the timing screens, up to a full surname (YOU until set), typed (the phone's keyboard comes up). */
@@ -215,14 +154,6 @@ export function settingsRows(): SettingsRow[] {
     copied = true;
     void navigator.clipboard?.writeText(playerId()).catch(() => (copied = false));
   });
-  // BACK UP and RESTORE: the whole save as a code to copy to another device (a new phone, the app and the web)
-  let backedUp: boolean | undefined;
-  const backupRow = actionRow('BACK UP', () => t('COPY'), () => (backedUp === undefined ? t('your progress as a code, to RESTORE on another device') : backedUp ? t('copied: keep it private, it holds your progress') : t('couldn’t copy it')), () => {
-    void copyOrShare(encodeSave(exportSaveDoc())).then((ok) => {
-      backedUp = ok;
-      backupRow.refresh();
-    });
-  });
   // LANGUAGE: only once the game has another language besides English (a change builds the open screen again)
   const languages = availableLanguages();
   const languageRow = languages.length > 1
@@ -232,7 +163,7 @@ export function settingsRows(): SettingsRow[] {
   const rows: [SettingsRow, string][] = ([
     [drivingRow, 'DRIVING'], [vibrationRow, 'VIBRATION'],
     [languageRow, 'LANGUAGE'], [nameRow(), 'NAME'], [graphicsRow, 'GRAPHICS'], [online() && statsRow, 'STATS'],
-    [backupRow, 'BACK UP'], [restoreRow(), 'RESTORE'], [!YOUTUBE && privacyRow, 'PRIVACY'], [!YOUTUBE && termsRow, 'TERMS'], [!YOUTUBE && idRow, 'PLAYER ID'],
+    [!YOUTUBE && privacyRow, 'PRIVACY'], [!YOUTUBE && termsRow, 'TERMS'], [!YOUTUBE && idRow, 'PLAYER ID'],
     [soundRow, 'SOUND'], [musicRow, 'MUSIC'],
     [textRow, 'TEXT'], [coloursRow, 'COLOURS'], [motionRow, 'MOTION'], [shakeRow, 'SCREEN SHAKE'],
   ] as [SettingsRow | false | undefined, string][]).filter((r): r is [SettingsRow, string] => !!r[0]);
