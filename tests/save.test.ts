@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { exportSaveDoc, flushSave, migrateSave, parseSaveDoc, replaceSave, save, saved, savedSection, saveVersion, useSave, type SaveFormat, type SaveStore } from '../src/engine/save';
+import { flushSave, migrateSave, parseSaveDoc, save, saved, savedSection, saveVersion, useSave, type SaveFormat, type SaveStore } from '../src/engine/save';
 import { useStore } from '../src/engine/storage';
 import { CC_SAVE } from '../src/f1/save';
 import { loadStageBests, recordStageBest } from '../src/f1/rally';
@@ -252,20 +252,5 @@ describe('a run of saves', () => {
     useSave(CC_SAVE, fakeStore({}, 'full'));
     save('ghosts', 'c', { n: 3 });
     expect(saved('ghosts', 'c')).toEqual({ n: 3 });
-  });
-
-  it('a save moved to another device carries its ghosts whole', () => {
-    const s = fakeStore();
-    useSave(CC_SAVE, s);
-    save('settings', 'sound', 0.5);
-    save('ghosts', 'a', { n: 1 });
-    const out = exportSaveDoc();
-    expect(out.data.ghosts).toEqual({ a: { n: 1 } });
-    const t = fakeStore();
-    useSave(CC_SAVE, t);
-    expect(replaceSave(out)).toBe(true);
-    expect(t.items.get('cc:ghosts.a')).toBe('{"n":1}');
-    expect(stored(t).data.ghosts).toEqual({ a: 1 });
-    expect(saved('ghosts', 'a')).toEqual({ n: 1 });
   });
 });

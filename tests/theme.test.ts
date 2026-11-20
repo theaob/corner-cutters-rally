@@ -60,9 +60,9 @@ describe('the calls without a voice', () => {
 });
 
 describe('the settings in pages, as in Corner Cutters', () => {
-  it('CONTROLS, GAME, SOUND and ACCESSIBILITY, every row on one', async () => {
+  it('CONTROLS, GAME, SOUND, ACCESSIBILITY and PRIVACY & DATA, every row on one', async () => {
     const { ROW_SECTION, SETTINGS_SECTIONS, SECTION_NAME } = await import('../src/f1/settingsRows');
-    expect(SETTINGS_SECTIONS.map((s) => SECTION_NAME[s])).toEqual(['CONTROLS', 'GAME', 'SOUND', 'ACCESSIBILITY']);
+    expect(SETTINGS_SECTIONS.map((s) => SECTION_NAME[s])).toEqual(['CONTROLS', 'GAME', 'SOUND', 'ACCESSIBILITY', 'PRIVACY & DATA']);
     for (const label of ['DIFFICULTY', 'VIBRATION', 'TEXT', 'COLOURS', 'SCREEN SHAKE', 'SOUND', 'MUSIC', 'STATS', 'PRIVACY', 'TERMS']) {
       expect(ROW_SECTION[label], label).toBeDefined();
     }
@@ -72,6 +72,7 @@ describe('the settings in pages, as in Corner Cutters', () => {
     for (const gone of ['STYLE', 'VIEW', 'GAS', 'STEERING', 'ASSIST', 'SIDES', 'STICK', 'SCREEN', 'CAMERA']) expect(ROW_SECTION[gone], gone).toBeUndefined();
     expect(ROW_SECTION.DIFFICULTY).toBe('game');
     expect(ROW_SECTION.COLOURS).toBe('access');
+    for (const legal of ['PRIVACY', 'TERMS', 'PLAYER ID', 'STATS']) expect(ROW_SECTION[legal], legal).toBe('privacy');
   });
   it("a page's places are its rows shown, then BACK", async () => {
     const { pagePlaces } = await import('../src/f1/settingsRows');
