@@ -19,7 +19,7 @@ import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, teaches, type Device, type Onboarding } from './onboarding';
 import { RESCUE, newRescue, stepRescue } from './rescue';
-import { SIGHT, bestKey, rallyCar, stageFraming, styleHandling } from './style';
+import { CAR_SPOT, SIGHT, bestKey, groundAt as spotOnGround, rallyCar, stageFraming, styleHandling } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { DustLayer, dustKindOf } from '../engine/render/dust';
@@ -1060,7 +1060,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     rain.draw(dt, race.rain);
     skids.update(dt);
 
-    // camera: square on your car, so it holds the middle of the screen (no lead, no lag: style.ts stageFraming)
+    // camera: your car held at one spot of the screen, whatever its speed or way (no lead, no lag: style.ts CAR_SPOT)
     const c = me.car;
     const drawn = pose(c, you, alpha);
     // (the zoom, for the way the car's going, eased: style.ts)
@@ -1069,18 +1069,20 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     // (snapped to it after a restart)
     sightWay = sightWay === undefined || !before ? way : lerpAngle(sightWay, way, 1 - Math.exp(-dt / SIGHT.ease));
     const framing = stageFraming(Math.sin(sightWay), -Math.cos(sightWay), { width: viewW, height: viewH }, c.cls.topSpeed);
-    if (lookAt) {
-      // (the debug hook's: the camera on a point of the map)
-      target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
-    } else {
-      // (on the car itself, its height too, so a jump or a crest doesn't nudge it on the screen)
-      target.set(drawn.x, drawn.z, drawn.y);
-    }
-    focus.copy(target);
     const pitch = deg(LOOK.pitch);
     // (the rush of speed pulls the camera back a touch)
     const rushWant = running(me) ? rushOf(speedOf(me.car), me.car.cls.topSpeed) : 0;
     rushNow += (rushWant - rushNow) * Math.min(1, dt * 3);
+    if (lookAt) {
+      // (the debug hook's: the camera on a point of the map)
+      target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
+    } else {
+      // (aimed short of the car by as much as puts it at CAR_SPOT, at the zoom the picture has now; its height too, so
+      // a jump or a crest doesn't nudge it on the screen)
+      const off = spotOnGround(CAR_SPOT, { width: viewW, height: viewH }, (framing.zoom * debugZoom) / (1 + RUSH.pullBack * rushNow));
+      target.set(drawn.x - off.x, drawn.z, drawn.y - off.y);
+    }
+    focus.copy(target);
     // (pulled back as far as the framing asks)
     const dist = (viewH / (2 * Math.tan(deg(LOOK.fov / 2))) / framing.zoom / debugZoom) * (1 + RUSH.pullBack * rushNow);
     // the one view: CLASSIC (high, north up: the HD-2D view)

@@ -101,15 +101,31 @@ function furthestLead(ux: number, uy: number, screen: SightScreen, zoom: number,
 }
 
 /**
- * The stage's camera (race.ts): it sits CAMERA_NEAR closer than TOP-DOWN's framing for the way the car's going, aimed
- * square on the car, so the car holds one place on the screen (its middle) whatever its speed or way. No lead and no
- * lag: Onur wanted the car fixed on the screen, not drifting off the middle.
+ * Where the stage's camera holds your car on the screen (shares of its width and height from the top left), whatever
+ * its speed or way: no lead and no lag. Onur wanted the car fixed on the screen (2026-11-20); this is the low-left
+ * spot he asked to try (the middle is { x: 0.5, y: 0.5 }).
  */
+export const CAR_SPOT = { x: 0.25, y: 0.72 };
+
+/** The stage's camera (race.ts): CAMERA_NEAR closer than TOP-DOWN's framing for the way the car's going. */
 export function stageFraming(dx: number, dy: number, screen: SightScreen, topSpeed: number): { zoom: number } {
   const len = Math.hypot(dx, dy);
   const ux = len > 0 ? dx / len : 0;
   const uy = len > 0 ? dy / len : -1;
   return { zoom: topDownFraming(ux, uy, screen, topSpeed).zoom * CAMERA_NEAR };
+}
+
+/**
+ * The point of the ground (px from the camera's aim; y south) that shows at `spot` on `screen` at `zoom` (onScreen
+ * turned round): the camera aims this far short of the car to hold it there.
+ */
+export function groundAt(spot: { x: number; y: number }, screen: SightScreen, zoom: number): { x: number; y: number } {
+  const sx = (spot.x - 0.5) * screen.width;
+  const sy = (spot.y - 0.5) * screen.height;
+  const f = focal(screen.height);
+  const y = sy / (zoom * SIN + (sy * zoom * COS) / f);
+  const w = 1 - (y * zoom * COS) / f;
+  return { x: (sx * w) / zoom, y };
 }
 
 /**
