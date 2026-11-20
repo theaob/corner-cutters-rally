@@ -6,7 +6,7 @@ import { NORMAL, handlingFor } from '../src/f1/difficulty';
 import { CC_SAVE } from '../src/f1/save';
 import * as THREE from 'three';
 import { HD2D_VIEW } from '../src/engine/look';
-import { CAMERA_NEAR, LEAD, SIGHT, TOP_DOWN, leadShare, onScreen, stageFraming, bestKey, rallyCar, sightAhead, styleHandling, topDownFraming, type SightScreen } from '../src/f1/style';
+import { CAMERA_NEAR, SIGHT, TOP_DOWN, stageFraming, bestKey, rallyCar, sightAhead, styleHandling, topDownFraming, type SightScreen } from '../src/f1/style';
 
 const memory = (): SaveStore => {
   const items = new Map<string, string>();
@@ -99,44 +99,25 @@ describe("TOP-DOWN's camera (P2: even sight)", () => {
     expect(up.zoom).toBeGreaterThanOrEqual(SIGHT.furthest);
   });
 
-  it('leads the car: low and to the left driving up and right, more road ahead than the framing\'s own lead every way', () => {
+  it('frames the car square in the middle, no lead: only the zoom follows the way it goes (CAMERA_NEAR closer)', () => {
     for (const screen of [NARROW, PHONE]) {
       for (let k = 0; k < 16; k++) {
         const ux = Math.sin((k / 16) * 2 * Math.PI);
         const uy = -Math.cos((k / 16) * 2 * Math.PI);
-        const f = topDownFraming(ux, uy, screen, TOP);
-        const was = sightAhead(ux, uy, screen, f.zoom * CAMERA_NEAR, f.lead / CAMERA_NEAR);
         const s = stageFraming(ux, uy, screen, TOP);
-        expect(s.zoom).toBeCloseTo(f.zoom * CAMERA_NEAR);
-        expect(sightAhead(ux, uy, screen, s.zoom, s.lead), `way ${k}/16`).toBeGreaterThanOrEqual(was);
-        // (the car on the screen, kept in from its edges, and further from the top: the stage's strip and the card)
-        const car = onScreen(-ux * s.lead, -uy * s.lead, screen, s.zoom);
-        expect(Math.abs(car.x)).toBeLessThanOrEqual(screen.width * (0.5 - LEAD.behind) + 1);
-        expect(car.y).toBeLessThanOrEqual(screen.height * (0.5 - LEAD.behind) + 1);
-        expect(car.y).toBeGreaterThanOrEqual(-screen.height * (0.5 - LEAD.top) - 1);
+        expect(s).toEqual({ zoom: expect.any(Number) });
+        expect(s.zoom).toBeCloseTo(topDownFraming(ux, uy, screen, TOP).zoom * CAMERA_NEAR);
       }
     }
-    // driving up and to the right: the car low and left
-    const up = stageFraming(1, -1, PHONE, TOP);
-    const car = onScreen(-Math.SQRT1_2 * up.lead, Math.SQRT1_2 * up.lead, PHONE, up.zoom);
-    expect(car.x).toBeLessThan(-PHONE.width * 0.15);
-    expect(car.y).toBeGreaterThan(PHONE.height * 0.25);
   });
 
-  it('leads more the faster the car goes, all of it from LEAD.full of top speed', () => {
-    expect(leadShare(0, TOP)).toBe(0);
-    expect(leadShare(TOP * LEAD.full * 0.5, TOP)).toBeCloseTo(0.5);
-    expect(leadShare(TOP, TOP)).toBe(1);
-  });
-
-  it('sits closer than the framing (CAMERA_NEAR), still with over 1.15 s of road ahead at top speed every way', () => {
+  it('sits closer than the framing (CAMERA_NEAR), the car in the middle still with over 0.6 s of road ahead at top speed every way', () => {
     expect(CAMERA_NEAR).toBeGreaterThan(1);
     for (const screen of [NARROW, PHONE]) {
       for (let k = 0; k < 16; k++) {
         const ux = Math.sin((k / 16) * 2 * Math.PI);
         const uy = -Math.cos((k / 16) * 2 * Math.PI);
-        const f = topDownFraming(ux, uy, screen, TOP);
-        expect(sightAhead(ux, uy, screen, f.zoom * CAMERA_NEAR, f.lead / CAMERA_NEAR) / TOP).toBeGreaterThan(1.15);
+        expect(sightAhead(ux, uy, screen, stageFraming(ux, uy, screen, TOP).zoom, 0) / TOP, `way ${k}/16`).toBeGreaterThan(0.6);
       }
     }
   });
