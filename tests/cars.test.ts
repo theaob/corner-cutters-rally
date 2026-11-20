@@ -5,6 +5,12 @@ import { rallyCar } from '../src/f1/style';
 import { BODIES } from '../src/engine/render/carBodies';
 import { createCarMesh } from '../src/engine/render/vehicles3d';
 import { carClass } from '../src/engine/driving';
+import { buildCircuit } from '../src/f1/circuit';
+import { NORMAL, handlingFor } from '../src/f1/difficulty';
+import { layoutById } from '../src/f1/layouts';
+import { lineCornerSpeed, lineDecel } from '../src/f1/racing';
+import { referenceStage } from '../src/f1/rally';
+import { styleHandling } from '../src/f1/style';
 
 describe('the garage lineup', () => {
   it('has a body for every car, the first free and each next one dearer', () => {
@@ -31,10 +37,24 @@ describe('the garage lineup', () => {
     expect(rallyCar(classOf(carById('mini')!))).toEqual(rallyCar(classOf(carById('alpine')!)));
     expect(rallyCar(classOf(carById('apex')!))).toEqual(rallyCar());
     const historic = rallyCar(classById('historic'));
-    expect(historic.topSpeed).toBeCloseTo(rallyCar().topSpeed * 0.9);
+    expect(historic.topSpeed).toBeCloseTo(rallyCar().topSpeed * 0.7);
     expect(historic.grip).toBeLessThan(rallyCar().grip);
     expect(historic.health).toBeLessThan(rallyCar().health);
   });
+
+  it('runs a stage well slower in each class down the ladder: a historic car is far off a WRC car', () => {
+    const layout = layoutById('ss-shakedown')!;
+    const h = styleHandling(handlingFor(NORMAL));
+    const times = CLASSES.map((k) => {
+      const car = rallyCar(k);
+      const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(car, h), decel: lineDecel(car) });
+      return referenceStage(c.track, c.grid, h, 'dry', c.slots[0], car).time;
+    });
+    const wrc = times[times.length - 1];
+    // (each class at least 4% off the next one up; the historic cars a good third slower than today's)
+    for (let i = 1; i < times.length; i++) expect(times[i - 1]).toBeGreaterThan(times[i] * 1.04);
+    expect(times[0]).toBeGreaterThan(wrc * 1.3);
+  }, 60000);
 
   it('unlocks by career points', () => {
     expect(unlockedCars(0).map((c) => c.id)).toEqual(['mini']);

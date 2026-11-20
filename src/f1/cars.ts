@@ -25,10 +25,10 @@ export interface ClassSpec {
 
 /** The performance classes, slowest first: a ladder, each opened by its first car's unlocking. */
 export const CLASSES: ClassSpec[] = [
-  { id: 'historic', name: 'HISTORIC', speed: 0.9, pickup: 1.3, turn: 1.06, grip: 0.86, tough: 0.9 },
-  { id: 'classic', name: 'CLASSIC', speed: 0.93, pickup: 1.22, turn: 1.04, grip: 0.9, tough: 0.95 },
-  { id: 'groupb', name: 'GROUP B', speed: 0.97, pickup: 1.08, turn: 1, grip: 0.95, tough: 0.95 },
-  { id: 'groupa', name: 'GROUP A', speed: 0.98, pickup: 1.06, turn: 1, grip: 0.98, tough: 1 },
+  { id: 'historic', name: 'HISTORIC', speed: 0.7, pickup: 1.7, turn: 1, grip: 0.8, tough: 0.9 },
+  { id: 'classic', name: 'CLASSIC', speed: 0.79, pickup: 1.45, turn: 1, grip: 0.86, tough: 0.95 },
+  { id: 'groupb', name: 'GROUP B', speed: 0.88, pickup: 1.15, turn: 1, grip: 0.92, tough: 0.95 },
+  { id: 'groupa', name: 'GROUP A', speed: 0.94, pickup: 1.08, turn: 1, grip: 0.96, tough: 1 },
   { id: 'wrc', name: 'WRC', speed: 1, pickup: 1, turn: 1, grip: 1, tough: 1 },
 ];
 
