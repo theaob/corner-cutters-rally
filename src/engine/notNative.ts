@@ -8,7 +8,6 @@ const never = () => Promise.resolve(undefined as never);
 export const Capacitor = { isNativePlatform: (): boolean => false, getPlatform: (): string => 'web' };
 export const App = { addListener: never, exitApp: never };
 export const Haptics = { vibrate: never };
-export const Share = { share: never };
 export const Filesystem = { writeFile: never };
 export const Directory = { Cache: 'CACHE' };
 export const LocalNotifications = { checkPermissions: never, requestPermissions: never, cancel: never, schedule: never, addListener: never };

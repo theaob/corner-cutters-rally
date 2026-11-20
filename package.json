@@ -1,7 +1,7 @@
 {
   "name": "corner-cutters-rally",
   "private": true,
-  "version": "0.10.1",
+  "version": "0.10.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -28,7 +28,6 @@
     "@capacitor/filesystem": "^8.1.4",
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/screen-orientation": "^8.0.2",
-    "@capacitor/share": "^8.0.3",
     "html-to-image": "^1.11.13",
     "three": "^0.186.1"
   },
