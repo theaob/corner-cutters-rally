@@ -22,9 +22,12 @@ const TAP_SLOP = 12;
  * What a gesture on an option row does: a swipe left is the next value and a
  * swipe right the previous (like a carousel); a tap on the row's left third
  * (its ◀) steps back, anywhere else forward; a short wobble does nothing.
- * `dx` is how far the finger moved sideways (px), `at` where it lifted across the row (0…1).
+ * A drag up or down (as to scroll the page) does nothing either.
+ * `dx` is how far the finger moved sideways (px), `at` where it lifted across the row (0…1), `dy` how far it moved
+ * up or down (px).
  */
-export function rowGesture(dx: number, at: number): -1 | 0 | 1 {
+export function rowGesture(dx: number, at: number, dy = 0): -1 | 0 | 1 {
+  if (Math.abs(dy) >= SWIPE && Math.abs(dy) > Math.abs(dx)) return 0;
   if (Math.abs(dx) >= SWIPE) return dx < 0 ? 1 : -1;
   if (Math.abs(dx) < TAP_SLOP) return at < 1 / 3 ? -1 : 1;
   return 0;
@@ -96,12 +99,13 @@ export function optionRow<T>(
   };
   // swipe it, or tap its sides (the row keeps the finger's events: touch captures to it)
   let startX: number | undefined;
-  el.addEventListener('pointerdown', (e) => (startX = e.clientX));
+  let startY = 0;
+  el.addEventListener('pointerdown', (e) => ((startX = e.clientX), (startY = e.clientY)));
   el.addEventListener('pointercancel', () => (startX = undefined));
   el.addEventListener('pointerup', (e) => {
     if (startX === undefined) return;
     const r = el.getBoundingClientRect();
-    const by = rowGesture(e.clientX - startX, (e.clientX - r.left) / Math.max(1, r.width));
+    const by = rowGesture(e.clientX - startX, (e.clientX - r.left) / Math.max(1, r.width), e.clientY - startY);
     startX = undefined;
     if (by) step(by);
   });
