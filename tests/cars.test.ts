@@ -4,7 +4,7 @@ import { CARS, CLASSES, carById, carsIn, classById, classOf, nextCar, unlockedCa
 import { rallyCar } from '../src/f1/style';
 import { BODIES } from '../src/engine/render/carBodies';
 import { createCarMesh } from '../src/engine/render/vehicles3d';
-import { carClass } from '../src/engine/driving';
+import { carClass, forwardOf, newCar, stepCar } from '../src/engine/driving';
 import { buildCircuit } from '../src/f1/circuit';
 import { NORMAL, handlingFor } from '../src/f1/difficulty';
 import { layoutById } from '../src/f1/layouts';
@@ -54,6 +54,33 @@ describe('the garage lineup', () => {
     // (each class at least 4% off the next one up; the historic cars a good third slower than today's)
     for (let i = 1; i < times.length; i++) expect(times[i - 1]).toBeGreaterThan(times[i] * 1.04);
     expect(times[0]).toBeGreaterThan(wrc * 1.3);
+  }, 60000);
+
+  it('lets an older class slide more: a historic car hung out well past a WRC car through a flat-out turn', () => {
+    const layout = layoutById('ss-shakedown')!;
+    const h = styleHandling(handlingFor(NORMAL));
+    /** the most the car's slid (degrees off where it points) in 0.3 s of full lock from top speed */
+    const slide = (k: (typeof CLASSES)[number]) => {
+      const cls = rallyCar(k);
+      const c = buildCircuit(layout, { cornerSpeed: lineCornerSpeed(cls, h), decel: lineDecel(cls) });
+      const s = c.slots[0];
+      const car = newCar(cls, s.x, s.y, s.heading);
+      const f = forwardOf(s.heading);
+      car.vx = f.x * cls.topSpeed;
+      car.vy = f.y * cls.topSpeed;
+      let most = 0;
+      for (let i = 0; i < 18; i++) {
+        stepCar(car, { wheel: { turn: 1, gas: 1, reverse: false }, handbrake: false }, h, 1 / 60, c.grid);
+        const nf = forwardOf(car.heading);
+        const fwd = car.vx * nf.x + car.vy * nf.y;
+        const side = car.vx * -nf.y + car.vy * nf.x;
+        most = Math.max(most, (Math.abs(Math.atan2(side, fwd)) * 180) / Math.PI);
+      }
+      return most;
+    };
+    const angles = CLASSES.map(slide);
+    for (let i = 1; i < angles.length; i++) expect(angles[i - 1]).toBeGreaterThanOrEqual(angles[i] - 0.5);
+    expect(angles[0]).toBeGreaterThan(angles[angles.length - 1] * 1.5);
   }, 60000);
 
   it('unlocks by career points', () => {
