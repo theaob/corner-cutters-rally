@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -12,7 +13,6 @@
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
-            android:screenOrientation="sensorLandscape"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
@@ -42,4 +42,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- the D-pad's little buzz (navigator.vibrate) -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- no ads and no advertising id: a library (Play Billing / Play services) can bring this permission in, and Play
+         then refuses the upload against the Console's "doesn't use advertising ID" declaration; keep it out -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
 </manifest>

@@ -111,6 +111,18 @@ jobs:
           mkdir -p ../play
           cp app/build/outputs/bundle/release/app-release.aab "../play/corner-cutters-rally-play-$version-$GITHUB_RUN_NUMBER.aab"
 
+      # the Play Console's advertising ID declaration says the game doesn't use it (no ads): fail the run if any
+      # library puts the permission back in the merged manifest, rather than finding out at the Play upload
+      - name: Check the Play build has no advertising ID permission
+        working-directory: android/app/build/intermediates
+        run: |
+          manifest="$(find . -path '*release*' -name AndroidManifest.xml -path '*merged_manifest*' | head -n1)"
+          [ -n "$manifest" ] || { echo "::error::merged release manifest not found"; exit 1; }
+          echo "permissions in $manifest:"; grep -o 'uses-permission[^>]*' "$manifest" || true
+          if grep -q 'com.google.android.gms.permission.AD_ID' "$manifest"; then
+            echo "::error::the Play build asks for the advertising ID permission (AD_ID)"; exit 1
+          fi
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         continue-on-error: true
         with:

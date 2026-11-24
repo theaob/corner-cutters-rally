@@ -14,14 +14,18 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        lockToPortraitOnPhones();
+        lockToLandscapeOnPhones();
         hideSystemBars();
     }
 
-    /** Phones stay upright (the on-screen controls are laid out for it); tablets, foldables and desktop windows rotate and resize freely. */
-    private void lockToPortraitOnPhones() {
+    /**
+     * Phones play sideways, either way round (the screen's halves are the controls). Tablets, foldables and desktop
+     * windows are left free: Android 16 ignores an orientation lock there anyway, and Play warns about a manifest that
+     * asks for one, so the manifest asks for none; held upright, the game asks to be turned (src/app.ts).
+     */
+    private void lockToLandscapeOnPhones() {
         boolean large = getResources().getConfiguration().smallestScreenWidthDp >= 600;
-        setRequestedOrientation(large ? ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED : ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
+        setRequestedOrientation(large ? ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED : ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
     }
 
     @Override

@@ -1,6 +1,6 @@
 // The Android app's orientation: always landscape (the game is played sideways, the screen's halves the controls).
-// The manifest asks for landscape too (sensorLandscape), but not every device turns for it at launch, so the app locks
-// it as it starts. On the web the page goes the way the phone is held; an upright phone gets a note (src/app.ts).
+// MainActivity turns phones sideways as the app starts (the manifest asks for no orientation, which Play warns about on
+// large screens), and the app locks it here too. On the web the page goes the way the phone is held; an upright phone gets a note (src/app.ts).
 
 import { Capacitor } from '@capacitor/core';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
