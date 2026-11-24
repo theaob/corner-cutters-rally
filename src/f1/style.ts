@@ -101,11 +101,36 @@ function furthestLead(ux: number, uy: number, screen: SightScreen, zoom: number,
 }
 
 /**
- * Where the stage's camera holds your car on the screen (shares of its width and height from the top left), whatever
- * its speed or way: no lead and no lag. Onur wanted the car fixed on the screen (2026-11-20); this is the low-left
- * spot he asked to try (the middle is { x: 0.5, y: 0.5 }).
+ * Where the stage's camera holds your car on the screen (shares of its width and height from the top left). It moves
+ * with the road coming, never with the car's speed or a twitch of its nose (Onur, 2026-11-24): the road ahead bending
+ * left, the car eases over to the right so the bend shows, and the other way round; the road running up the screen,
+ * the car low; running down it, the car comes up, but never above the middle. `x`/`y`: the most it moves each way;
+ * `lookAhead`: s of road at top speed that sets which way the road's going; `ease`: s to settle on a new spot.
  */
-export const CAR_SPOT = { x: 0.25, y: 0.72 };
+export const CAR_SPOT = { x: { least: 0.24, most: 0.76 }, y: { least: 0.5, most: 0.74 }, lookAhead: { from: 0.4, to: 1.4 }, ease: 1.2 };
+
+/**
+ * The spot (CAR_SPOT) for the car with the road ahead going (dx, dy) from it on the map (y south: down the screen,
+ * north up): the car on the side the road isn't going to, and low unless the road runs down the screen.
+ */
+export function carSpot(dx: number, dy: number): { x: number; y: number } {
+  const len = Math.hypot(dx, dy);
+  const ux = len > 0 ? dx / len : 0;
+  const uy = len > 0 ? dy / len : -1;
+  const { x, y } = CAR_SPOT;
+  const mid = (x.least + x.most) / 2;
+  return {
+    x: mid - (ux * (x.most - x.least)) / 2,
+    // (up the screen: the lowest; across it: between; down it: the middle, no higher)
+    y: Math.max(y.least, Math.min(y.most, y.most - ((uy + 1) / 2) * (y.most - y.least) * 1.4)),
+  };
+}
+
+/** The spot `now` eased toward `want` over `dt` s (CAR_SPOT.ease). */
+export function easeSpot(now: { x: number; y: number }, want: { x: number; y: number }, dt: number): { x: number; y: number } {
+  const k = 1 - Math.exp(-dt / CAR_SPOT.ease);
+  return { x: now.x + (want.x - now.x) * k, y: now.y + (want.y - now.y) * k };
+}
 
 /** The stage's camera (race.ts): CAMERA_NEAR closer than TOP-DOWN's framing for the way the car's going. */
 export function stageFraming(dx: number, dy: number, screen: SightScreen, topSpeed: number): { zoom: number } {

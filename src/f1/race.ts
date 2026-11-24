@@ -19,7 +19,7 @@ import { conditionOf, fixedForecast } from './forecast';
 import { COMPOUNDS, fitTyres, tyreFor } from './tyres';
 import { advance as nextPrompt, apexesPassed, newOnboarding, prompt, STEPS, teaches, type Device, type Onboarding } from './onboarding';
 import { RESCUE, newRescue, stepRescue } from './rescue';
-import { CAR_SPOT, SIGHT, bestKey, groundAt as spotOnGround, rallyCar, stageFraming, styleHandling } from './style';
+import { CAR_SPOT, SIGHT, bestKey, carSpot, easeSpot, groundAt as spotOnGround, rallyCar, stageFraming, styleHandling } from './style';
 import { LIGHTS, newRace, running, stepRace, type Entrant, type Race, type RaceEvent } from './raceControl';
 import { createCarMesh, type CarMesh } from '../engine/render/vehicles3d';
 import { DustLayer, dustKindOf } from '../engine/render/dust';
@@ -534,7 +534,9 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
           const c = race.entrants[you].car;
           return { x: c.x, y: c.y, heading: c.heading, speed: Math.hypot(c.vx, c.vy), vx: c.vx, vy: c.vy };
         },
-        /** where your car is drawn on the screen (0…1 across and down; the camera holds it at the middle) */
+        /** where your car is drawn on the screen (0…1 across and down) */
+        /** where the camera wants your car on the screen now (0…1 across and down, eased) */
+        spot: () => spotNow && { ...spotNow },
         carOnScreen: () => {
           const c = race.entrants[you].car;
           const v = new THREE.Vector3(c.x, c.z, c.y).project(camera);
@@ -711,6 +713,23 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
   let lookAt: { x: number; y: number } | undefined;
   /** the way the camera frames the road for (radians, eased; style.ts: SIGHT) */
   let sightWay: number | undefined;
+  /** where your car is held on the screen (eased; style.ts CAR_SPOT), undefined: snapped to it after a restart */
+  let spotNow: { x: number; y: number } | undefined;
+  /** the middle of the road over the stretch ahead of your car (CAR_SPOT.lookAhead s of it at `topSpeed`) */
+  const roadAhead = (topSpeed: number) => {
+    const n = track.samples.length;
+    const idx = race.entrants[you].progress.idx;
+    const from = Math.round((CAR_SPOT.lookAhead.from * topSpeed) / track.spacing);
+    const to = Math.max(from + 1, Math.round((CAR_SPOT.lookAhead.to * topSpeed) / track.spacing));
+    let x = 0;
+    let y = 0;
+    for (let k = from; k <= to; k++) {
+      const q = track.samples[track.open === false ? (idx + k) % n : Math.min(n - 1, idx + k)];
+      x += q.x;
+      y += q.y;
+    }
+    return { x: x / (to - from + 1), y: y / (to - from + 1) };
+  };
   const setFov = (fov: number) => {
     if (camera.fov === fov) return;
     camera.fov = fov;
@@ -1060,7 +1079,7 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
     rain.draw(dt, race.rain);
     skids.update(dt);
 
-    // camera: your car held at one spot of the screen, whatever its speed or way (no lead, no lag: style.ts CAR_SPOT)
+    // camera: your car held at a spot of the screen that eases over as the road coming bends (style.ts CAR_SPOT)
     const c = me.car;
     const drawn = pose(c, you, alpha);
     // (the zoom, for the way the car's going, eased: style.ts)
@@ -1077,9 +1096,13 @@ export const stageOn = (layout: CircuitLayout, onQuit: () => void, options: Stag
       // (the debug hook's: the camera on a point of the map)
       target.set(lookAt.x, groundAt(grid, lookAt.x, lookAt.y).h, lookAt.y);
     } else {
-      // (aimed short of the car by as much as puts it at CAR_SPOT, at the zoom the picture has now; its height too, so
+      // (aimed short of the car by as much as puts it at its spot, at the zoom the picture has now; its height too, so
       // a jump or a crest doesn't nudge it on the screen)
-      const off = spotOnGround(CAR_SPOT, { width: viewW, height: viewH }, (framing.zoom * debugZoom) / (1 + RUSH.pullBack * rushNow));
+      // (which way the road's going: from the car to the middle of the road over the next stretch)
+      const ahead = roadAhead(c.cls.topSpeed);
+      const want = carSpot(ahead.x - c.x, ahead.y - c.y);
+      spotNow = !spotNow || !before ? want : easeSpot(spotNow, want, dt);
+      const off = spotOnGround(spotNow, { width: viewW, height: viewH }, (framing.zoom * debugZoom) / (1 + RUSH.pullBack * rushNow));
       target.set(drawn.x - off.x, drawn.z, drawn.y - off.y);
     }
     focus.copy(target);
