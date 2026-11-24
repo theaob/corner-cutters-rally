@@ -6,7 +6,7 @@ import { NORMAL, handlingFor } from '../src/f1/difficulty';
 import { CC_SAVE } from '../src/f1/save';
 import * as THREE from 'three';
 import { HD2D_VIEW } from '../src/engine/look';
-import { CAMERA_NEAR, CAR_SPOT, SIGHT, TOP_DOWN, groundAt, onScreen, stageFraming, bestKey, rallyCar, sightAhead, styleHandling, topDownFraming, type SightScreen } from '../src/f1/style';
+import { CAMERA_NEAR, CAR_SPOT, SIGHT, TOP_DOWN, carSpot, easeSpot, groundAt, onScreen, stageFraming, bestKey, rallyCar, sightAhead, styleHandling, topDownFraming, type SightScreen } from '../src/f1/style';
 
 const memory = (): SaveStore => {
   const items = new Map<string, string>();
@@ -109,26 +109,56 @@ describe("TOP-DOWN's camera (P2: even sight)", () => {
     }
   });
 
-  it('holds the car at CAR_SPOT: the camera aimed short of it by groundAt puts it there, at any zoom', () => {
-    expect(CAR_SPOT.x).toBeGreaterThan(0.1);
-    expect(CAR_SPOT.x).toBeLessThan(0.9);
-    expect(CAR_SPOT.y).toBeGreaterThan(0.1);
-    expect(CAR_SPOT.y).toBeLessThan(0.9);
+  it('holds the car at its spot: the camera aimed short of it by groundAt puts it there, at any zoom', () => {
     for (const screen of [NARROW, PHONE]) {
-      for (const zoom of [0.4, 0.74, 1.2]) {
-        const g = groundAt(CAR_SPOT, screen, zoom);
-        const q = onScreen(g.x, g.y, screen, zoom);
-        expect(q.x / screen.width + 0.5).toBeCloseTo(CAR_SPOT.x, 6);
-        expect(q.y / screen.height + 0.5).toBeCloseTo(CAR_SPOT.y, 6);
+      for (const spot of [carSpot(0, -1), carSpot(1, 0), carSpot(-1, 1)]) {
+        for (const zoom of [0.4, 0.74, 1.2]) {
+          const g = groundAt(spot, screen, zoom);
+          const q = onScreen(g.x, g.y, screen, zoom);
+          expect(q.x / screen.width + 0.5).toBeCloseTo(spot.x, 6);
+          expect(q.y / screen.height + 0.5).toBeCloseTo(spot.y, 6);
+        }
       }
       expect(groundAt({ x: 0.5, y: 0.5 }, screen, 0.7)).toEqual({ x: 0, y: 0 });
     }
   });
 
-  it('shows over 0.3 s of road ahead at top speed every way from CAR_SPOT, and over 1.2 s driving up the screen', () => {
+  it('puts the car on the side the road is not going to, and never above the middle of the screen', () => {
+    // (the road ahead bending left: the car over on the right; bending right: on the left)
+    expect(carSpot(-1, -1).x).toBeGreaterThan(0.6);
+    expect(carSpot(1, -1).x).toBeLessThan(0.4);
+    expect(carSpot(-1, 0).x).toBeCloseTo(CAR_SPOT.x.most);
+    expect(carSpot(1, 0).x).toBeCloseTo(CAR_SPOT.x.least);
+    // (straight up the screen: the middle across, low)
+    expect(carSpot(0, -1)).toEqual({ x: 0.5, y: CAR_SPOT.y.most });
+    for (let k = 0; k < 32; k++) {
+      const s = carSpot(Math.sin((k / 32) * 2 * Math.PI), -Math.cos((k / 32) * 2 * Math.PI));
+      expect(s.y, `way ${k}/32`).toBeGreaterThanOrEqual(0.5);
+      expect(s.x).toBeGreaterThanOrEqual(CAR_SPOT.x.least - 1e-9);
+      expect(s.x).toBeLessThanOrEqual(CAR_SPOT.x.most + 1e-9);
+    }
+    // (down the screen: up to the middle, no further)
+    expect(carSpot(0, 1).y).toBe(0.5);
+  });
+
+  it('eases over to a new spot slowly, never past it', () => {
+    let s = { x: 0.24, y: 0.74 };
+    const want = { x: 0.76, y: 0.5 };
+    s = easeSpot(s, want, 1 / 60);
+    expect(s.x - 0.24).toBeLessThan(0.01);
+    for (let i = 0; i < 60 * CAR_SPOT.ease; i++) s = easeSpot(s, want, 1 / 60);
+    // (about two thirds of the way in CAR_SPOT.ease s)
+    expect(s.x).toBeGreaterThan(0.55);
+    expect(s.x).toBeLessThan(0.65);
+    for (let i = 0; i < 600; i++) s = easeSpot(s, want, 1 / 60);
+    expect(s.x).toBeLessThanOrEqual(0.76);
+    expect(s.x).toBeCloseTo(0.76, 2);
+  });
+
+  it('shows over 0.4 s of road ahead at top speed every way from its spot, and over 1.2 s driving up the screen', () => {
     const sight = (ux: number, uy: number, screen: SightScreen) => {
       const zoom = stageFraming(ux, uy, screen, TOP).zoom;
-      const g = groundAt(CAR_SPOT, screen, zoom);
+      const g = groundAt(carSpot(ux, uy), screen, zoom);
       let t = 0;
       while (t < 3000) {
         const q = onScreen(g.x + ux * t, g.y + uy * t, screen, zoom);
@@ -138,7 +168,7 @@ describe("TOP-DOWN's camera (P2: even sight)", () => {
       return t / TOP;
     };
     for (const screen of [NARROW, PHONE]) {
-      for (let k = 0; k < 16; k++) expect(sight(Math.sin((k / 16) * 2 * Math.PI), -Math.cos((k / 16) * 2 * Math.PI), screen), `way ${k}/16`).toBeGreaterThan(0.3);
+      for (let k = 0; k < 16; k++) expect(sight(Math.sin((k / 16) * 2 * Math.PI), -Math.cos((k / 16) * 2 * Math.PI), screen), `way ${k}/16`).toBeGreaterThan(0.4);
       expect(sight(0, -1, screen)).toBeGreaterThan(1.2);
     }
   });
